@@ -1,0 +1,67 @@
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineRefine, useMineBuyMasteryStartBoost } from '@state/miningSelectors';
+import { formatNumber } from '@shared/format';
+
+/** 工房/転生モーダル: 熟練度(永続)／素材・精錬／恒久強化／転生。周回後に開いて整える。 */
+export function MiningPrestige({ onClose }: { onClose: () => void }) {
+  const p = useMinePrestige();
+  const doPrestige = useMinePrestigeAct();
+  const buyPerm = useMineBuyPerm();
+  const refine = useMineRefine();
+  const buyStartBoost = useMineBuyMasteryStartBoost();
+
+  return (
+    <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-bold text-stone-100">🔧 工房 / 転生</h2>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-stone-500">転生 {p.prestiges}回</span>
+          <button onClick={onClose} className="rounded-md bg-stone-700 px-2 py-0.5 text-xs text-stone-200 hover:bg-stone-600">✕ 閉じる</button>
+        </div>
+      </div>
+
+      {/* 熟練度（周回しても消えない） */}
+      <div className="flex items-center justify-between rounded-lg bg-indigo-950/60 p-2.5 ring-1 ring-indigo-500/40">
+        <div className="text-[12px] text-indigo-100">
+          🎓 熟練度 <b>{p.mastery.total}</b>
+          <span className="ml-1 text-[10px] text-indigo-300">全武器ダメージ +{p.mastery.pct}%（永続）・残高 {p.mastery.balance}</span>
+        </div>
+        <button onClick={buyStartBoost} disabled={!p.mastery.canStartBoost} title="毎走の開始ブーストを恒久+1"
+          className={['rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.mastery.canStartBoost ? 'bg-indigo-400 text-stone-900 hover:bg-indigo-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
+          🔥開始+1 <span className="ml-0.5">🎓{formatNumber(p.mastery.startBoostCost)}</span>（Lv{p.mastery.startBoostLv}）
+        </button>
+      </div>
+
+      {/* 素材（保持）＋精錬 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-stone-200">
+        <span className="text-[10px] text-stone-500">素材</span>
+        {p.materials.map((m) => <span key={m.id} title={m.name}>{m.emoji} {formatNumber(m.count)}</span>)}
+        <span className="text-stone-600">｜精錬</span>
+        {p.refines.map((r) => (
+          <button key={r.from} onClick={() => refine(r.from)} disabled={!r.can} title={`${r.fromEmoji}${r.ratio}個 → ${r.toEmoji}1個`}
+            className={['rounded px-1.5 py-0.5 text-[11px]', r.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
+            {r.fromEmoji}{r.ratio}→{r.toEmoji}
+          </button>
+        ))}
+      </div>
+
+      {/* 恒久強化（素材で買う・次走から有効）— 3列グリッド */}
+      <div>
+        <div className="mb-1 text-[10px] text-stone-500">恒久強化（次の潜りから・素材で購入）</div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {p.perms.map((u) => (
+            <button key={u.id} onClick={() => buyPerm(u.id)} disabled={!u.can}
+              className={['flex items-center justify-between rounded-md px-2 py-1 text-[11px] shadow transition', u.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
+              <span className="truncate">{u.emoji}<b className="text-amber-300">{u.lv}</b></span>
+              <span className="ml-1 whitespace-nowrap text-[10px]">{u.matEmoji}{formatNumber(u.cost)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button onClick={doPrestige}
+        className="rounded-lg bg-fuchsia-600 px-2 py-2 text-sm font-bold text-white shadow ring-2 ring-fuchsia-300 transition hover:bg-fuchsia-500 active:scale-95">
+        🔄 転生する（階・Lv・走行強化・コインをリセット／素材・恒久・熟練度は保持）
+      </button>
+    </div>
+  );
+}

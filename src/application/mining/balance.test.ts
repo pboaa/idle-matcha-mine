@@ -1,0 +1,37 @@
+import { describe, it, expect } from 'vitest';
+import { initialMineState, type MineState } from '@application/mining/mineState';
+import { stepMine } from '@application/mining/step';
+import { defaultMiningBalance, WEAPON_IDS, choiceMeta } from '@domain/mining/balance';
+import { totalTilesOf } from '@domain/mining/tile';
+
+/** 採掘バランスの自動監視（数値はここを見て調整する）。 */
+describe('mining/balance', () => {
+  const total = totalTilesOf(defaultMiningBalance);
+
+  it('5分の進捗・コイン・成長（調整の目安／壊れていない）', () => {
+    let s: MineState = initialMineState();
+    for (const min of [1, 3, 5]) {
+      s = stepMine(s, min * 60_000 - s.time);
+      const weapons = WEAPON_IDS.filter((w) => s.levels[w] > 0).map((w) => choiceMeta(w).emoji);
+      console.log(`${min}分: 階${s.floor + 1} 掘削${((s.dug.size / total) * 100).toFixed(1)}% コイン${s.coins} Lv${s.level} 目利き${s.meta.appraise} 武器[${weapons.join('')}] pickLv${s.levels.pick}`);
+    }
+    // 武器ごとのダメージ寄与（調整の指標）
+    const tot = WEAPON_IDS.reduce((a, w) => a + s.dmgByWeapon[w], 0);
+    const share = WEAPON_IDS.filter((w) => s.dmgByWeapon[w] > 0).map((w) => `${choiceMeta(w).emoji}${tot > 0 ? Math.round((s.dmgByWeapon[w] / tot) * 100) : 0}%`);
+    console.log(`ダメージ内訳: ${share.join(' ')}`);
+    expect(s.meta.appraise).toBeGreaterThan(0);
+    expect(s.dug.size).toBeGreaterThan(10);
+    expect(s.dmgByWeapon.pick).toBeGreaterThan(0);
+  });
+
+  it('ツルハシが主役（武器無しでも掘れる／全武器ありでも極端に速くない）', () => {
+    const pickOnly = stepMine(initialMineState(), 120_000); // 自動で武器も付くので…
+    // 武器を完全に無効化した状態(pickのみ固定)で比較
+    let onlyPick: MineState = { ...initialMineState(), autoMode: false }; // レベルアップ提示を保留＝強化が乗らない
+    onlyPick = stepMine(onlyPick, 120_000);
+    const pickDug = onlyPick.dug.size;
+    console.log(`2分: 自動強化あり 掘削${pickOnly.dug.size} / ピックのみ(強化保留) 掘削${pickDug}`);
+    expect(pickDug).toBeGreaterThan(5); // ピックだけでも掘れる
+    expect(pickOnly.dug.size).toBeLessThan(pickDug * 8); // 武器で極端には速くならない
+  }, 20000);
+});

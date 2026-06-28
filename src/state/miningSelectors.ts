@@ -1,0 +1,210 @@
+import { useMemo } from 'react';
+import { sameCell } from '@domain/grid/position';
+import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness } from '@domain/mining/tile';
+import type { MineState } from '@application/mining/mineState';
+import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, masteryMul, masteryStartBoostCost } from '@application/mining/upgrades';
+import { permCost, permMaterial, type PermId } from '@application/mining/prestige';
+import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
+import {
+  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, defaultMiningBalance, choiceMeta, isWeapon,
+  WEAPON_DEFS, PASSIVE_DEFS,
+  type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern,
+} from '@domain/mining/balance';
+import { useMiningStore } from '@state/miningStore';
+
+export const VIEW_W = 19;
+export const VIEW_H = 15;
+const B = defaultMiningBalance;
+const BASE = baseOf(B);
+const TOTAL_TILES = totalTilesOf(B);
+const matEmoji = (id: MaterialId): string => B.kinds[id].emoji;
+
+// ===== 盤面ビュー =====
+export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number }
+export interface MineDropVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string }
+export interface MineViewVM {
+  readonly w: number; readonly h: number;
+  readonly tiles: readonly MineTileVM[]; readonly drops: readonly MineDropVM[];
+  readonly catRx: number; readonly catRy: number;
+  /** 所持武器の絵文字（猫の周りを回る演出用）。 */
+  readonly orbit: readonly string[];
+}
+
+export function buildMineView(state: MineState): MineViewVM {
+  const x0 = state.cam.x - (VIEW_W - 1) / 2;
+  const y0 = state.cam.y - (VIEW_H - 1) / 2;
+  const front = miningFrontCell(state);
+  const hp = tileHardness(state.floor, B);
+  const tiles: MineTileVM[] = [];
+  for (let ry = 0; ry < VIEW_H; ry++) {
+    for (let rx = 0; rx < VIEW_W; rx++) {
+      const c = { x: x0 + rx, y: y0 + ry };
+      const isFront = front !== null && sameCell(c, front);
+      if (!inBounds(c, B)) { tiles.push({ rx, ry, kind: 'wall', color: '#1c1917', isBase: false, front: false, crack: 0 }); continue; }
+      const k = `${c.x},${c.y}`;
+      const dug = state.dug.has(k);
+      const ratio = dug ? 0 : Math.min(1, (state.damage.get(k) ?? 0) / hp);
+      tiles.push({ rx, ry, kind: dug ? 'dug' : 'solid', color: dug ? '#2e2a26' : kindAt(c, state.floor, B).color, isBase: c.x === BASE.x && c.y === BASE.y, front: isFront, crack: ratio <= 0 ? 0 : Math.min(3, 1 + Math.floor(ratio * 3)) });
+    }
+  }
+  const drops: MineDropVM[] = [];
+  for (const d of state.drops) {
+    const rx = d.x - x0; const ry = d.y - y0;
+    if (rx >= -1 && rx <= VIEW_W && ry >= -1 && ry <= VIEW_H) drops.push({ id: d.id, rx, ry, emoji: d.emoji });
+  }
+  const orbit = WEAPON_IDS.filter((w) => state.levels[w] > 0).map((w) => choiceMeta(w).emoji);
+  return { w: VIEW_W, h: VIEW_H, tiles, drops, catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0, orbit };
+}
+
+// front を selectors 内で再計算（step に依存しすぎない簡易版）
+function miningFrontCell(state: MineState): { x: number; y: number } | null {
+  const { cat } = state;
+  if (!cat.target || sameCell(cat.pos, cat.target)) return null;
+  const dx = cat.target.x - cat.pos.x; const dy = cat.target.y - cat.pos.y;
+  const n = Math.abs(dx) >= Math.abs(dy) && dx !== 0 ? { x: cat.pos.x + Math.sign(dx), y: cat.pos.y } : dy !== 0 ? { x: cat.pos.x, y: cat.pos.y + Math.sign(dy) } : cat.pos;
+  if (sameCell(n, cat.pos)) return null;
+  return inBounds(n, B) && !state.dug.has(`${n.x},${n.y}`) ? n : null;
+}
+
+// ===== アイテム詳細説明（数値つき） =====
+const TAG_LABEL: Record<WeaponTag, string> = { melee: '近接', shot: '射撃', beam: 'ビーム', field: '範囲' };
+const PATTERN_DESC: Record<WeaponPattern, string> = {
+  front: '前方1マス', nearest: '最寄り1マス', burst: '着弾点3x3', cross: '十字方向', forward: '進行方向へ貫通', around: '周囲全体', ring: '外周リング',
+};
+const SYNERGY_BY_TAG: Record<WeaponTag, PassiveId> = { melee: 'whet', shot: 'powder', beam: 'lens', field: 'echo' };
+
+function weaponDetail(id: WeaponId, lv: number): string {
+  const def = WEAPON_DEFS[id];
+  const nLv = lv + 1;
+  const dmg = weaponDmg(def, nLv);
+  const range = weaponRange(def, nLv, 0);
+  const syn = PASSIVE_DEFS[SYNERGY_BY_TAG[def.tag]];
+  const lvtxt = lv > 0 ? `Lv${lv}→${nLv}` : '新規入手';
+  return `${PATTERN_DESC[def.pattern]}を攻撃（系統:${TAG_LABEL[def.tag]}）。威力 ${dmg.toFixed(2)}・射程 ${range} ／ ${lvtxt}。シナジー ${syn.emoji}${syn.label} で強化`;
+}
+
+function passiveDetail(id: PassiveId, lv: number): string {
+  const def = PASSIVE_DEFS[id];
+  const nLv = lv + 1;
+  const lvtxt = lv > 0 ? `Lv${lv}→${nLv}` : '新規入手';
+  if (def.effect === 'range' || def.effect === 'pierce') {
+    const unit = def.effect === 'pierce' ? '貫通' : '射程';
+    return `${def.desc}。${unit} +${def.perLvl}/Lv（合計 +${Math.floor(def.perLvl * nLv)}）／ ${lvtxt}`;
+  }
+  const per = Math.round(def.perLvl * 100);
+  const total = Math.round(def.perLvl * nLv * 100);
+  const tag = def.targetWeapon ? '（武器固有）' : '';
+  return `${def.desc}${tag}。+${per}%/Lv（合計 +${total}%）／ ${lvtxt}`;
+}
+
+/** 選択肢/所持アイテムの詳細説明（現在レベル lv を踏まえ次Lvの効果も表示）。 */
+export const choiceDetail = (id: ChoiceId, lv: number): string =>
+  isWeapon(id) ? weaponDetail(id, lv) : passiveDetail(id as PassiveId, lv);
+
+// ===== HUD =====
+export interface MineOfferVM { readonly index: number; readonly label: string; readonly emoji: string; readonly desc: string; readonly detail: string; readonly lv: number; readonly rarity: OfferRarity; readonly bonusEmoji: string | null; readonly isWeapon: boolean }
+export interface MineGearVM { readonly emoji: string; readonly label: string; readonly lv: number; readonly detail: string }
+export interface MineDmgShareVM { readonly emoji: string; readonly label: string; readonly pct: number }
+/** 強化（パッシブ/ブースト）の威力への倍率影響。 */
+export interface MineDmgModVM { readonly emoji: string; readonly label: string; readonly scope: string; readonly mult: number }
+export interface MineMetaVM { readonly appraiseLv: number; readonly appraiseCost: number; readonly canAppraise: boolean; readonly appraiseMaxed: boolean; readonly rarePct: number; readonly epicPct: number }
+export interface MineBoostVM { readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
+export interface MineMasteryVM { readonly total: number; readonly pct: number; readonly balance: number }
+export interface MineHudVM {
+  readonly coins: number; readonly floor: number; readonly progressPct: number;
+  readonly level: number; readonly xp: number; readonly xpNext: number; readonly autoMode: boolean;
+  readonly offer: readonly MineOfferVM[];
+  readonly weapons: readonly MineGearVM[]; readonly passives: readonly MineGearVM[];
+  readonly weaponSlots: string; readonly passiveSlots: string;
+  readonly damageShare: readonly MineDmgShareVM[];
+  readonly damageMods: readonly MineDmgModVM[];
+  readonly meta: MineMetaVM;
+  readonly boost: MineBoostVM;
+  readonly mastery: MineMasteryVM;
+}
+
+/** 所持する強化のうち威力に効くものの現在倍率（ダメージ影響度）。 */
+function damageMods(state: MineState): MineDmgModVM[] {
+  const t = passiveTotals(state.levels);
+  const out: MineDmgModVM[] = [];
+  const add = (id: PassiveId, scope: string, mult: number): void => {
+    if (state.levels[id] > 0) out.push({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, scope, mult });
+  };
+  if (state.masteryTotal > 0) out.push({ emoji: '🎓', label: '熟練', scope: '全武器', mult: masteryMul(state.masteryTotal) });
+  if (state.boost > 0) out.push({ emoji: '🔥', label: 'ブースト', scope: '全武器', mult: boostMul(state.boost) });
+  if (t.power > 0) out.push({ emoji: '💪', label: '威力系', scope: '全武器', mult: 1 + t.power }); // 威力＋強撃の合算
+  add('crit', '平均', 1 + t.crit * (B.critMult - 1));
+  add('whet', '近接', 1 + t.meleeDmg);
+  add('powder', '射撃', 1 + t.shotDmg);
+  add('lens', 'ビーム', 1 + t.beamDmg);
+  add('echo', '範囲', 1 + t.fieldDmg);
+  // 武器固有ユニーク（その武器だけに乗る倍率）
+  for (const id of PASSIVE_IDS) {
+    const def = PASSIVE_DEFS[id];
+    if (!def.targetWeapon || state.levels[id] <= 0) continue;
+    out.push({ emoji: def.emoji, label: def.label, scope: choiceMeta(def.targetWeapon).label, mult: 1 + t.perWeapon[def.targetWeapon] });
+  }
+  return out;
+}
+
+export function buildMineHud(state: MineState): MineHudVM {
+  const weapons = WEAPON_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]) }));
+  const passives = PASSIVE_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]) }));
+  const totalDmg = WEAPON_IDS.reduce((a, w) => a + state.dmgByWeapon[w], 0);
+  return {
+    coins: Math.floor(state.coins), floor: state.floor,
+    progressPct: Math.min(100, (state.dug.size / TOTAL_TILES) * 100),
+    level: state.level, xp: Math.floor(state.xp), xpNext: xpForNext(state.level), autoMode: state.autoMode,
+    offer: (state.offer ?? []).map((ch, index) => ({ index, label: choiceMeta(ch.id).label, emoji: choiceMeta(ch.id).emoji, desc: choiceMeta(ch.id).desc, detail: choiceDetail(ch.id, state.levels[ch.id]), lv: state.levels[ch.id], rarity: ch.rarity, bonusEmoji: ch.bonus ? choiceMeta(ch.bonus).emoji : null, isWeapon: isWeapon(ch.id) })),
+    weapons, passives,
+    weaponSlots: `${weapons.length}/${B.maxWeapons}`, passiveSlots: `${passives.length}`,
+    damageShare: WEAPON_IDS.filter((w) => state.dmgByWeapon[w] > 0).map((w) => ({ emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, pct: totalDmg > 0 ? (state.dmgByWeapon[w] / totalDmg) * 100 : 0 })).sort((a, b) => b.pct - a.pct),
+    damageMods: damageMods(state),
+    meta: { appraiseLv: state.meta.appraise, appraiseCost: appraiseCost(state.meta.appraise), canAppraise: !appraiseCapped(state.meta.appraise) && state.coins >= appraiseCost(state.meta.appraise), appraiseMaxed: appraiseCapped(state.meta.appraise), rarePct: Math.round(rareChance(state.meta.appraise) * 100), epicPct: Math.round(epicChance(state.meta.appraise) * 100) },
+    boost: { lv: state.boost, cost: boostCost(state.boost), can: state.coins >= boostCost(state.boost), pct: Math.round((boostMul(state.boost) - 1) * 100) },
+    mastery: { total: state.masteryTotal, pct: Math.round((masteryMul(state.masteryTotal) - 1) * 100), balance: state.mastery },
+  };
+}
+
+// ===== 転生パネル =====
+export interface MineMatVM { readonly id: MaterialId; readonly emoji: string; readonly name: string; readonly count: number }
+export interface MinePermVM { readonly id: PermId; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
+export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: string; readonly toEmoji: string; readonly ratio: number; readonly can: boolean }
+export interface MineMasteryPerkVM { readonly total: number; readonly balance: number; readonly pct: number; readonly startBoostLv: number; readonly startBoostCost: number; readonly canStartBoost: boolean }
+export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryPerkVM }
+
+const PERM_IDS: readonly PermId[] = [...WEAPON_IDS, ...PASSIVE_IDS, 'appraise'];
+const permLabel = (id: PermId): { emoji: string; label: string } => id === 'appraise' ? { emoji: '🔎', label: '目利き' } : { emoji: choiceMeta(id as ChoiceId).emoji, label: choiceMeta(id as ChoiceId).label };
+
+export function buildPrestige(state: MineState): MinePrestigeVM {
+  return {
+    prestiges: state.prestiges,
+    materials: MATERIAL_IDS.map((id) => ({ id, emoji: B.kinds[id].emoji, name: B.kinds[id].name, count: state.materials[id] })),
+    perms: PERM_IDS.map((id) => {
+      const meta = permLabel(id);
+      const lv = id === 'appraise' ? state.perm.appraise : state.perm.levels[id];
+      const mat = permMaterial(id);
+      const cost = permCost(id, state.perm);
+      return { id, emoji: meta.emoji, label: meta.label, lv, matEmoji: matEmoji(mat), cost, can: state.materials[mat] >= cost };
+    }),
+    refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
+    mastery: {
+      total: state.masteryTotal, balance: state.mastery, pct: Math.round((masteryMul(state.masteryTotal) - 1) * 100),
+      startBoostLv: state.perm.startBoost, startBoostCost: masteryStartBoostCost(state.perm.startBoost),
+      canStartBoost: state.mastery >= masteryStartBoostCost(state.perm.startBoost),
+    },
+  };
+}
+
+// ===== フック =====
+export const useMineView = (): MineViewVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildMineView(s), [s]); };
+export const useMineHud = (): MineHudVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildMineHud(s), [s]); };
+export const useMinePrestige = (): MinePrestigeVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildPrestige(s), [s]); };
+export const useMineChoose = (): ((index: number) => void) => useMiningStore((s) => s.chooseOffer);
+export const useMineToggleAuto = (): (() => void) => useMiningStore((s) => s.toggleAuto);
+export const useMineBuyAppraise = (): (() => void) => useMiningStore((s) => s.buyAppraise);
+export const useMineBuyBoost = (): (() => void) => useMiningStore((s) => s.buyBoost);
+export const useMineBuyMasteryStartBoost = (): (() => void) => useMiningStore((s) => s.buyMasteryStartBoost);
+export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
+export const useMineBuyPerm = (): ((id: PermId) => void) => useMiningStore((s) => s.buyPerm);
+export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);
