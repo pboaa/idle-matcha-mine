@@ -4,9 +4,9 @@ import { createRng, type Rng } from '@shared/rng';
 import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileValue } from '@domain/mining/tile';
-import { type MineState } from '@application/mining/mineState';
+import { type MineState, type Levels } from '@application/mining/mineState';
 import { xpForNext, makeOffer, autoPick, appraiseCost, appraiseCapped, boostCost, boostMul } from '@application/mining/upgrades';
-import { passiveTotals, weaponDmg, weaponRange, weaponMult } from '@application/mining/weapons';
+import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
 export const MINE_STEP_MS = 100;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
@@ -50,6 +50,42 @@ export function miningFront(state: MineState, b: MiningBalance = defaultMiningBa
   if (!cat.target || sameCell(cat.pos, cat.target)) return null;
   const next = stepToward(cat.pos, cat.target);
   return isSolid(state.dug, next, b) ? next : null;
+}
+
+/** 武器発射に必要な文脈（1tick分・読み取り専用）。 */
+interface FireCtx {
+  readonly dug: ReadonlySet<string>;
+  readonly pos: Cell;
+  readonly target: Cell | null;
+  readonly levels: Levels;
+  readonly totals: EffectTotals;
+  readonly globalMul: number; // 採掘ブースト×熟練度（全武器共通）
+  readonly dt: number;
+  readonly rangeBonus: number;
+  readonly pierceBonus: number;
+  readonly b: MiningBalance;
+}
+
+/** 所持する全武器を pattern に従って毎tick発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
+function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
+  const { dug, pos, target, levels: L, totals: t, globalMul, dt, rangeBonus, pierceBonus, b } = ctx;
+  for (const id of WEAPON_IDS) {
+    const lvl = L[id];
+    if (lvl <= 0) continue;
+    const def = WEAPON_DEFS[id];
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * globalMul * dt;
+    const range = weaponRange(def, lvl, rangeBonus);
+    const lineRange = range + pierceBonus; // 直線系は貫通で奥まで
+    switch (def.pattern) {
+      case 'front': { if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) deal(f, dmg, id); } break; }
+      case 'nearest': { const c = nearestSolid(dug, pos, range, b); if (c) deal(c, dmg, id); break; }
+      case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); break; }
+      case 'cross': { for (const [dx, dy] of DIRS) for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + dx * r, y: pos.y + dy * r }, dmg, id); break; }
+      case 'forward': { const d = target ? dirToward(pos, target) : { x: 1, y: 0 }; for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmg, id); break; }
+      case 'around': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
+      case 'ring': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === range) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
+    }
+  }
 }
 
 function descend(state: MineState, b: MiningBalance): MineState {
@@ -114,23 +150,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
 
   // 武器発射（所持している全武器をパターンで毎tick）。採掘ブースト(コイン)＋熟練度(永続)が全武器に乗る。
   const globalMul = boostMul(state.boost, b) * (1 + state.masteryTotal * b.masteryPerLvl);
-  for (const id of WEAPON_IDS) {
-    const lvl = L[id];
-    if (lvl <= 0) continue;
-    const def = WEAPON_DEFS[id];
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * globalMul * dt;
-    const range = weaponRange(def, lvl, rangeBonus);
-    const lineRange = range + pierceBonus; // 直線系は貫通で奥まで
-    switch (def.pattern) {
-      case 'front': { if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) applyDmg(f, dmg, id); } break; }
-      case 'nearest': { const c = nearestSolid(dug, pos, range, b); if (c) applyDmg(c, dmg, id); break; }
-      case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) applyDmg({ x: c.x + dx, y: c.y + dy }, dmg, id); break; }
-      case 'cross': { for (const [dx, dy] of DIRS) for (let r = 1; r <= lineRange; r++) applyDmg({ x: pos.x + dx * r, y: pos.y + dy * r }, dmg, id); break; }
-      case 'forward': { const d = target ? dirToward(pos, target) : { x: 1, y: 0 }; for (let r = 1; r <= lineRange; r++) applyDmg({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmg, id); break; }
-      case 'around': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) applyDmg({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
-      case 'ring': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === range) applyDmg({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
-    }
-  }
+  fireWeapons({ dug, pos, target, levels: L, totals: t, globalMul, dt, rangeBonus, pierceBonus, b }, applyDmg);
 
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, materials }, b);
 
