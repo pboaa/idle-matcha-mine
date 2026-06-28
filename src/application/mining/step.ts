@@ -80,7 +80,13 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     const range = weaponRange(def, lvl, rangeBonus);
     const lineRange = range + pierceBonus; // 直線系は貫通で奥まで
     switch (def.pattern) {
-      case 'front': { if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) deal(f, dmg, id); } break; }
+      case 'front': { // ツルハシの横振り: 前方＋進行方向に垂直の2マス（3マスのスイング）。単体武器が深い階で埋もれない。
+        if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) {
+          const d = dirToward(pos, target); const perp = { x: d.y, y: d.x };
+          deal(f, dmg, id);
+          deal({ x: f.x + perp.x, y: f.y + perp.y }, dmg, id);
+          deal({ x: f.x - perp.x, y: f.y - perp.y }, dmg, id);
+        } } break; }
       case 'nearest': { const c = nearestSolid(dug, pos, range, b); if (c) deal(c, dmg, id); break; }
       case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); break; }
       case 'cross': { for (const [dx, dy] of DIRS) for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + dx * r, y: pos.y + dy * r }, dmg, id); break; }

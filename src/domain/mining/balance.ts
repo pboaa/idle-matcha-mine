@@ -26,9 +26,9 @@ export interface WeaponDef {
 }
 
 export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
-  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を掘る基本武器', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.24, rangeBase: 1, rangePerLvls: 99, fxColor: '#fbbf24' },
+  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を横振り（3マス）', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.28, rangeBase: 1, rangePerLvls: 99, fxColor: '#fbbf24' },
   bullet: { id: 'bullet', label: '弾', emoji: '🔫', desc: '近くの1マスを撃つ', tag: 'shot', pattern: 'nearest', baseDmg: 0.35, dmgPerLvl: 0.18, rangeBase: 5, rangePerLvls: 99, fxColor: '#f87171' },
-  bomb: { id: 'bomb', label: '爆弾', emoji: '💣', desc: '近くで小爆発（3x3）', tag: 'shot', pattern: 'burst', baseDmg: 0.16, dmgPerLvl: 0.07, rangeBase: 6, rangePerLvls: 99, fxColor: '#fb923c' },
+  bomb: { id: 'bomb', label: '爆弾', emoji: '💣', desc: '近くで小爆発（3x3）', tag: 'shot', pattern: 'burst', baseDmg: 0.12, dmgPerLvl: 0.055, rangeBase: 6, rangePerLvls: 99, fxColor: '#fb923c' },
   beam: { id: 'beam', label: 'ビーム', emoji: '⚡', desc: '十字に削る', tag: 'beam', pattern: 'cross', baseDmg: 0.07, dmgPerLvl: 0.03, rangeBase: 1, rangePerLvls: 3, fxColor: '#67e8f9' },
   drill: { id: 'drill', label: 'ドリル', emoji: '🌀', desc: '進行方向へ貫く', tag: 'beam', pattern: 'forward', baseDmg: 0.18, dmgPerLvl: 0.07, rangeBase: 2, rangePerLvls: 2, fxColor: '#a78bfa' },
   aura: { id: 'aura', label: 'オーラ', emoji: '💥', desc: '周囲をじわっと削る', tag: 'field', pattern: 'around', baseDmg: 0.045, dmgPerLvl: 0.02, rangeBase: 1, rangePerLvls: 4, fxColor: '#f472b6' },
