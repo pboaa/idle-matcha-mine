@@ -7,8 +7,8 @@ import { baseOf } from '@domain/mining/tile';
 export type { ChoiceId } from '@domain/mining/balance';
 
 export interface Drop { readonly id: number; readonly x: number; readonly y: number; readonly emoji: string; readonly value: number; readonly bornAt: number }
-/** 武器の命中演出（短命・描画専用）。cells はこのtickで当たったマス。 */
-export interface WeaponFx { readonly id: number; readonly weapon: WeaponId; readonly cells: readonly Cell[]; readonly bornAt: number }
+/** 武器の命中演出（短命・描画専用）。origin は発射元(猫)、cells はこのtickで当たったマス。 */
+export interface WeaponFx { readonly id: number; readonly weapon: WeaponId; readonly origin: Cell; readonly cells: readonly Cell[]; readonly bornAt: number }
 export interface MineCat { readonly pos: Cell; readonly gauge: number; readonly target: Cell | null }
 
 export type Levels = Record<ChoiceId, number>;

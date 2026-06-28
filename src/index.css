@@ -25,6 +25,8 @@
   --animate-coin-float: coin-float 1s ease-out forwards;
   --animate-pop: pop 0.25s ease-out;
   --animate-fx-flash: fx-flash 0.22s ease-out forwards;
+  --animate-fx-fade: fx-fade 0.22s ease-out forwards;
+  --animate-fx-burst: fx-burst 0.3s ease-out forwards;
 }
 
 /* 武器の命中エフェクト（ピカッと光ってすぐ消える） */
@@ -36,6 +38,28 @@
   100% {
     opacity: 0;
     transform: scale(1.15);
+  }
+}
+
+/* ビーム/ドリルの線（スッと引いて消える） */
+@keyframes fx-fade {
+  0% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 爆弾の爆発リング（パッと広がって消える） */
+@keyframes fx-burst {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.7);
   }
 }
 

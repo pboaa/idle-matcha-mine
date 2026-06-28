@@ -23,8 +23,11 @@ const matEmoji = (id: MaterialId): string => B.kinds[id].emoji;
 // ===== 盤面ビュー =====
 export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number }
 export interface MineDropVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string }
-/** 武器命中エフェクト（ビュー座標のマス群＋色）。 */
-export interface MineEffectVM { readonly id: number; readonly color: string; readonly cells: readonly { readonly rx: number; readonly ry: number }[] }
+/** 武器命中エフェクトの見た目種別（パターンから決まる）。 */
+export type MineEffectKind = 'line' | 'burst' | 'field' | 'impact';
+/** 武器命中エフェクト（ビュー座標のマス群＋発射元＋色＋種別）。 */
+export interface MineEffectVM { readonly id: number; readonly kind: MineEffectKind; readonly color: string; readonly ox: number; readonly oy: number; readonly cells: readonly { readonly rx: number; readonly ry: number }[] }
+const FX_KIND: Record<WeaponPattern, MineEffectKind> = { front: 'impact', nearest: 'impact', burst: 'burst', cross: 'line', forward: 'line', around: 'field', ring: 'field' };
 export interface MineViewVM {
   readonly w: number; readonly h: number;
   readonly tiles: readonly MineTileVM[]; readonly drops: readonly MineDropVM[];
@@ -69,7 +72,8 @@ export function buildMineView(state: MineState): MineViewVM {
     }
     if (cells.length === 0) continue;
     const take = cells.slice(0, fxBudget); fxBudget -= take.length;
-    effects.push({ id: f.id, color: WEAPON_DEFS[f.weapon].fxColor, cells: take });
+    const def = WEAPON_DEFS[f.weapon];
+    effects.push({ id: f.id, kind: FX_KIND[def.pattern], color: def.fxColor, ox: f.origin.x - x0, oy: f.origin.y - y0, cells: take });
   }
   const orbit = WEAPON_IDS.filter((w) => state.levels[w] > 0).map((w) => choiceMeta(w).emoji);
   return { w: VIEW_W, h: VIEW_H, tiles, drops, effects, catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0, orbit };

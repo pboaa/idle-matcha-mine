@@ -172,7 +172,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 武器の命中演出を追加（武器ごとに当たったマス）。古いものは寿命で消す。
   let fx = state.fx;
   if (hits.size > 0) {
-    const fresh = [...hits].map(([w, cells]) => ({ id: now * 8 + WEAPON_IDS.indexOf(w), weapon: w, cells, bornAt: now }));
+    const fresh = [...hits].map(([w, cells]) => ({ id: now * 8 + WEAPON_IDS.indexOf(w), weapon: w, origin: pos, cells, bornAt: now }));
     fx = [...fx, ...fresh];
   }
   if (fx.length > 0) { const keep = fx.filter((f) => now - f.bornAt < b.fxVisualMs); if (keep.length !== fx.length) fx = keep; }

@@ -61,6 +61,7 @@ describe('mining/step', () => {
     expect(s.fx.length).toBeGreaterThan(0);                       // 演出が出る
     expect(s.fx.every((f) => s.time - f.bornAt < defaultMiningBalance.fxVisualMs)).toBe(true); // 古いものは消える
     expect(s.fx.every((f) => f.cells.length > 0)).toBe(true);     // 当たったマスを持つ
+    expect(s.fx.every((f) => Number.isFinite(f.origin.x) && Number.isFinite(f.origin.y))).toBe(true); // 発射元(線描画用)
     expect(s.fx.some((f) => f.weapon === 'pick')).toBe(true);     // 初期武器ツルハシの演出
   });
 
