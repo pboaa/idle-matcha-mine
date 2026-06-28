@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { initialMineState, freshRun, emptyMaterials, emptyPerm } from '@application/mining/mineState';
+import { initialMineState, freshRun, emptyMaterials, emptyPerm, emptyMastery } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { defaultMiningBalance } from '@domain/mining/balance';
+import { defaultMiningBalance, WEAPON_IDS } from '@domain/mining/balance';
 
 describe('mining/step', () => {
   it('決定的（同じ初期状態・同じ時間で一致）', () => {
@@ -29,7 +29,7 @@ describe('mining/step', () => {
     let s = initialMineState(small);
     for (let i = 0; i < 60 && s.floor === 0; i++) s = stepMine(s, 5000, small);
     expect(s.floor).toBeGreaterThanOrEqual(1); // 掘り切って降りた
-    expect(s.dug.size).toBeLessThan(5); // 新しい階はリセット
+    expect(s.dug.size).toBeLessThan(25 / 2); // 新しい階はリセット（満タン25マスから大きく減っている）
   });
 
   it('採掘ブースト(コイン購入)で武器の総ダメージが増える', () => {
@@ -47,10 +47,11 @@ describe('mining/step', () => {
     expect(s.meta.appraise + s.boost).toBeGreaterThan(0); // どちらかにコインが回る
   });
 
-  it('熟練度(永続)は周回で序盤を速くする（移動/射程のスループット）', () => {
-    const fresh = (mt: number) => freshRun(defaultMiningBalance, emptyMaterials(), emptyPerm(), 0, 123456, mt, mt);
+  it('熟練度(永続)は周回で序盤を速くする（合計熟練の移動/射程スループット）', () => {
+    const masteryAll = (n: number) => { const m = emptyMastery(); for (const w of WEAPON_IDS) m[w] = n; return m; };
+    const fresh = (n: number) => freshRun(defaultMiningBalance, emptyMaterials(), emptyPerm(), 0, 123456, masteryAll(n));
     const low = stepMine(fresh(0), 60_000);
-    const high = stepMine(fresh(1000), 60_000); // 周回を重ねた状態
+    const high = stepMine(fresh(20), 60_000); // 周回を重ねた状態（各武器+20）
     expect(high.floor).toBeGreaterThan(low.floor); // 同じ時間でより深く潜れる＝サクサク
     expect(high.dug.size + high.floor * 900).toBeGreaterThan(low.dug.size + low.floor * 900); // 累計採掘量も多い
   });

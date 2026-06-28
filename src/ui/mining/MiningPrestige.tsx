@@ -1,4 +1,4 @@
-import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineRefine, useMineBuyMasteryStartBoost } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineRefine } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 /** 工房/転生モーダル: 熟練度(永続)／素材・精錬／恒久強化／転生。周回後に開いて整える。 */
@@ -7,7 +7,6 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
   const doPrestige = useMinePrestigeAct();
   const buyPerm = useMineBuyPerm();
   const refine = useMineRefine();
-  const buyStartBoost = useMineBuyMasteryStartBoost();
 
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
@@ -19,16 +18,17 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* 熟練度（周回しても消えない） */}
-      <div className="flex items-center justify-between rounded-lg bg-indigo-950/60 p-2.5 ring-1 ring-indigo-500/40">
+      {/* 熟練度（武器ごと・転生時に上がる永続強化） */}
+      <div className="flex flex-col gap-1 rounded-lg bg-indigo-950/60 p-2.5 ring-1 ring-indigo-500/40">
         <div className="text-[12px] text-indigo-100">
-          🎓 熟練度 <b>{p.mastery.total}</b>
-          <span className="ml-1 text-[10px] text-indigo-300">永続: ⚔️+{p.mastery.pct}% 🏃+{p.mastery.movePct}% 📏+{p.mastery.rangeBonus}（周回で序盤が速く）・残高 {p.mastery.balance}</span>
+          🎓 熟練度（武器ごと・<b>転生で使った武器ごとに +{p.mastery.gainPct}%</b>）
+          <span className="ml-1 text-[10px] text-indigo-300">合計{p.mastery.total} → 永続 🏃+{p.mastery.movePct}% 📏+{p.mastery.rangeBonus}（周回で序盤がサクサク）</span>
         </div>
-        <button onClick={buyStartBoost} disabled={!p.mastery.canStartBoost} title="毎走の開始ブーストを恒久+1"
-          className={['rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.mastery.canStartBoost ? 'bg-indigo-400 text-stone-900 hover:bg-indigo-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-          🔥開始+1 <span className="ml-0.5">🎓{formatNumber(p.mastery.startBoostCost)}</span>（Lv{p.mastery.startBoostLv}）
-        </button>
+        {p.mastery.perWeapon.length > 0 ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-indigo-200">
+            {p.mastery.perWeapon.map((w) => <span key={w.label} title={`${w.label} 熟練Lv${w.lv}`}>{w.emoji} Lv{w.lv} <span className="text-indigo-400">+{w.pct}%</span></span>)}
+          </div>
+        ) : <div className="text-[10px] text-indigo-400">まだ熟練度なし。転生すると、その走行で使った武器のダメージが恒久で上がる。</div>}
       </div>
 
       {/* 素材（保持）＋精錬 */}

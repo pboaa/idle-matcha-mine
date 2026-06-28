@@ -4,7 +4,7 @@ import { createRng, type Rng } from '@shared/rng';
 import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileValue } from '@domain/mining/tile';
-import { type MineState, type Levels } from '@application/mining/mineState';
+import { type MineState, type Levels, type WeaponMastery, totalMastery } from '@application/mining/mineState';
 import { xpForNext, makeOffer, autoPick, appraiseCost, appraiseCapped, boostCost, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
@@ -59,7 +59,9 @@ interface FireCtx {
   readonly target: Cell | null;
   readonly levels: Levels;
   readonly totals: EffectTotals;
-  readonly globalMul: number; // 採掘ブースト×熟練度（全武器共通）
+  readonly mastery: WeaponMastery;   // 武器ごとの熟練度（永続ダメージ）
+  readonly masteryPerLvl: number;
+  readonly globalMul: number; // 採掘ブースト（走行限定・全武器共通）
   readonly dt: number;
   readonly rangeBonus: number;
   readonly pierceBonus: number;
@@ -68,12 +70,13 @@ interface FireCtx {
 
 /** 所持する全武器を pattern に従って毎tick発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
 function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
-  const { dug, pos, target, levels: L, totals: t, globalMul, dt, rangeBonus, pierceBonus, b } = ctx;
+  const { dug, pos, target, levels: L, totals: t, mastery, masteryPerLvl, globalMul, dt, rangeBonus, pierceBonus, b } = ctx;
   for (const id of WEAPON_IDS) {
     const lvl = L[id];
     if (lvl <= 0) continue;
     const def = WEAPON_DEFS[id];
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * globalMul * dt;
+    const masteryMul = 1 + mastery[id] * masteryPerLvl; // 武器ごとの永続熟練度
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * masteryMul * globalMul * dt;
     const range = weaponRange(def, lvl, rangeBonus);
     const lineRange = range + pierceBonus; // 直線系は貫通で奥まで
     switch (def.pattern) {
@@ -114,9 +117,10 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
   const HP = tileHardness(state.floor, b);
-  // 熟練度（永続）はスループットにも効く: 移動速度＋射程。周回を重ねるほど序盤が速くなる（=サクサク）。
-  const masteryMove = state.masteryTotal * b.masteryMovePerLvl;
-  const masteryRange = Math.floor(state.masteryTotal * b.masteryRangePerLvl);
+  // 熟練度（永続）はスループットにも効く: 合計熟練で移動速度＋射程。周回を重ねるほど序盤が速くなる（=サクサク）。
+  const mTotal = totalMastery(state.mastery);
+  const masteryMove = mTotal * b.masteryMovePerLvl;
+  const masteryRange = Math.floor(mTotal * b.masteryRangePerLvl);
   const moveCost = b.moveCost / (1 + t.move + masteryMove);
   const coinMult = 1 + t.coin;
   const matChance = t.material;
@@ -153,9 +157,9 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射（所持している全武器をパターンで毎tick）。採掘ブースト(コイン)＋熟練度(永続)が全武器に乗る。
-  const globalMul = boostMul(state.boost, b) * (1 + state.masteryTotal * b.masteryPerLvl);
-  fireWeapons({ dug, pos, target, levels: L, totals: t, globalMul, dt, rangeBonus, pierceBonus, b }, applyDmg);
+  // 武器発射（所持している全武器をパターンで毎tick）。採掘ブースト(コイン)は全武器共通、熟練度(永続)は武器ごとに乗る。
+  const globalMul = boostMul(state.boost, b);
+  fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, globalMul, dt, rangeBonus, pierceBonus, b }, applyDmg);
 
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, materials }, b);
 
@@ -186,16 +190,14 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // レベルアップ解決（3択・レア度つき）。レベルごとに熟練度+1（周回しても消えない）。
+  // レベルアップ解決（3択・レア度つき）。熟練度は転生時に上がるのでここでは増えない。
   let xp = state.xp + xpGain;
   let level = state.level;
   let levels = state.levels;
   let offer = state.offer;
-  let masteryGain = 0;
   while (!offer && xp >= xpForNext(level, b)) {
     xp -= xpForNext(level, b);
     level += 1;
-    masteryGain += 1;
     const choices = makeOffer(rng, levels, meta.appraise, b);
     if (state.autoMode) {
       const ch = autoPick(choices, rng);
@@ -209,7 +211,6 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
     cat: { pos, gauge, target }, cam: { ...pos },
     xp, level, levels, offer, meta, boost, dmgByWeapon: dmgAcc, materials,
-    mastery: state.mastery + masteryGain, masteryTotal: state.masteryTotal + masteryGain,
   };
 }
 

@@ -71,13 +71,6 @@ export function buyBoost(state: MineState, b: MiningBalance = defaultMiningBalan
   return { ...state, coins: state.coins - cost, boost: state.boost + 1 };
 }
 
-// ===== 熟練度（永続）: 倍率は累計で自動、残高は開始ブースト解放に使う通貨 =====
-export const masteryMul = (masteryTotal: number, b: MiningBalance = defaultMiningBalance): number => 1 + masteryTotal * b.masteryPerLvl;
-export const masteryStartBoostCost = (unlocked: number, b: MiningBalance = defaultMiningBalance): number =>
-  Math.floor(b.masteryStartBoostBase * Math.pow(b.masteryStartBoostGrowth, unlocked));
-/** 熟練度を払って「毎走の開始ブースト+1」を恒久解放。 */
-export function buyMasteryStartBoost(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const cost = masteryStartBoostCost(state.perm.startBoost, b);
-  if (state.mastery < cost) return state;
-  return { ...state, mastery: state.mastery - cost, perm: { ...state.perm, startBoost: state.perm.startBoost + 1 } };
-}
+// ===== 熟練度（武器ごと・永続）: 武器ダメージ倍率 =====
+/** その武器の熟練度ダメージ倍率（Lvにつき +masteryPerLvl）。 */
+export const weaponMasteryMul = (masteryLvl: number, b: MiningBalance = defaultMiningBalance): number => 1 + masteryLvl * b.masteryPerLvl;

@@ -108,11 +108,10 @@ export interface MiningBalance {
   // コインで買う走行限定ブースト（転生でリセット）
   readonly boostPerLvl: number; readonly boostCostBase: number; readonly boostCostGrowth: number;
 
-  // 熟練度（周回しても消えない経験値）: 永続の威力倍率＋スループット＋通貨として開始ブースト解放に使う
-  readonly masteryPerLvl: number;        // 累計熟練1につき全武器ダメージ+（永続）
-  readonly masteryMovePerLvl: number;    // 累計熟練1につき移動速度+（永続・周回で序盤が速くなる主因）
-  readonly masteryRangePerLvl: number;   // 累計熟練ごとに武器の射程/範囲+1（永続・浅い階を一掃＝サクサク）
-  readonly masteryStartBoostBase: number; readonly masteryStartBoostGrowth: number; // 開始ブースト解放のコスト
+  // 熟練度（武器ごと・転生時に上がる永続強化）: その武器のダメージを恒久で上げる＋合計でスループット
+  readonly masteryPerLvl: number;        // 武器の熟練1につきその武器ダメージ+（既定+10%/Lv＝転生1回ぶん）
+  readonly masteryMovePerLvl: number;    // 合計熟練1につき移動速度+（永続・周回で序盤が速くなる主因）
+  readonly masteryRangePerLvl: number;   // 合計熟練ごとに武器の射程/範囲+1（永続・浅い階を一掃＝サクサク）
 
   readonly permStatBase: number; readonly permStatGrowth: number;
   readonly permPickBase: number; readonly permPickGrowth: number;
@@ -152,8 +151,7 @@ export const defaultMiningBalance: MiningBalance = {
 
   boostPerLvl: 0.08, boostCostBase: 40, boostCostGrowth: 1.35,
 
-  masteryPerLvl: 0.02, masteryMovePerLvl: 0.004, masteryRangePerLvl: 0.004,
-  masteryStartBoostBase: 3, masteryStartBoostGrowth: 1.8,
+  masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05,
 
   permStatBase: 25, permStatGrowth: 1.6,
   permPickBase: 18, permPickGrowth: 1.7,

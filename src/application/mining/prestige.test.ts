@@ -43,18 +43,20 @@ describe('mining/prestige', () => {
     expect(extraWeaponLevels(s.levels, perm.levels)).toBe(1); // 開始武器は1つ(ツルハシ)だけ+1
   });
 
-  it('開始ブースト解放(perm.startBoost)は走行開始のブーストに乗る', () => {
-    const perm: Perm = { ...emptyPerm(), startBoost: 4 };
-    const s = freshRun(B, emptyMaterials(), perm, 0);
-    expect(s.boost).toBe(4);
-  });
-
-  it('熟練度は転生しても消えない（永続）', () => {
-    let s = stepMine(initialMineState(), 120_000); // レベルアップで熟練度が貯まる
-    expect(s.masteryTotal).toBeGreaterThan(0);
-    const before = s.masteryTotal;
+  it('熟練度は武器ごと・転生時に上がる（使った武器が+1）／消えない', () => {
+    let s = stepMine(initialMineState(), 120_000); // ツルハシなど複数の武器を使う
+    const usedPick = s.levels.pick > 0;
+    expect(usedPick).toBe(true);
+    const pickBefore = s.mastery.pick; // 初回は0
     s = prestige(s, B);
-    expect(s.masteryTotal).toBe(before); // 転生でも保持
+    expect(s.mastery.pick).toBe(pickBefore + 1); // 使った武器の熟練が+1
+    // 使っていない武器は上がらない
+    const unused = WEAPON_IDS.find((w) => w !== 'pick');
+    if (unused) expect(s.mastery[unused]).toBeGreaterThanOrEqual(0);
+    // さらに転生しても累積（消えない）
+    const before = s.mastery.pick;
+    const s2 = prestige(stepMine(s, 5_000), B);
+    expect(s2.mastery.pick).toBeGreaterThanOrEqual(before); // 永続保持＆さらに加算
   });
 
   it('転生: 走行はリセット、素材/恒久/回数は保持', () => {

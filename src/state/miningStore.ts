@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { initialMineState, type MineState } from '@application/mining/mineState';
 import { defaultMiningBalance } from '@domain/mining/balance';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
-import { applyOfferChoice, buyAppraise, buyBoost, buyMasteryStartBoost } from '@application/mining/upgrades';
+import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
 import { prestige, buyPerm, refine, type PermId } from '@application/mining/prestige';
 import type { MaterialId } from '@domain/mining/balance';
 
@@ -13,7 +13,6 @@ interface MiningStore {
   toggleAuto: () => void;
   buyAppraise: () => void;
   buyBoost: () => void;
-  buyMasteryStartBoost: () => void;
   prestige: () => void;
   buyPerm: (id: PermId) => void;
   refine: (from: MaterialId) => void;
@@ -40,7 +39,6 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   toggleAuto: () => set((st) => ({ state: { ...st.state, autoMode: !st.state.autoMode } })),
   buyAppraise: () => set((st) => ({ state: buyAppraise(st.state) })),
   buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
-  buyMasteryStartBoost: () => set((st) => ({ state: buyMasteryStartBoost(st.state) })),
   prestige: () => set((st) => ({ state: prestige(st.state) })),
   buyPerm: (id) => set((st) => ({ state: buyPerm(st.state, id) })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),

@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { sameCell } from '@domain/grid/position';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness } from '@domain/mining/tile';
 import type { MineState } from '@application/mining/mineState';
-import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, masteryMul, masteryStartBoostCost } from '@application/mining/upgrades';
+import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
+import { totalMastery } from '@application/mining/mineState';
 import { permCost, permMaterial, type PermId } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
@@ -127,7 +128,8 @@ export interface MineDmgShareVM { readonly emoji: string; readonly label: string
 export interface MineDmgModVM { readonly emoji: string; readonly label: string; readonly scope: string; readonly mult: number }
 export interface MineMetaVM { readonly appraiseLv: number; readonly appraiseCost: number; readonly canAppraise: boolean; readonly appraiseMaxed: boolean; readonly rarePct: number; readonly epicPct: number }
 export interface MineBoostVM { readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
-export interface MineMasteryVM { readonly total: number; readonly pct: number; readonly balance: number }
+export interface MineWeaponMasteryVM { readonly emoji: string; readonly label: string; readonly lv: number; readonly pct: number }
+export interface MineMasteryVM { readonly total: number; readonly gainPct: number; readonly movePct: number; readonly rangeBonus: number; readonly perWeapon: readonly MineWeaponMasteryVM[] }
 export interface MineHudVM {
   readonly coins: number; readonly floor: number; readonly progressPct: number;
   readonly level: number; readonly xp: number; readonly xpNext: number; readonly autoMode: boolean;
@@ -148,7 +150,6 @@ function damageMods(state: MineState): MineDmgModVM[] {
   const add = (id: PassiveId, scope: string, mult: number): void => {
     if (state.levels[id] > 0) out.push({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, scope, mult });
   };
-  if (state.masteryTotal > 0) out.push({ emoji: '🎓', label: '熟練', scope: '全武器', mult: masteryMul(state.masteryTotal) });
   if (state.boost > 0) out.push({ emoji: '🔥', label: 'ブースト', scope: '全武器', mult: boostMul(state.boost) });
   if (t.power > 0) out.push({ emoji: '💪', label: '威力系', scope: '全武器', mult: 1 + t.power }); // 威力＋強撃の合算
   add('crit', '平均', 1 + t.crit * (B.critMult - 1));
@@ -163,6 +164,20 @@ function damageMods(state: MineState): MineDmgModVM[] {
     out.push({ emoji: def.emoji, label: def.label, scope: choiceMeta(def.targetWeapon).label, mult: 1 + t.perWeapon[def.targetWeapon] });
   }
   return out;
+}
+
+/** 武器ごとの熟練度＋合計のスループット（移動/射程）。HUD・転生パネル共通。 */
+function buildMasteryVM(state: MineState): MineMasteryVM {
+  const total = totalMastery(state.mastery);
+  return {
+    total,
+    gainPct: Math.round(B.masteryPerLvl * 100),
+    movePct: Math.round(total * B.masteryMovePerLvl * 100),
+    rangeBonus: Math.floor(total * B.masteryRangePerLvl),
+    perWeapon: WEAPON_IDS.filter((w) => state.mastery[w] > 0).map((w) => ({
+      emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, lv: state.mastery[w], pct: Math.round((weaponMasteryMul(state.mastery[w]) - 1) * 100),
+    })),
+  };
 }
 
 export function buildMineHud(state: MineState): MineHudVM {
@@ -180,7 +195,7 @@ export function buildMineHud(state: MineState): MineHudVM {
     damageMods: damageMods(state),
     meta: { appraiseLv: state.meta.appraise, appraiseCost: appraiseCost(state.meta.appraise), canAppraise: !appraiseCapped(state.meta.appraise) && state.coins >= appraiseCost(state.meta.appraise), appraiseMaxed: appraiseCapped(state.meta.appraise), rarePct: Math.round(rareChance(state.meta.appraise) * 100), epicPct: Math.round(epicChance(state.meta.appraise) * 100) },
     boost: { lv: state.boost, cost: boostCost(state.boost), can: state.coins >= boostCost(state.boost), pct: Math.round((boostMul(state.boost) - 1) * 100) },
-    mastery: { total: state.masteryTotal, pct: Math.round((masteryMul(state.masteryTotal) - 1) * 100), balance: state.mastery },
+    mastery: buildMasteryVM(state),
   };
 }
 
@@ -188,8 +203,7 @@ export function buildMineHud(state: MineState): MineHudVM {
 export interface MineMatVM { readonly id: MaterialId; readonly emoji: string; readonly name: string; readonly count: number }
 export interface MinePermVM { readonly id: PermId; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
 export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: string; readonly toEmoji: string; readonly ratio: number; readonly can: boolean }
-export interface MineMasteryPerkVM { readonly total: number; readonly balance: number; readonly pct: number; readonly movePct: number; readonly rangeBonus: number; readonly startBoostLv: number; readonly startBoostCost: number; readonly canStartBoost: boolean }
-export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryPerkVM }
+export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryVM }
 
 const PERM_IDS: readonly PermId[] = [...WEAPON_IDS, ...PASSIVE_IDS, 'appraise'];
 const permLabel = (id: PermId): { emoji: string; label: string } => id === 'appraise' ? { emoji: '🔎', label: '目利き' } : { emoji: choiceMeta(id as ChoiceId).emoji, label: choiceMeta(id as ChoiceId).label };
@@ -206,13 +220,7 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
       return { id, emoji: meta.emoji, label: meta.label, lv, matEmoji: matEmoji(mat), cost, can: state.materials[mat] >= cost };
     }),
     refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
-    mastery: {
-      total: state.masteryTotal, balance: state.mastery, pct: Math.round((masteryMul(state.masteryTotal) - 1) * 100),
-      movePct: Math.round(state.masteryTotal * B.masteryMovePerLvl * 100),
-      rangeBonus: Math.floor(state.masteryTotal * B.masteryRangePerLvl),
-      startBoostLv: state.perm.startBoost, startBoostCost: masteryStartBoostCost(state.perm.startBoost),
-      canStartBoost: state.mastery >= masteryStartBoostCost(state.perm.startBoost),
-    },
+    mastery: buildMasteryVM(state),
   };
 }
 
@@ -224,7 +232,6 @@ export const useMineChoose = (): ((index: number) => void) => useMiningStore((s)
 export const useMineToggleAuto = (): (() => void) => useMiningStore((s) => s.toggleAuto);
 export const useMineBuyAppraise = (): (() => void) => useMiningStore((s) => s.buyAppraise);
 export const useMineBuyBoost = (): (() => void) => useMiningStore((s) => s.buyBoost);
-export const useMineBuyMasteryStartBoost = (): (() => void) => useMiningStore((s) => s.buyMasteryStartBoost);
 export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
 export const useMineBuyPerm = (): ((id: PermId) => void) => useMiningStore((s) => s.buyPerm);
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);

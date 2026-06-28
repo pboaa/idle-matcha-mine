@@ -1,6 +1,6 @@
 import type { MiningBalance, ChoiceId, MaterialId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, isWeapon } from '@domain/mining/balance';
-import { freshRun, type MineState, type Perm } from '@application/mining/mineState';
+import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, isWeapon } from '@domain/mining/balance';
+import { freshRun, type MineState, type Perm, type WeaponMastery } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
 export type PermId = ChoiceId | 'appraise';
@@ -46,7 +46,14 @@ export function refine(state: MineState, from: MaterialId, b: MiningBalance = de
   return { ...state, materials: { ...state.materials, [from]: state.materials[from] - ratio, [to]: state.materials[to] + 1 } };
 }
 
-/** 転生: 走行をリセット（素材・恒久・熟練度は保持）。 */
+/** 転生時の熟練度獲得: その走行で使った（Lv1以上の）武器ごとに +1（≒ダメージ+masteryPerLvl）。 */
+export function masteryGainOnPrestige(state: MineState): WeaponMastery {
+  const next = { ...state.mastery };
+  for (const w of WEAPON_IDS) if (state.levels[w] > 0) next[w] += 1;
+  return next;
+}
+
+/** 転生: 走行をリセット（素材・恒久は保持）。熟練度は使った武器ごとに +1 して引き継ぐ。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, state.mastery, state.masteryTotal);
+  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, masteryGainOnPrestige(state));
 }
