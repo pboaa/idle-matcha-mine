@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initialMineState } from '@application/mining/mineState';
+import { initialMineState, freshRun, emptyMaterials, emptyPerm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
 import { defaultMiningBalance } from '@domain/mining/balance';
 
@@ -45,6 +45,14 @@ describe('mining/step', () => {
   it('自動モードでコインが目利き/ブーストに使われる（消費先がある）', () => {
     const s = stepMine(initialMineState(), 60_000);
     expect(s.meta.appraise + s.boost).toBeGreaterThan(0); // どちらかにコインが回る
+  });
+
+  it('熟練度(永続)は周回で序盤を速くする（移動/射程のスループット）', () => {
+    const fresh = (mt: number) => freshRun(defaultMiningBalance, emptyMaterials(), emptyPerm(), 0, 123456, mt, mt);
+    const low = stepMine(fresh(0), 60_000);
+    const high = stepMine(fresh(1000), 60_000); // 周回を重ねた状態
+    expect(high.floor).toBeGreaterThan(low.floor); // 同じ時間でより深く潜れる＝サクサク
+    expect(high.dug.size + high.floor * 900).toBeGreaterThan(low.dug.size + low.floor * 900); // 累計採掘量も多い
   });
 
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {

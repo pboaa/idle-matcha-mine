@@ -114,10 +114,13 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
   const HP = tileHardness(state.floor, b);
-  const moveCost = b.moveCost / (1 + t.move);
+  // 熟練度（永続）はスループットにも効く: 移動速度＋射程。周回を重ねるほど序盤が速くなる（=サクサク）。
+  const masteryMove = state.masteryTotal * b.masteryMovePerLvl;
+  const masteryRange = Math.floor(state.masteryTotal * b.masteryRangePerLvl);
+  const moveCost = b.moveCost / (1 + t.move + masteryMove);
   const coinMult = 1 + t.coin;
   const matChance = t.material;
-  const rangeBonus = Math.floor(t.range);
+  const rangeBonus = Math.floor(t.range) + masteryRange;
   const pierceBonus = Math.floor(t.pierce); // 貫通: ビーム/ドリル(直線)が奥まで届く
 
   const applyDmg = (cell: Cell, baseAmt: number, w: WeaponId): void => {

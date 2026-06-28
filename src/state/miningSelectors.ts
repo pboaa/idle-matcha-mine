@@ -188,7 +188,7 @@ export function buildMineHud(state: MineState): MineHudVM {
 export interface MineMatVM { readonly id: MaterialId; readonly emoji: string; readonly name: string; readonly count: number }
 export interface MinePermVM { readonly id: PermId; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
 export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: string; readonly toEmoji: string; readonly ratio: number; readonly can: boolean }
-export interface MineMasteryPerkVM { readonly total: number; readonly balance: number; readonly pct: number; readonly startBoostLv: number; readonly startBoostCost: number; readonly canStartBoost: boolean }
+export interface MineMasteryPerkVM { readonly total: number; readonly balance: number; readonly pct: number; readonly movePct: number; readonly rangeBonus: number; readonly startBoostLv: number; readonly startBoostCost: number; readonly canStartBoost: boolean }
 export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryPerkVM }
 
 const PERM_IDS: readonly PermId[] = [...WEAPON_IDS, ...PASSIVE_IDS, 'appraise'];
@@ -208,6 +208,8 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
     refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
     mastery: {
       total: state.masteryTotal, balance: state.mastery, pct: Math.round((masteryMul(state.masteryTotal) - 1) * 100),
+      movePct: Math.round(state.masteryTotal * B.masteryMovePerLvl * 100),
+      rangeBonus: Math.floor(state.masteryTotal * B.masteryRangePerLvl),
       startBoostLv: state.perm.startBoost, startBoostCost: masteryStartBoostCost(state.perm.startBoost),
       canStartBoost: state.mastery >= masteryStartBoostCost(state.perm.startBoost),
     },

@@ -23,7 +23,7 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
       <div className="flex items-center justify-between rounded-lg bg-indigo-950/60 p-2.5 ring-1 ring-indigo-500/40">
         <div className="text-[12px] text-indigo-100">
           🎓 熟練度 <b>{p.mastery.total}</b>
-          <span className="ml-1 text-[10px] text-indigo-300">全武器ダメージ +{p.mastery.pct}%（永続）・残高 {p.mastery.balance}</span>
+          <span className="ml-1 text-[10px] text-indigo-300">永続: ⚔️+{p.mastery.pct}% 🏃+{p.mastery.movePct}% 📏+{p.mastery.rangeBonus}（周回で序盤が速く）・残高 {p.mastery.balance}</span>
         </div>
         <button onClick={buyStartBoost} disabled={!p.mastery.canStartBoost} title="毎走の開始ブーストを恒久+1"
           className={['rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.mastery.canStartBoost ? 'bg-indigo-400 text-stone-900 hover:bg-indigo-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
