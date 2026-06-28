@@ -28,6 +28,14 @@ export function MiningGrid() {
         ))}
       </div>
 
+      {/* 武器の命中エフェクト（武器ごとの色でマスがピカッと光る） */}
+      {view.effects.map((fx) =>
+        fx.cells.map((c, i) => (
+          <span key={`${fx.id}-${i}`} className="pointer-events-none absolute z-[14] rounded-[3px] animate-[fx-flash_0.22s_ease-out_forwards]"
+            style={{ left: c.rx * CELL + 2, top: c.ry * CELL + 2, width: CELL - 4, height: CELL - 4, background: fx.color, boxShadow: `0 0 8px ${fx.color}` }} />
+        )),
+      )}
+
       {/* 自動回収済みの素材＝演出だけ（ふわっと浮いて消える） */}
       {view.drops.map((d) => (
         <span key={d.id} className="pointer-events-none absolute z-20 flex items-center justify-center text-[16px] drop-shadow-[0_2px_2px_rgba(0,0,0,0.6)] animate-[coin-float_0.9s_ease-out_forwards]"

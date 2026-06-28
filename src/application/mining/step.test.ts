@@ -47,6 +47,14 @@ describe('mining/step', () => {
     expect(s.meta.appraise + s.boost).toBeGreaterThan(0); // どちらかにコインが回る
   });
 
+  it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {
+    const s = stepMine(initialMineState(), 3000);
+    expect(s.fx.length).toBeGreaterThan(0);                       // 演出が出る
+    expect(s.fx.every((f) => s.time - f.bornAt < defaultMiningBalance.fxVisualMs)).toBe(true); // 古いものは消える
+    expect(s.fx.every((f) => f.cells.length > 0)).toBe(true);     // 当たったマスを持つ
+    expect(s.fx.some((f) => f.weapon === 'pick')).toBe(true);     // 初期武器ツルハシの演出
+  });
+
   it('自動モードでレベルアップ強化が乗る', () => {
     const s = stepMine(initialMineState(), 120_000);
     const total = Object.values(s.levels).reduce((a, b) => a + b, 0);

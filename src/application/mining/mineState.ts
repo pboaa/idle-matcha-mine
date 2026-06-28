@@ -7,6 +7,8 @@ import { baseOf } from '@domain/mining/tile';
 export type { ChoiceId } from '@domain/mining/balance';
 
 export interface Drop { readonly id: number; readonly x: number; readonly y: number; readonly emoji: string; readonly value: number; readonly bornAt: number }
+/** 武器の命中演出（短命・描画専用）。cells はこのtickで当たったマス。 */
+export interface WeaponFx { readonly id: number; readonly weapon: WeaponId; readonly cells: readonly Cell[]; readonly bornAt: number }
 export interface MineCat { readonly pos: Cell; readonly gauge: number; readonly target: Cell | null }
 
 export type Levels = Record<ChoiceId, number>;
@@ -33,6 +35,7 @@ export interface MineState {
   readonly dug: Set<string>;
   readonly damage: Map<string, number>;
   readonly drops: readonly Drop[];
+  readonly fx: readonly WeaponFx[];
   readonly cat: MineCat;
   readonly cam: Cell;
 
@@ -63,7 +66,7 @@ export function freshRun(
   levels.pick += 1; // 開始は必ずツルハシ
   return {
     time: 0, coins: 0, rev: 0, seq: 0, floor: 0, rngState: seed,
-    dug: new Set([cellKey(base)]), damage: new Map(), drops: [],
+    dug: new Set([cellKey(base)]), damage: new Map(), drops: [], fx: [],
     cat: { pos: { ...base }, gauge: 0, target: null }, cam: { ...base },
     xp: 0, level: 1, levels, autoMode: true, offer: null,
     meta: { appraise: perm.appraise },

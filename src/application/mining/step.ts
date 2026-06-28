@@ -111,6 +111,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   let cleared = false;
   const materials = { ...state.materials };
   const dmgAcc = { ...state.dmgByWeapon };
+  const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
   const HP = tileHardness(state.floor, b);
   const moveCost = b.moveCost / (1 + t.move);
@@ -123,6 +124,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     if (cleared || !isSolid(dug, cell, b)) return;
     const amt = rng.next() < t.crit ? baseAmt * b.critMult : baseAmt; // 会心
     dmgAcc[w] += amt;
+    let hc = hits.get(w); if (!hc) { hc = []; hits.set(w, hc); } hc.push(cell); // 命中マスを記録（演出）
     const k = cellKey(cell);
     const d = (damage.get(k) ?? 0) + amt;
     if (d < HP) { damage.set(k, d); return; }
@@ -153,6 +155,14 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   fireWeapons({ dug, pos, target, levels: L, totals: t, globalMul, dt, rangeBonus, pierceBonus, b }, applyDmg);
 
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, materials }, b);
+
+  // 武器の命中演出を追加（武器ごとに当たったマス）。古いものは寿命で消す。
+  let fx = state.fx;
+  if (hits.size > 0) {
+    const fresh = [...hits].map(([w, cells]) => ({ id: now * 8 + WEAPON_IDS.indexOf(w), weapon: w, cells, bornAt: now }));
+    fx = [...fx, ...fresh];
+  }
+  if (fx.length > 0) { const keep = fx.filter((f) => now - f.bornAt < b.fxVisualMs); if (keep.length !== fx.length) fx = keep; }
 
   // 演出ドロップは一定時間で消す（回収は済み）。
   if (drops.length > 0) { const keep = drops.filter((d) => now - d.bornAt < b.dropVisualMs); if (keep.length !== drops.length) drops = keep; }
@@ -193,7 +203,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
 
   return {
     ...state,
-    time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops,
+    time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
     cat: { pos, gauge, target }, cam: { ...pos },
     xp, level, levels, offer, meta, boost, dmgByWeapon: dmgAcc, materials,
     mastery: state.mastery + masteryGain, masteryTotal: state.masteryTotal + masteryGain,

@@ -22,13 +22,18 @@ const matEmoji = (id: MaterialId): string => B.kinds[id].emoji;
 // ===== 盤面ビュー =====
 export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number }
 export interface MineDropVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string }
+/** 武器命中エフェクト（ビュー座標のマス群＋色）。 */
+export interface MineEffectVM { readonly id: number; readonly color: string; readonly cells: readonly { readonly rx: number; readonly ry: number }[] }
 export interface MineViewVM {
   readonly w: number; readonly h: number;
   readonly tiles: readonly MineTileVM[]; readonly drops: readonly MineDropVM[];
+  readonly effects: readonly MineEffectVM[];
   readonly catRx: number; readonly catRy: number;
   /** 所持武器の絵文字（猫の周りを回る演出用）。 */
   readonly orbit: readonly string[];
 }
+
+const FX_CELL_CAP = 90; // 1フレームに描く演出マスの上限（パフォーマンス保護）
 
 export function buildMineView(state: MineState): MineViewVM {
   const x0 = state.cam.x - (VIEW_W - 1) / 2;
@@ -52,8 +57,21 @@ export function buildMineView(state: MineState): MineViewVM {
     const rx = d.x - x0; const ry = d.y - y0;
     if (rx >= -1 && rx <= VIEW_W && ry >= -1 && ry <= VIEW_H) drops.push({ id: d.id, rx, ry, emoji: d.emoji });
   }
+  const effects: MineEffectVM[] = [];
+  let fxBudget = FX_CELL_CAP;
+  for (const f of state.fx) {
+    if (fxBudget <= 0) break;
+    const cells: { rx: number; ry: number }[] = [];
+    for (const c of f.cells) {
+      const rx = c.x - x0; const ry = c.y - y0;
+      if (rx >= 0 && rx < VIEW_W && ry >= 0 && ry < VIEW_H) cells.push({ rx, ry });
+    }
+    if (cells.length === 0) continue;
+    const take = cells.slice(0, fxBudget); fxBudget -= take.length;
+    effects.push({ id: f.id, color: WEAPON_DEFS[f.weapon].fxColor, cells: take });
+  }
   const orbit = WEAPON_IDS.filter((w) => state.levels[w] > 0).map((w) => choiceMeta(w).emoji);
-  return { w: VIEW_W, h: VIEW_H, tiles, drops, catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0, orbit };
+  return { w: VIEW_W, h: VIEW_H, tiles, drops, effects, catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0, orbit };
 }
 
 // front を selectors 内で再計算（step に依存しすぎない簡易版）

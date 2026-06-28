@@ -24,6 +24,19 @@
 
   --animate-coin-float: coin-float 1s ease-out forwards;
   --animate-pop: pop 0.25s ease-out;
+  --animate-fx-flash: fx-flash 0.22s ease-out forwards;
+}
+
+/* 武器の命中エフェクト（ピカッと光ってすぐ消える） */
+@keyframes fx-flash {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 @keyframes coin-float {
