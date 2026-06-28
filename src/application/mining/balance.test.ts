@@ -24,7 +24,7 @@ describe('mining/balance', () => {
     expect(s.dmgByWeapon.pick).toBeGreaterThan(0);
   });
 
-  it('ツルハシが主役（武器無しでも掘れる／全武器ありでも極端に速くない）', () => {
+  it('ツルハシは他武器と同程度（武器無しでも掘れる／全武器ありでも極端に速くない）', () => {
     const pickOnly = stepMine(initialMineState(), 120_000); // 自動で武器も付くので…
     // 武器を完全に無効化した状態(pickのみ固定)で比較
     let onlyPick: MineState = { ...initialMineState(), autoMode: false }; // レベルアップ提示を保留＝強化が乗らない
@@ -33,5 +33,14 @@ describe('mining/balance', () => {
     console.log(`2分: 自動強化あり 掘削${pickOnly.dug.size} / ピックのみ(強化保留) 掘削${pickDug}`);
     expect(pickDug).toBeGreaterThan(5); // ピックだけでも掘れる
     expect(pickOnly.dug.size).toBeLessThan(pickDug * 8); // 武器で極端には速くならない
+
+    // ツルハシは主役ではないが「埋もれない」: 5分時点の火力寄与が平均の半分以上（同程度）。
+    const s5 = stepMine(initialMineState(), 300_000);
+    const tot = WEAPON_IDS.reduce((a, w) => a + s5.dmgByWeapon[w], 0);
+    const active = WEAPON_IDS.filter((w) => s5.dmgByWeapon[w] > 0).length;
+    const pickShare = s5.dmgByWeapon.pick / tot;
+    const avgShare = 1 / active;
+    console.log(`ツルハシ寄与 ${(pickShare * 100).toFixed(0)}% / 平均 ${(avgShare * 100).toFixed(0)}%（武器${active}種）`);
+    expect(pickShare).toBeGreaterThan(avgShare * 0.5); // 最下位に沈まない＝同程度
   }, 20000);
 });

@@ -5,16 +5,19 @@ import { defaultMiningBalance } from '@domain/mining/balance';
 const B = defaultMiningBalance;
 
 describe('mining/tile', () => {
-  it('hardness は階で増える', () => {
+  it('hardness は階で幾何級数的に増える', () => {
     expect(tileHardness(0, B)).toBe(1);
-    expect(tileHardness(3, B)).toBe(4);
+    expect(tileHardness(1, B)).toBeCloseTo(B.hardnessGrowth);
+    expect(tileHardness(3, B)).toBeCloseTo(Math.pow(B.hardnessGrowth, 3));
+    expect(tileHardness(5, B)).toBeGreaterThan(tileHardness(4, B)); // 単調増加
   });
 
-  it('value は 種類×階×コイン倍率', () => {
+  it('value は 種類×階(幾何)×コイン倍率', () => {
     const ore = B.kinds.ore; // mult 5
-    expect(tileValue(ore, 0, 1, B)).toBe(5);   // coinMult 1
-    expect(tileValue(ore, 1, 1, B)).toBe(10);  // 階+1
+    expect(tileValue(ore, 0, 1, B)).toBe(5);   // coinMult 1・階0
+    expect(tileValue(ore, 1, 1, B)).toBe(Math.round(5 * B.valueGrowth)); // 階+1
     expect(tileValue(ore, 0, 2, B)).toBe(10);  // coinMult 2
+    expect(tileValue(ore, 5, 1, B)).toBeGreaterThan(tileValue(ore, 0, 1, B)); // 深い階ほどリッチ
   });
 
   it('kindAt は決定的（同じ座標・階で同じ）', () => {

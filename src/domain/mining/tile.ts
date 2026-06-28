@@ -22,10 +22,10 @@ export function kindAt(c: Cell, floor: number, b: MiningBalance = defaultMiningB
   return b.kinds.gem;
 }
 
-/** 採掘1ブロックのHP（階が深いほど硬い）。 */
+/** 採掘1ブロックのHP（階が深いほど硬い・幾何級数）。乗算で伸びる火力と同じ土俵に乗せ周回ペースを安定させる。 */
 export const tileHardness = (floor: number, b: MiningBalance = defaultMiningBalance): number =>
-  b.hardnessBase + floor * b.hardnessPerFloor;
+  b.hardnessBase * Math.pow(b.hardnessGrowth, floor);
 
-/** 採掘で得る価値（種類 × 階の深さ × コイン倍率）。 */
+/** 採掘で得る価値（種類 × 階の深さ[幾何級数] × コイン倍率）。硬さより緩い倍率で「深い＝リッチだが無限インフレしない」。 */
 export const tileValue = (kind: MiningKind, floor: number, coinMult: number, b: MiningBalance = defaultMiningBalance): number =>
-  Math.round(kind.mult * (1 + floor * b.valuePerFloor) * coinMult);
+  Math.round(kind.mult * Math.pow(b.valueGrowth, floor) * coinMult);

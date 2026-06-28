@@ -25,7 +25,7 @@ export interface WeaponDef {
 }
 
 export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
-  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を掘る基本武器', tag: 'melee', pattern: 'front', baseDmg: 0.5, dmgPerLvl: 0.22, rangeBase: 1, rangePerLvls: 99 },
+  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を掘る基本武器', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.24, rangeBase: 1, rangePerLvls: 99 },
   bullet: { id: 'bullet', label: '弾', emoji: '🔫', desc: '近くの1マスを撃つ', tag: 'shot', pattern: 'nearest', baseDmg: 0.35, dmgPerLvl: 0.18, rangeBase: 5, rangePerLvls: 99 },
   bomb: { id: 'bomb', label: '爆弾', emoji: '💣', desc: '近くで小爆発（3x3）', tag: 'shot', pattern: 'burst', baseDmg: 0.16, dmgPerLvl: 0.07, rangeBase: 6, rangePerLvls: 99 },
   beam: { id: 'beam', label: 'ビーム', emoji: '⚡', desc: '十字に削る', tag: 'beam', pattern: 'cross', baseDmg: 0.07, dmgPerLvl: 0.03, rangeBase: 1, rangePerLvls: 3 },
@@ -87,8 +87,8 @@ export interface MiningBalance {
   readonly dropVisualMs: number;
 
   readonly hardnessBase: number;
-  readonly hardnessPerFloor: number;
-  readonly valuePerFloor: number;
+  readonly hardnessGrowth: number; // 階ごとの硬さ倍率（幾何級数＝乗算で伸びる火力に追従）
+  readonly valueGrowth: number;    // 階ごとの価値倍率（幾何級数・硬さよりやや緩く）
   readonly kinds: { readonly dirt: MiningKind; readonly stone: MiningKind; readonly ore: MiningKind; readonly gem: MiningKind };
   readonly kindThresh: { readonly dirtMax: number; readonly stoneMax: number; readonly oreMax: number; readonly boostPerFloor: number; readonly boostMax: number };
 
@@ -124,8 +124,8 @@ export const defaultMiningBalance: MiningBalance = {
   dropVisualMs: 900,
 
   hardnessBase: 1,
-  hardnessPerFloor: 1,
-  valuePerFloor: 1,
+  hardnessGrowth: 1.26,
+  valueGrowth: 1.13,
   kinds: {
     dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1 },
     stone: { id: 'stone', name: '石', emoji: '🪨', color: '#78909c', mult: 2 },
