@@ -14,7 +14,7 @@ export function MiningHud() {
       <div className="flex flex-col gap-1 text-[12px]">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] text-stone-500">武器 {hud.weaponSlots}</span>
-          {hud.weapons.map((w) => <span key={w.label} title={`${w.detail}${w.quality > 0 ? `／レア特性 ✦${w.quality}（貫通/多点/範囲）` : ''}`} className="cursor-help text-stone-100">{w.emoji}<b className="text-amber-300">{w.lv}</b>{w.quality > 0 && <span className="text-[9px] text-fuchsia-300">✦{w.quality}</span>}</span>)}
+          {hud.weapons.map((w) => <span key={w.label} title={w.detail} className="cursor-help text-stone-100">{w.emoji}<b className="text-amber-300">{w.lv}</b></span>)}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] text-stone-500">強化 {hud.passiveSlots}</span>

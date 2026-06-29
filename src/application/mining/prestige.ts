@@ -92,7 +92,7 @@ export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: nu
 }
 /** 解放済みノードの累積ステータス（武器に恒久で乗る）。 */
 export function weaponSkillStats(weapon: WeaponId, unlocked: readonly number[]): WeaponStatLevels {
-  const s: WeaponStatLevels = { damage: 0, speed: 0, range: 0, pierce: 0, unique: 0 };
+  const s: WeaponStatLevels = { damage: 0, speed: 0, range: 0, pierce: 0, area: 0, unique: 0 };
   const nodes = weaponSkillNodes(weapon);
   for (const i of unlocked) { const n = nodes[i]; if (n) s[n.stat] += n.amount; }
   return s;
@@ -124,15 +124,22 @@ export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalanc
 export function masteryMult(level: number, b: MiningBalance = defaultMiningBalance): number {
   return 1 + level * b.masteryPerLvl;
 }
-/** この走行で実際にダメージを出した武器を +1 熟練（使った武器ほど伸びる）。 */
-export function gainMastery(state: MineState): MineState['perm']['mastery'] {
+/** 熟練+1に必要な「その走行のその武器の累計ダメージ」閾値（Lvが上がるほど高い＝段々取りにくく）。 */
+export function masteryGate(level: number, b: MiningBalance = defaultMiningBalance): number {
+  return Math.floor(b.masteryGateBase * Math.pow(b.masteryGateGrowth, level));
+}
+/** その走行で閾値以上のダメージを出した武器だけ +1 熟練（転生連打では伸びない・深く潜るほど次が要る）。 */
+export function gainMastery(state: MineState, b: MiningBalance = defaultMiningBalance): MineState['perm']['mastery'] {
   const next = { ...state.perm.mastery };
-  for (const w of WEAPON_IDS) if (state.dmgByWeapon[w] > 0) next[w] = (next[w] ?? 0) + 1;
+  for (const w of WEAPON_IDS) {
+    const lv = next[w] ?? 0;
+    if (state.dmgByWeapon[w] >= masteryGate(lv, b)) next[w] = lv + 1;
+  }
   return next;
 }
 
 /** 転生: 走行をリセット。獲得予定★(runPoints)をここで★(points)に加算してもらえる。鉱石・恒久は保持。使った武器は+1熟練。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const perm = { ...state.perm, mastery: gainMastery(state) };
+  const perm = { ...state.perm, mastery: gainMastery(state, b) };
   return freshRun(b, state.materials, perm, state.prestiges + 1, state.rngState, state.points + state.runPoints);
 }

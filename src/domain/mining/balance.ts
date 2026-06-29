@@ -78,24 +78,30 @@ export const PASSIVE_DEFS: Record<PassiveId, PassiveDef> = {
 export const PASSIVE_IDS = Object.keys(PASSIVE_DEFS) as PassiveId[];
 
 // ===== 武器ごとの恒久強化ツリー（Stage2: 素材=鉱石で買う武器別ステータス・データ駆動で拡張可） =====
-export type WeaponStat = 'damage' | 'speed' | 'range' | 'pierce' | 'unique';
-export const WEAPON_STATS: readonly WeaponStat[] = ['damage', 'speed', 'range', 'pierce', 'unique'];
+export type WeaponStat = 'damage' | 'speed' | 'range' | 'pierce' | 'area' | 'unique';
+export const WEAPON_STATS: readonly WeaponStat[] = ['damage', 'speed', 'range', 'pierce', 'area', 'unique'];
 export interface WeaponStatDef {
   readonly id: WeaponStat; readonly label: string; readonly emoji: string; readonly desc: string;
   readonly material: MaterialId;   // 消費する鉱石(=素材)。土/石=基本、鉱石/宝石=上位。
   readonly costBase: number; readonly costGrowth: number; readonly perLvl: number;
   readonly lineOnly?: boolean;     // 貫通は直線(ビーム/ドリル)系だけ有効
+  readonly notField?: boolean;     // 範囲(同時対象/横幅/方向)はフィールド系(オーラ/リング)には無効=半径は射程で
 }
 export const WEAPON_STAT_DEFS: Record<WeaponStat, WeaponStatDef> = {
   damage: { id: 'damage', label: 'ダメージ', emoji: '⚔️', desc: 'この武器のダメージ +8%/Lv', material: 'dirt', costBase: 6, costGrowth: 1.45, perLvl: 0.08 },
   speed: { id: 'speed', label: '攻撃速度', emoji: '⏱️', desc: 'この武器の攻撃が速くなる +8%/Lv', material: 'stone', costBase: 6, costGrowth: 1.5, perLvl: 0.08 },
   range: { id: 'range', label: '射程', emoji: '📏', desc: 'この武器の射程/範囲 +1/Lv', material: 'ore', costBase: 3, costGrowth: 1.7, perLvl: 1 },
   pierce: { id: 'pierce', label: '貫通', emoji: '➡️', desc: '直線がさらに奥へ +1/Lv', material: 'ore', costBase: 3, costGrowth: 1.7, perLvl: 1, lineOnly: true },
+  area: { id: 'area', label: '範囲', emoji: '💠', desc: '同時に当たる範囲/対象が広がる +1/Lv', material: 'ore', costBase: 4, costGrowth: 1.8, perLvl: 1, notField: true },
   unique: { id: 'unique', label: '固有', emoji: '✨', desc: 'この武器だけの強力な底上げ +15%/Lv', material: 'gem', costBase: 2, costGrowth: 1.9, perLvl: 0.15 },
 };
-/** その武器にそのステータス強化が有効か（貫通は直線系のみ）。 */
-export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean =>
-  !WEAPON_STAT_DEFS[stat].lineOnly || WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward';
+/** その武器にそのステータス強化が有効か（貫通は直線系のみ／範囲はフィールド系以外）。 */
+export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean => {
+  const def = WEAPON_STAT_DEFS[stat]; const pat = WEAPON_DEFS[w].pattern;
+  if (def.lineOnly && pat !== 'cross' && pat !== 'forward') return false;
+  if (def.notField && (pat === 'around' || pat === 'ring')) return false;
+  return true;
+};
 
 // ===== 武器ごとの恒久スキルツリー（分岐グラフ・ポイントで解放）。+5%ダメージが大量＋所々に大ノード。武器ごとに形が違う。 =====
 export interface WeaponSkillNode {
@@ -106,18 +112,23 @@ export interface WeaponSkillNode {
 }
 // 木生成用の小さな決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
-/** 1武器ぶんの分岐ツリーを生成（多数の+5%＋たまに大ノード/貫通/固有などの特殊強化）。 */
+/** その武器で意味を持つ特殊強化（範囲/射程/貫通）。三択には載せずツリーで確実に取れるようにする。 */
+function weaponSpecials(w: WeaponId): (readonly [WeaponStat, number])[] {
+  const pat = WEAPON_DEFS[w].pattern;
+  const out: (readonly [WeaponStat, number])[] = [];
+  if (weaponStatApplies('area', w)) out.push(['area', 1]);     // 範囲: spread/同時対象（フィールド系以外）
+  if (pat !== 'front') out.push(['range', 1]);                  // 射程: 前方(ツルハシ)は射程概念がないので除外
+  if (weaponStatApplies('pierce', w)) out.push(['pierce', 1]); // 貫通: 直線系のみ
+  return out;
+}
+/** 1武器ぶんの分岐ツリーを生成（多数の+5%＋固有＋武器ごとの特殊強化を確実に複数）。 */
 function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const rnd = treeRand(seed);
-  const canPierce = weaponStatApplies('pierce', w); // 直線系(ビーム/ドリル)だけ貫通が有効
   const nodes: WeaponSkillNode[] = [];
   const add = (x: number, y: number, requires: number[]): number => {
     const r = rnd();
     let stat: WeaponStat = 'damage', amount = 0.05, cost = (x + 1) * 2, big: boolean | undefined;
-    if (x >= 3 && r < 0.12) { // 大ノード: 射程 or 貫通（直線系）
-      if (canPierce && rnd() < 0.5) { stat = 'pierce'; amount = 1; } else { stat = 'range'; amount = 1; }
-      cost = (x + 1) * 6; big = true;
-    } else if (x >= 2 && r < 0.24) { stat = 'unique'; amount = 0.10; cost = (x + 1) * 8; big = true; } // 特殊: 固有
+    if (x >= 2 && r < 0.20) { stat = 'unique'; amount = 0.10; cost = (x + 1) * 8; big = true; } // 特殊: 固有
     else if (r < 0.40) { stat = 'speed'; amount = 0.05; }
     nodes.push({ x, y, stat, amount, cost, big, requires });
     return nodes.length - 1;
@@ -136,6 +147,20 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
     }
     prev = col;
   }
+  // 仕上げ: その武器の特殊強化(範囲/射程/貫通)を確実にツリーに用意する。位置/前提は変えず stat だけ差し替え（分岐は壊れない）。
+  const has = (s: WeaponStat): number => nodes.filter((n) => n.stat === s).length;
+  const convert = (stat: WeaponStat, amount: number, fromDamage: boolean): boolean => {
+    const cand = nodes
+      .map((n, i) => ({ n, i }))
+      .filter((x) => x.n.x >= 2 && !x.n.big && (x.n.stat === 'speed' || (fromDamage && x.n.stat === 'damage')))
+      .sort((a, z) => (a.n.stat === z.n.stat ? z.n.x - a.n.x : a.n.stat === 'speed' ? -1 : 1))[0]; // speed優先・深い順
+    if (!cand) return false;
+    nodes[cand.i] = { ...cand.n, stat, amount, big: true, cost: (cand.n.x + 1) * 6 };
+    return true;
+  };
+  const specials = weaponSpecials(w);
+  for (const [stat, amount] of specials) if (has(stat) < 1) convert(stat, amount, true);          // 最低1つは必ず（足りなければdamageも転用）
+  for (const [stat, amount] of specials) while (has(stat) < 2 && convert(stat, amount, false)) { /* 2つ目は余ったspeedから */ }
   return nodes;
 }
 /** 武器ごとのスキルツリー（形が様々・起点ノード0は前提なし）。 */
@@ -204,6 +229,7 @@ export interface MiningBalance {
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
   readonly weaponUnlockBase: number; readonly weaponUnlockGrowth: number; // 武器解放のポイントコスト
   readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
+  readonly masteryGateBase: number; readonly masteryGateGrowth: number; // 熟練+1に必要な「その走行のその武器ダメージ」閾値（Lvが上がるほど高く＝段々取りにくく）
   readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
 
   // 自動モードの効率（自動は火力が下がる。放置ツリーをポイントで上げると100%へ）
@@ -260,6 +286,7 @@ export const defaultMiningBalance: MiningBalance = {
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockBase: 15, weaponUnlockGrowth: 1.5,
   masteryPerLvl: 0.08,
+  masteryGateBase: 300, masteryGateGrowth: 1.9,
 
   autoEffBase: 0.7, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 

@@ -107,12 +107,16 @@ describe('mining/prestige', () => {
     expect(r.coins).toBe(0); // コインはリセット
   });
 
-  it('転生: 使った武器の熟練度が+1上がる（使わない武器は据え置き）', () => {
-    const s = stepMine(initialMineState(), 30_000); // ツルハシで掘ってダメージが出る
-    expect(s.dmgByWeapon.pick).toBeGreaterThan(0);
-    const r = prestige(s, B);
-    expect(r.perm.mastery.pick).toBe((s.perm.mastery.pick ?? 0) + 1); // 使った武器は+1
-    expect(r.perm.mastery.beam).toBe(0);                               // 使っていない武器は0のまま
+  it('転生: 閾値以上のダメージを出した武器だけ熟練+1（未満は据え置き・閾値はLvで上昇）', () => {
+    const s = stepMine(initialMineState(), 60_000); // ツルハシで掘ってダメージを稼ぐ
+    const lowGate = { ...B, masteryGateBase: 5, masteryGateGrowth: 2 };
+    expect(s.dmgByWeapon.pick).toBeGreaterThan(5);
+    const r = prestige(s, lowGate);
+    expect(r.perm.mastery.pick).toBe(1); // 閾値超え→+1
+    expect(r.perm.mastery.beam).toBe(0); // 使っていない武器は0のまま
+    // 閾値が高すぎると（=その走行ではそこまでダメージを出していない）増えない＝転生連打で伸ばし放題にならない。
+    const r2 = prestige(s, { ...B, masteryGateBase: 1e9 });
+    expect(r2.perm.mastery.pick).toBe(0);
   });
 
   it('★は走行中に獲得予定が貯まり、転生でもらえる', () => {

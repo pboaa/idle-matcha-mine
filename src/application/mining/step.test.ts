@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { defaultMiningBalance } from '@domain/mining/balance';
+import { defaultMiningBalance, weaponSkillNodes } from '@domain/mining/balance';
 
 describe('mining/step', () => {
   it('決定的（同じ初期状態・同じ時間で一致）', () => {
@@ -95,16 +95,20 @@ describe('mining/step', () => {
     expect(beamDirs(10)).toBeGreaterThan(2); // 高Lv: 4/8方向
   });
 
-  it('レア/エピックの固有特性: 弾は多点同時／直線は貫通が伸びる', () => {
-    const cells = (weapon: 'bullet' | 'beam', q: number) => {
+  it('特殊強化は転生ツリー側: 範囲で弾が多点同時／貫通で直線が伸びる', () => {
+    // 三択(自動選択)には特殊効果を載せない。範囲(area)/貫通(pierce)はスキルツリーのノードで取得する。
+    const nodeIndex = (weapon: 'bullet' | 'beam', stat: string): number => weaponSkillNodes(weapon).findIndex((n) => n.stat === stat);
+    const cells = (weapon: 'bullet' | 'beam', stat: string | null): number => {
       const init = initialMineState();
-      const s = { ...init, autoMode: false, levels: { ...init.levels, pick: 0, [weapon]: 1 }, weaponQuality: { ...init.weaponQuality, [weapon]: q } };
+      const idx = stat ? nodeIndex(weapon, stat) : -1;
+      const perm = { ...init.perm, weaponSkill: { ...init.perm.weaponSkill, [weapon]: idx >= 0 ? [idx] : [] } };
+      const s = { ...init, autoMode: false, levels: { ...init.levels, pick: 0, [weapon]: 1 }, perm };
       const r = stepMine(s, 350); // 弾/ビームが1回攻撃
       return new Set(r.fx.filter((f) => f.weapon === weapon).flatMap((f) => f.cells.map((c) => `${c.x},${c.y}`))).size;
     };
-    expect(cells('bullet', 0)).toBe(1);                       // 固有なし: 1点
-    expect(cells('bullet', 2)).toBeGreaterThan(1);            // 固有あり: 多点同時
-    expect(cells('beam', 2)).toBeGreaterThan(cells('beam', 0)); // 直線は貫通で長くなる
+    expect(cells('bullet', null)).toBe(1);                         // 範囲ノードなし: 1点
+    expect(cells('bullet', 'area')).toBeGreaterThan(1);            // 範囲ノードで多点同時
+    expect(cells('beam', 'pierce')).toBeGreaterThan(cells('beam', null)); // 貫通ノードで直線が伸びる
   });
 
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {

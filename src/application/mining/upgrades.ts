@@ -62,17 +62,13 @@ export function autoPick(offer: readonly OfferChoice[], rng: Rng, opts?: { reado
   return top[Math.floor(rng.next() * top.length)]!;
 }
 
-/** レア/エピックで武器を取った時の固有特性ゲイン（common=0, rare=1, epic=2）。 */
-export const offerQualityGain = (choice: OfferChoice): number =>
-  isWeapon(choice.id) ? (choice.rarity === 'epic' ? 2 : choice.rarity === 'rare' ? 1 : 0) : 0;
-
+// 三択は放置で自動選択されるので「特殊な強化要素(貫通/範囲/多点)」は持たせない。
+// レア/エピックは取得レベルが増えるだけ（特殊効果は全て転生スキルツリー側へ）。
 export function applyOfferChoice(state: MineState, choice: OfferChoice): MineState {
   const lv = { ...state.levels };
   lv[choice.id] += choice.rarity === 'rare' ? 2 : 1;
   if (choice.rarity === 'epic' && choice.bonus) lv[choice.bonus] += 1;
-  const q = offerQualityGain(choice); // レア/エピック武器は固有特性を持つ（重ねると強化）
-  const weaponQuality = q > 0 && isWeapon(choice.id) ? { ...state.weaponQuality, [choice.id]: state.weaponQuality[choice.id] + q } : state.weaponQuality;
-  return { ...state, levels: lv, offer: null, offerAt: null, weaponQuality };
+  return { ...state, levels: lv, offer: null, offerAt: null };
 }
 
 // ===== コインの使い道: 目利き（レアが出やすく） =====
