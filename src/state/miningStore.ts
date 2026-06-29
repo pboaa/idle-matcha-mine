@@ -22,7 +22,7 @@ interface MiningStore {
 let accumulatorMs = 0;
 
 export const useMiningStore = create<MiningStore>((set, get) => ({
-  state: initialMineState(defaultMiningBalance, (Math.random() * 0x7fffffff) | 0), // 走行ごとに開始武器が変わる
+  state: { ...initialMineState(defaultMiningBalance, (Math.random() * 0x7fffffff) | 0), autoMode: false }, // 序盤は手動で3択を選ぶ楽しみ
   tick: (realDtMs) => {
     accumulatorMs += realDtMs;
     const maxBatch = MINE_STEP_MS * 20;
@@ -40,7 +40,7 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   toggleAuto: () => set((st) => ({ state: { ...st.state, autoMode: !st.state.autoMode } })),
   buyAppraise: () => set((st) => ({ state: buyAppraise(st.state) })),
   buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
-  prestige: () => set((st) => ({ state: prestige(st.state) })),
+  prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   buyPerm: (id) => set((st) => ({ state: buyPerm(st.state, id) })),
   buyWeaponUp: (weapon, stat) => set((st) => ({ state: buyWeaponUp(st.state, weapon, stat) })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),

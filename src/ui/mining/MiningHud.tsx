@@ -1,77 +1,20 @@
-import { useMineHud, useMineChoose, useMineToggleAuto, useMineBuyAppraise, useMineBuyBoost } from '@state/miningSelectors';
+import { useMineHud, useMineBuyAppraise, useMineBuyBoost } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
-const RARITY_CLASS: Record<string, string> = {
-  common: 'bg-violet-500 hover:bg-violet-400',
-  rare: 'bg-amber-500 ring-2 ring-amber-300 hover:bg-amber-400',
-  epic: 'bg-fuchsia-600 ring-2 ring-fuchsia-300 hover:bg-fuchsia-500',
-};
-const RARITY_TAG: Record<string, string> = { common: '', rare: '★レア', epic: '★★エピック' };
-
-/** 採掘モックのHUD（コイン／階・進捗／レベル＆3択／武器／自動モード）。 */
+/** 採掘ダッシュボード（脇）: 熟練度／所持武器・強化／ダメージ内訳／コインの使い道。ステータスと3択は画面内オーバーレイ側。 */
 export function MiningHud() {
   const hud = useMineHud();
-  const choose = useMineChoose();
-  const toggleAuto = useMineToggleAuto();
   const buyAppraise = useMineBuyAppraise();
   const buyBoost = useMineBuyBoost();
-  const xpRatio = hud.xpNext > 0 ? hud.xp / hud.xpNext : 0;
 
   return (
-    <div className="flex w-72 flex-col items-stretch gap-2">
-      <div className="flex items-center justify-between">
-        <div className="text-2xl font-bold text-amber-300">🪙 {formatNumber(hud.coins)}</div>
-        <div className="text-sm font-bold text-stone-300">地下 {hud.floor + 1}階</div>
-      </div>
-
+    <div className="flex w-64 flex-col items-stretch gap-2">
       {/* 熟練度（武器ごと・転生時に上がる永続強化） */}
       {hud.mastery.total > 0 && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-indigo-950/50 px-2 py-1 text-[11px] text-indigo-200" title="武器ごとに転生時+10%。合計で移動速度・射程も永続UP（周回で序盤が速くなる）。">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-indigo-950/50 px-2 py-1 text-[11px] text-indigo-200" title="武器ごとに転生時+10%。合計で移動速度・射程も永続UP。">
           <span className="text-indigo-300">🎓 熟練</span>
           {hud.mastery.perWeapon.map((w) => <span key={w.label} title={`${w.label} 熟練Lv${w.lv}：ダメージ +${w.pct}%`}>{w.emoji}<b className="text-indigo-100">+{w.pct}%</b></span>)}
           <span className="text-indigo-400">🏃+{hud.mastery.movePct}% 📏+{hud.mastery.rangeBonus}</span>
-        </div>
-      )}
-
-      {/* レベル＆XP */}
-      <div className="flex flex-col gap-0.5">
-        <div className="flex justify-between text-[11px] text-stone-400"><span>Lv {hud.level}</span><span>{hud.xp}/{hud.xpNext}</span></div>
-        <div className="h-2 overflow-hidden rounded-full bg-stone-700"><span className="block h-full bg-violet-400 transition-[width] duration-150" style={{ width: `${Math.min(100, xpRatio * 100)}%` }} /></div>
-      </div>
-
-      {/* 階の掘削進捗 */}
-      <div className="flex flex-col gap-0.5">
-        <div className="flex justify-between text-[11px] text-stone-400"><span>この階の掘削</span><span>{hud.progressPct.toFixed(1)}%</span></div>
-        <div className="h-2 overflow-hidden rounded-full bg-stone-700"><span className="block h-full bg-sky-400 transition-[width] duration-150" style={{ width: `${hud.progressPct}%` }} /></div>
-      </div>
-
-      <div className="text-center text-[11px] text-stone-400">💎 掘った素材は自動で回収されます</div>
-
-      {/* レベルアップ3択（手動モードで提示中のみ） */}
-      {hud.offer.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-lg bg-violet-950/60 p-2 ring-1 ring-violet-400/50">
-          <div className="text-center text-[11px] font-bold text-violet-200">レベルアップ！強化を選ぶ</div>
-          <div className="flex gap-1">
-            {hud.offer.map((o) => (
-              <button key={o.index} onClick={() => choose(o.index)} title={o.detail}
-                className={['flex flex-1 flex-col items-center rounded-md px-1 py-1.5 text-[11px] font-bold text-white shadow transition active:scale-95', RARITY_CLASS[o.rarity]].join(' ')}>
-                <span className="text-lg">{o.emoji}{o.bonusEmoji && <span className="text-xs">+{o.bonusEmoji}</span>}</span>
-                <span>{o.label}{o.rarity === 'rare' && '×2'}</span>
-                {RARITY_TAG[o.rarity] && <span className="text-[8px] text-yellow-100">{RARITY_TAG[o.rarity]}</span>}
-                <span className="text-[9px] opacity-80">{o.lv === 0 ? 'NEW!' : `Lv${o.lv}`}</span>
-              </button>
-            ))}
-          </div>
-          {/* 各選択肢の詳細（数値つき） */}
-          <div className="flex flex-col gap-1">
-            {hud.offer.map((o) => (
-              <div key={o.index} className="rounded bg-violet-900/40 px-1.5 py-1 text-[10px] leading-tight text-violet-100">
-                <span className="font-bold">{o.emoji} {o.label}</span>
-                {o.bonusEmoji && <span className="ml-1 text-fuchsia-300">＋おまけ {o.bonusEmoji}</span>}
-                <span className="block text-violet-200/80">{o.detail}</span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -87,7 +30,7 @@ export function MiningHud() {
         </div>
       </div>
 
-      {/* 武器ごとのダメージ寄与＋強化の威力倍率（バランスの記録） */}
+      {/* 武器ごとのダメージ寄与＋強化の威力倍率 */}
       {(hud.damageShare.length > 0 || hud.damageMods.length > 0) && (
         <div className="flex flex-col gap-1 rounded-md bg-stone-800/60 p-1.5">
           {hud.damageShare.length > 0 && (
@@ -142,11 +85,6 @@ export function MiningHud() {
           </button>
         </div>
       </div>
-
-      <button onClick={toggleAuto}
-        className={['self-start rounded-md px-2 py-0.5 text-[11px] font-bold shadow transition', hud.autoMode ? 'bg-emerald-500 text-white' : 'bg-stone-600 text-stone-200'].join(' ')}>
-        自動強化 {hud.autoMode ? 'ON（コインで目利き自動購入）' : 'OFF'}
-      </button>
     </div>
   );
 }

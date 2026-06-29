@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMiningTick } from '@state/useMiningTick';
 import { MiningGrid } from '@ui/mining/MiningGrid';
+import { MiningOverlay } from '@ui/mining/MiningOverlay';
 import { MiningHud } from '@ui/mining/MiningHud';
 import { MiningPrestige } from '@ui/mining/MiningPrestige';
 
@@ -18,10 +19,13 @@ export function MiningApp() {
         </button>
       </div>
       <div className="flex flex-1 items-start justify-center gap-4 overflow-auto">
+        <div className="relative shrink-0">
+          <MiningGrid />
+          <MiningOverlay />
+        </div>
         <MiningHud />
-        <MiningGrid />
       </div>
-      <p className="mt-2 text-[11px] text-stone-500">猫が前方ブロックを自動採掘。コイン→目利き/ブースト、素材→転生で恒久強化、熟練度は永続。</p>
+      <p className="mt-2 text-[11px] text-stone-500">序盤は手動で3択を選ぶ（右上で自動に切替）。コイン→目利き/ブースト、鉱石→武器ごとの恒久強化、熟練度は永続。</p>
 
       {showWorkshop && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowWorkshop(false)}>
