@@ -89,6 +89,3 @@ export function buyBoost(state: MineState, b: MiningBalance = defaultMiningBalan
   return { ...state, coins: state.coins - cost, boost: state.boost + 1 };
 }
 
-// ===== 熟練度（武器ごと・永続）: 武器ダメージ倍率 =====
-/** その武器の熟練度ダメージ倍率（Lvにつき +masteryPerLvl）。 */
-export const weaponMasteryMul = (masteryLvl: number, b: MiningBalance = defaultMiningBalance): number => 1 + masteryLvl * b.masteryPerLvl;

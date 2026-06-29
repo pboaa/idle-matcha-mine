@@ -194,12 +194,6 @@ export interface MiningBalance {
   // コインで買う走行限定ブースト（転生でリセット）
   readonly boostPerLvl: number; readonly boostCostBase: number; readonly boostCostGrowth: number;
 
-  // 熟練度（武器ごと・転生時に上がる永続強化）: その武器のダメージを恒久で上げる＋合計でスループット
-  readonly masteryPerLvl: number;        // 武器の熟練1につきその武器ダメージ+（既定+10%/Lv＝転生1回ぶん）
-  readonly masteryMovePerLvl: number;    // 合計熟練1につき移動速度+（永続・周回で序盤が速くなる主因）
-  readonly masteryRangePerLvl: number;   // 合計熟練ごとに武器の射程/範囲+1（永続・浅い階を一掃＝サクサク）
-  readonly masteryMinTiles: number;      // この走行で最低これだけ掘らないと熟練度を獲得できない（転生連打の抑止）
-
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
   readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
@@ -253,7 +247,6 @@ export const defaultMiningBalance: MiningBalance = {
 
   boostPerLvl: 0.08, boostCostBase: 40, boostCostGrowth: 1.35,
 
-  masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05, masteryMinTiles: 40,
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
 

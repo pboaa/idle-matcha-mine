@@ -2,8 +2,7 @@ import { useMemo } from 'react';
 import { sameCell } from '@domain/grid/position';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '@domain/mining/tile';
 import type { MineState } from '@application/mining/mineState';
-import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
-import { totalMastery } from '@application/mining/mineState';
+import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul } from '@application/mining/upgrades';
 import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, autoEfficiency, idleCost, idleMaxLevel, type PermId } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
@@ -150,8 +149,6 @@ export interface MineMetaVM { readonly appraiseLv: number; readonly appraiseCost
 export interface MineBoostVM { readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
 /** コインで買う全体強化（走行限定）。 */
 export interface MineCoinUpVM { readonly id: CoinUpId; readonly emoji: string; readonly label: string; readonly desc: string; readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
-export interface MineWeaponMasteryVM { readonly emoji: string; readonly label: string; readonly lv: number; readonly pct: number }
-export interface MineMasteryVM { readonly total: number; readonly gainPct: number; readonly movePct: number; readonly rangeBonus: number; readonly perWeapon: readonly MineWeaponMasteryVM[] }
 export interface MineHudVM {
   readonly coins: number; readonly floor: number; readonly progressPct: number;
   readonly level: number; readonly xp: number; readonly xpNext: number; readonly autoMode: boolean;
@@ -164,7 +161,6 @@ export interface MineHudVM {
   readonly boost: MineBoostVM;
   readonly coinUps: readonly MineCoinUpVM[];
   readonly autoEffPct: number; // 自動モードの火力倍率%（手動は実質100%）
-  readonly mastery: MineMasteryVM;
 }
 
 /** 所持する強化のうち威力に効くものの現在倍率（ダメージ影響度）。 */
@@ -190,20 +186,6 @@ function damageMods(state: MineState): MineDmgModVM[] {
   return out;
 }
 
-/** 武器ごとの熟練度＋合計のスループット（移動/射程）。HUD・転生パネル共通。 */
-function buildMasteryVM(state: MineState): MineMasteryVM {
-  const total = totalMastery(state.mastery);
-  return {
-    total,
-    gainPct: Math.round(B.masteryPerLvl * 100),
-    movePct: Math.round(total * B.masteryMovePerLvl * 100),
-    rangeBonus: Math.floor(total * B.masteryRangePerLvl),
-    perWeapon: WEAPON_IDS.filter((w) => state.mastery[w] > 0).map((w) => ({
-      emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, lv: state.mastery[w], pct: Math.round((weaponMasteryMul(state.mastery[w]) - 1) * 100),
-    })),
-  };
-}
-
 export function buildMineHud(state: MineState): MineHudVM {
   const weapons = WEAPON_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]) }));
   const passives = PASSIVE_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]) }));
@@ -224,7 +206,6 @@ export function buildMineHud(state: MineState): MineHudVM {
       return { id, emoji: def.emoji, label: def.label, desc: def.desc, lv: state.coinUp[id], cost, can: state.coins >= cost, pct: Math.round(state.coinUp[id] * def.perLvl * 100) };
     }),
     autoEffPct: Math.round(autoEfficiency(state.perm.idle) * 100),
-    mastery: buildMasteryVM(state),
   };
 }
 
@@ -238,13 +219,13 @@ export interface MineSkillNodeVM {
   readonly emoji: string; readonly label: string; readonly cost: number; readonly big: boolean;
   readonly requires: readonly number[]; readonly state: 'unlocked' | 'available' | 'locked'; readonly can: boolean;
 }
-export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly masteryLv: number; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number }
+export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number }
 /** 放置ツリー（自動効率）。 */
 export interface MineIdleVM { readonly lv: number; readonly maxLv: number; readonly autoEffPct: number; readonly cost: number | null; readonly can: boolean; readonly maxed: boolean }
 export interface MinePrestigeVM {
   readonly prestiges: number; readonly points: number;
   readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[];
-  readonly mastery: MineMasteryVM; readonly weaponTree: readonly MineWeaponTreeVM[]; readonly idle: MineIdleVM;
+  readonly weaponTree: readonly MineWeaponTreeVM[]; readonly idle: MineIdleVM;
 }
 
 /** スキルノードの表示文（amount を stat に応じて整形）。 */
@@ -271,7 +252,6 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
       return { id, kind, emoji: meta.emoji, label: meta.label, lv, matEmoji: matEmoji(mat), cost, can: state.materials[mat] >= cost };
     }),
     refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
-    mastery: buildMasteryVM(state),
     idle: (() => {
       const cost = idleCost(state.perm.idle); const maxLv = idleMaxLevel();
       return { lv: state.perm.idle, maxLv, autoEffPct: Math.round(autoEfficiency(state.perm.idle) * 100), cost, can: cost !== null && state.points >= cost, maxed: cost === null };
@@ -280,7 +260,7 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
       const unlocked = state.perm.weaponSkill[w];
       const nodes = weaponSkillNodes(w);
       return {
-        id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, masteryLv: state.mastery[w],
+        id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label,
         skillUnlocked: unlocked.length, skillTotal: nodes.length,
         skillNodes: nodes.map((n, i) => {
           const isUnlocked = unlocked.includes(i);

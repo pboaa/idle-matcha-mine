@@ -4,7 +4,7 @@ import { createRng, type Rng } from '@shared/rng';
 import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
-import { type MineState, type Levels, type WeaponMastery, type WeaponStatLevels, totalMastery } from '@application/mining/mineState';
+import { type MineState, type Levels, type WeaponStatLevels } from '@application/mining/mineState';
 import { weaponSkillStats, autoEfficiency } from '@application/mining/prestige';
 import { xpForNext, makeOffer, autoPick, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
@@ -62,8 +62,6 @@ interface FireCtx {
   readonly target: Cell | null;
   readonly levels: Levels;
   readonly totals: EffectTotals;
-  readonly mastery: WeaponMastery;   // 武器ごとの熟練度（永続ダメージ）
-  readonly masteryPerLvl: number;
   readonly skillStats: Record<WeaponId, WeaponStatLevels>; // 恒久スキルツリーの累積ステータス（amount）
   readonly globalMul: number; // 採掘ブースト（走行限定・全武器共通）
   readonly dtMs: number;
@@ -75,7 +73,7 @@ interface FireCtx {
 
 /** 所持する全武器を「攻撃間隔ごと」に発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
 function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
-  const { dug, pos, target, levels: L, totals: t, mastery, masteryPerLvl, skillStats, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
+  const { dug, pos, target, levels: L, totals: t, skillStats, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
   for (const id of WEAPON_IDS) {
     const lvl = L[id];
     if (lvl <= 0) continue;
@@ -92,9 +90,8 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     cd[id] += dtMs;
     if (cd[id] < interval) continue; // まだクールダウン中
     cd[id] -= interval;              // 1回攻撃（位相を保つ）
-    const masteryMul = 1 + mastery[id] * masteryPerLvl;                 // 武器ごとの永続熟練度
-    const upDmg = (1 + damageBonus) * (1 + uniqueBonus);                 // ダメージ/固有
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * masteryMul * upDmg * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
+    const upDmg = (1 + damageBonus) * (1 + uniqueBonus);                 // スキルツリー(ダメージ/固有)
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * upDmg * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
     const range = weaponRange(def, lvl, rangeBonus + rangeAdd);
     const lineRange = range + pierceBonus + pierceAdd; // 直線系は貫通で奥まで
     // 範囲段階: レベル(areaPerLvls段ごと)＋射程投資で増える。武器ごとに「広がり方」が変わる。
@@ -145,27 +142,24 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const dmgAcc = { ...state.dmgByWeapon };
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
-  // 熟練度（永続）はスループットにも効く: 合計熟練で移動速度＋射程。周回を重ねるほど序盤が速くなる（=サクサク）。
-  const mTotal = totalMastery(state.mastery);
-  const masteryMove = mTotal * b.masteryMovePerLvl;
-  const masteryRange = Math.floor(mTotal * b.masteryRangePerLvl);
   // コインで買う全体強化（走行限定）: 移動/素材/コイン。
   const cu = state.coinUp;
-  const moveCost = b.moveCost / (1 + t.move + masteryMove + cu.haste * COIN_UP_DEFS.haste.perLvl);
+  const moveCost = b.moveCost / (1 + t.move + cu.haste * COIN_UP_DEFS.haste.perLvl);
   const coinMult = 1 + t.coin + cu.luck * COIN_UP_DEFS.luck.perLvl;
   const matChance = t.material + cu.greed * COIN_UP_DEFS.greed.perLvl;
-  const rangeBonus = Math.floor(t.range) + masteryRange;
+  const rangeBonus = Math.floor(t.range);
   const pierceBonus = Math.floor(t.pierce); // 貫通: ビーム/ドリル(直線)が奥まで届く
 
   const applyDmg = (cell: Cell, baseAmt: number, w: WeaponId): void => {
     if (cleared || !isSolid(dug, cell, b)) return;
     const amt = rng.next() < t.crit ? baseAmt * b.critMult : baseAmt; // 会心
-    dmgAcc[w] += amt;
     let hc = hits.get(w); if (!hc) { hc = []; hits.set(w, hc); } hc.push(cell); // 命中マスを記録（演出）
     const k = cellKey(cell);
     const kind = kindAt(cell, state.floor, b);
     const HP = tileHardness(state.floor, tileDist(cell, b), kind.hardMult, b); // 距離＋種類で固さが変わる
-    const d = (damage.get(k) ?? 0) + amt;
+    const prev = damage.get(k) ?? 0;
+    dmgAcc[w] += Math.min(amt, HP - prev); // 寄与はブロックのHPを超えた分(オーバーキル)を含めない
+    const d = prev + amt;
     if (d < HP) { damage.set(k, d); return; }
     damage.delete(k);
     dug.add(k);
@@ -196,7 +190,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const globalMul = boostMul(state.boost, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
-  fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, skillStats, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
+  fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
   // 階クリアで降下。★ポイントは「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials, points: state.points + b.pointsPerFloor * (state.floor + 1) }, b);

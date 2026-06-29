@@ -1,6 +1,6 @@
 import type { MiningBalance, ChoiceId, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, COIN_UP_DEFS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
-import { freshRun, type MineState, type Perm, type WeaponMastery, type WeaponStatLevels } from '@application/mining/mineState';
+import { defaultMiningBalance, MATERIAL_IDS, COIN_UP_DEFS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
+import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
 export type PermId = ChoiceId | 'appraise';
@@ -102,16 +102,7 @@ export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalanc
   return { ...state, points: state.points - cost, perm: { ...state.perm, idle: state.perm.idle + 1 } };
 }
 
-/** 転生時の熟練度獲得: その走行で十分掘った(seq>=masteryMinTiles)時のみ、実際にダメージを出した武器ごとに +1。
- *  転生ボタン連打（ほぼ未採掘の即転生）では増えない。 */
-export function masteryGainOnPrestige(state: MineState, b: MiningBalance = defaultMiningBalance): WeaponMastery {
-  const next = { ...state.mastery };
-  if (state.seq < b.masteryMinTiles) return next; // 走行が短すぎる＝連打抑止
-  for (const w of WEAPON_IDS) if (state.dmgByWeapon[w] > 0) next[w] += 1;
-  return next;
-}
-
-/** 転生: 走行をリセット。鉱石・★ポイント・恒久・熟練度は引き継ぐ（走行限定のみリセット）。 */
+/** 転生: 走行をリセット。鉱石・★ポイント・恒久は引き継ぐ（走行限定のみリセット）。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, masteryGainOnPrestige(state, b), state.points);
+  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, state.points);
 }

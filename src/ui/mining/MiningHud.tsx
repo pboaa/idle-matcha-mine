@@ -10,15 +10,6 @@ export function MiningHud() {
 
   return (
     <div className="flex w-64 flex-col items-stretch gap-2">
-      {/* 熟練度（武器ごと・転生時に上がる永続強化） */}
-      {hud.mastery.total > 0 && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-indigo-950/50 px-2 py-1 text-[11px] text-indigo-200" title="武器ごとに転生時+10%。合計で移動速度・射程も永続UP。">
-          <span className="text-indigo-300">🎓 熟練</span>
-          {hud.mastery.perWeapon.map((w) => <span key={w.label} title={`${w.label} 熟練Lv${w.lv}：ダメージ +${w.pct}%`}>{w.emoji}<b className="text-indigo-100">+{w.pct}%</b></span>)}
-          <span className="text-indigo-400">🏃+{hud.mastery.movePct}% 📏+{hud.mastery.rangeBonus}</span>
-        </div>
-      )}
-
       {/* 所持武器＋強化（所持数制限つき） */}
       <div className="flex flex-col gap-1 text-[12px]">
         <div className="flex flex-wrap items-center gap-2">

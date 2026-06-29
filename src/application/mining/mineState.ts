@@ -15,7 +15,6 @@ export type Levels = Record<ChoiceId, number>;
 export interface OfferChoice { readonly id: ChoiceId; readonly rarity: OfferRarity; readonly bonus: ChoiceId | null }
 export interface MineMeta { readonly appraise: number }
 export type Materials = Record<MaterialId, number>;
-export type WeaponMastery = Record<WeaponId, number>;
 /** 武器ステータス量（ダメージ/攻撃速度/射程/貫通/固有）。スキルツリーの累積に使う。 */
 export type WeaponStatLevels = Record<WeaponStat, number>;
 /** 武器ごとの恒久スキルツリー進捗（解放済みノードindexの配列）。ポイントで解放。 */
@@ -30,11 +29,9 @@ const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])
 const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as Record<WeaponId, number>;
 
 export const emptyMaterials = (): Materials => ({ dirt: 0, stone: 0, ore: 0, gem: 0 });
-export const emptyMastery = (): WeaponMastery => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as WeaponMastery;
 export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
 export const emptyCoinUp = (): CoinUp => Object.fromEntries(COIN_UP_IDS.map((id) => [id, 0])) as CoinUp;
 export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponSkill: emptyWeaponSkill(), idle: 0 });
-export const totalMastery = (m: WeaponMastery): number => WEAPON_IDS.reduce((a, w) => a + m[w], 0);
 
 export interface MineState {
   readonly time: number;
@@ -66,13 +63,12 @@ export interface MineState {
   readonly points: number;         // ★恒久ポイント（進行＝レベル/階で貯まる）
   readonly perm: Perm;
   readonly prestiges: number;
-  readonly mastery: WeaponMastery; // 武器ごとの熟練度（永続・転生時に上がる）。武器ダメージ＋合計でスループット。
 }
 
-/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。鉱石/恒久(perm)/熟練度/ポイントは引き継ぐ（走行限定のみリセット）。 */
+/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。鉱石/恒久(perm)/ポイントは引き継ぐ（走行限定のみリセット）。 */
 export function freshRun(
   b: MiningBalance, materials: Materials, perm: Perm, prestiges: number,
-  seed = 123456, mastery: WeaponMastery = emptyMastery(), points = 0,
+  seed = 123456, points = 0,
 ): MineState {
   const base = baseOf(b);
   const levels = zeroLevels();
@@ -88,12 +84,12 @@ export function freshRun(
     dmgByWeapon: zeroDmg(),
     weaponCd: zeroDmg(),
     materials, coinUp: emptyCoinUp(), points,
-    perm, prestiges, mastery,
+    perm, prestiges,
   };
 }
 
 export function initialMineState(b: MiningBalance = defaultMiningBalance, seed = 123456): MineState {
-  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed, emptyMastery(), 0);
+  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed, 0);
 }
 
 export { MATERIAL_IDS };

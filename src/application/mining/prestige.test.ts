@@ -43,22 +43,6 @@ describe('mining/prestige', () => {
     expect(extraWeaponLevels(s.levels, perm.levels)).toBe(1); // 開始武器は1つ(ツルハシ)だけ+1
   });
 
-  it('熟練度は武器ごと・転生時に上がる（使った武器が+1）／消えない', () => {
-    let s = stepMine(initialMineState(), 360_000); // 自動は火力半減＆序盤の武器が弱いぶん長めに掘る（seq>=masteryMinTiles）
-    const usedPick = s.levels.pick > 0;
-    expect(usedPick).toBe(true);
-    const pickBefore = s.mastery.pick; // 初回は0
-    s = prestige(s, B);
-    expect(s.mastery.pick).toBe(pickBefore + 1); // 使った武器の熟練が+1
-    // 使っていない武器は上がらない
-    const unused = WEAPON_IDS.find((w) => w !== 'pick');
-    if (unused) expect(s.mastery[unused]).toBeGreaterThanOrEqual(0);
-    // さらに転生しても累積（消えない）
-    const before = s.mastery.pick;
-    const s2 = prestige(stepMine(s, 5_000), B);
-    expect(s2.mastery.pick).toBeGreaterThanOrEqual(before); // 永続保持＆さらに加算
-  });
-
   it('コイン全体強化: コインを消費してLvが上がる／不足は不可', () => {
     const s0 = { ...initialMineState(), coins: 99999 };
     const cost = coinUpCost('haste', s0.coinUp);
@@ -78,12 +62,6 @@ describe('mining/prestige', () => {
     expect(greedy).toBeGreaterThan(plain); // 強欲で素材が増えやすい
   });
 
-  it('転生連打の抑止: ほぼ未採掘の即転生では熟練度が増えない', () => {
-    const fresh = stepMine(initialMineState(), 300); // ほぼ掘っていない（seq < masteryMinTiles）
-    const r = prestige(fresh, B);
-    expect(r.mastery.pick).toBe(0); // 連打しても上がらない
-    expect(fresh.seq).toBeLessThan(B.masteryMinTiles);
-  });
 
   it('武器スキルツリー(グラフ): 前提を満たすノードをポイントで解放', () => {
     const nodes = weaponSkillNodes('pick');

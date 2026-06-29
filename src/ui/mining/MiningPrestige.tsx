@@ -69,19 +69,6 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* 熟練度（武器ごと・転生時に上がる永続強化） */}
-      <div className="flex flex-col gap-1 rounded-lg bg-indigo-950/60 p-2.5 ring-1 ring-indigo-500/40">
-        <div className="text-[12px] text-indigo-100">
-          🎓 熟練度（武器ごと・<b>転生で使った武器ごとに +{p.mastery.gainPct}%</b>）
-          <span className="ml-1 text-[10px] text-indigo-300">合計{p.mastery.total} → 永続 🏃+{p.mastery.movePct}% 📏+{p.mastery.rangeBonus}（周回で序盤がサクサク）</span>
-        </div>
-        {p.mastery.perWeapon.length > 0 ? (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-indigo-200">
-            {p.mastery.perWeapon.map((w) => <span key={w.label} title={`${w.label} 熟練Lv${w.lv}`}>{w.emoji} Lv{w.lv} <span className="text-indigo-400">+{w.pct}%</span></span>)}
-          </div>
-        ) : <div className="text-[10px] text-indigo-400">まだ熟練度なし。転生すると、その走行で使った武器のダメージが恒久で上がる。</div>}
-      </div>
-
       {/* ★ポイント（進行で取得）＋鉱石（永続保存）＋精錬 */}
       <div className="flex flex-col gap-1 rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-700/40">
         <div className="flex items-center justify-between text-[12px]">
@@ -134,7 +121,7 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
               {p.weaponTree.map((w) => (
                 <button key={w.id} onClick={() => setWeaponSel(w.id)} title={w.label}
                   className={['rounded-md px-2 py-1 text-[14px] leading-none transition', weaponSel === w.id ? 'bg-amber-400 ring-1 ring-amber-200' : 'bg-stone-700 hover:bg-stone-600'].join(' ')}>
-                  {w.emoji}{w.masteryLv > 0 && <span className="ml-0.5 align-middle text-[9px] text-indigo-200">🎓{w.masteryLv}</span>}
+                  {w.emoji}
                 </button>
               ))}
             </div>
