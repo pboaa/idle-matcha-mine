@@ -55,13 +55,14 @@ export function MiningOverlay() {
             <div className="text-center text-[12px] font-bold text-violet-200">⬆️ レベルアップ！ 強化を選ぶ</div>
             <div className="flex gap-2">
               {hud.offer.map((o) => (
-                <button key={o.index} onClick={() => choose(o.index)} title={o.detail}
-                  className={['flex w-[8.5rem] flex-col items-center rounded-lg px-2 py-2 text-white shadow transition active:scale-95', RARITY_CLASS[o.rarity]].join(' ')}>
+                <button key={o.index} onClick={() => choose(o.index)}
+                  className={['flex w-[9.5rem] flex-col items-center rounded-lg px-2 py-2 text-white shadow transition active:scale-95', RARITY_CLASS[o.rarity]].join(' ')}>
                   <span className="text-3xl leading-none">{o.emoji}{o.bonusEmoji && <span className="text-base">+{o.bonusEmoji}</span>}</span>
-                  <span className="mt-1 text-[12px] font-bold">{o.label}{o.rarity === 'rare' && ' ×2'}</span>
+                  <span className="mt-1 text-[12px] font-bold">{o.label}{o.rarity === 'rare' && ' ×2'}<span className="ml-1 text-[9px] font-normal opacity-80">{o.lv === 0 ? 'NEW!' : `Lv${o.lv}`}</span></span>
                   {RARITY_TAG[o.rarity] && <span className="text-[9px] text-yellow-100">{RARITY_TAG[o.rarity]}</span>}
-                  <span className="text-[9px] opacity-80">{o.lv === 0 ? 'NEW!' : `Lv${o.lv}`}</span>
-                  <span className="mt-1 text-center text-[9px] leading-tight text-white/85">{o.detail}</span>
+                  {/* 説明（ホバーでなく常時表示）: 何の武器/強化か＋現在の効果 */}
+                  <span className="mt-1 text-center text-[10px] leading-tight text-white/90">{o.desc}</span>
+                  <span className="mt-0.5 text-center text-[9px] leading-tight text-white/70">{o.detail}</span>
                 </button>
               ))}
             </div>
