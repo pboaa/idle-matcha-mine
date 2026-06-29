@@ -40,13 +40,13 @@ describe('mining/skilltree', () => {
     expect(aura.some((n) => n.stat === 'range')).toBe(true);
   });
 
-  it('深い階層ほど高コスト＆「色んな素材」を要求（種類が増える・量も増える）', () => {
+  it('1ノード＝1素材・深い階層ほど高コスト＆上位素材。全体では色んな素材が要る', () => {
     const nodes = weaponSkillNodes('bullet');
+    expect(nodes.every((n) => n.matCosts.length === 1)).toBe(true);     // 1ノード=1素材
     const root = (t: number): typeof nodes[number] => nodes.find((n) => n.tier === t && n.root)!;
-    const total = (t: number): number => root(t).matCosts.reduce((a, c) => a + c.amount, 0);
-    expect(total(4)).toBeGreaterThan(total(0));                          // 深い階層ほど量が多い
-    expect(root(4).matCosts.length).toBeGreaterThan(root(0).matCosts.length); // 深い階層ほど素材の種類が増える
-    expect(root(0).matCosts.length).toBe(1);                            // 階層1中央は1種（安い）
+    expect(root(4).matCosts[0]!.amount).toBeGreaterThan(root(0).matCosts[0]!.amount); // 深いほど量が多い
+    const mats = new Set(nodes.map((n) => n.matCosts[0]!.matId));
+    expect(mats.size).toBeGreaterThanOrEqual(5);                        // ツリー全体では色んな素材を使う
   });
 
   it('weaponStatApplies: 貫通=直線系のみ／範囲=フィールド系以外', () => {

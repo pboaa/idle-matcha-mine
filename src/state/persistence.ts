@@ -9,12 +9,22 @@ export function freshState(): MineState {
   return { ...initialMineState(defaultMiningBalance, (Math.random() * 0x7fffffff) | 0), autoMode: false };
 }
 
-/** dug(Set)/damage(Map) を配列化してJSON保存。localStorage不可なら黙って無視。 */
+/** dug(Set)/damage(Map) を配列化してJSON保存（実時刻tも記録＝オフライン進行用）。localStorage不可なら黙って無視。 */
 export function saveState(state: MineState): void {
   try {
-    const payload = { v: VERSION, s: { ...state, dug: [...state.dug], damage: [...state.damage] } };
+    const payload = { v: VERSION, t: Date.now(), s: { ...state, dug: [...state.dug], damage: [...state.damage] } };
     localStorage.setItem(KEY, JSON.stringify(payload));
   } catch { /* 容量超過/プライベートモード等は無視 */ }
+}
+
+/** 前回セーブからの経過ms（オフライン進行の追いつき用）。保存が無い/不正なら0。 */
+export function loadElapsedMs(): number {
+  try {
+    const raw = localStorage.getItem(KEY); if (!raw) return 0;
+    const data = JSON.parse(raw) as { v?: number; t?: number };
+    if (data.v !== VERSION || typeof data.t !== 'number') return 0;
+    return Math.max(0, Date.now() - data.t);
+  } catch { return 0; }
 }
 
 /** 保存済みがあれば復元（バージョン不一致・破損は null）。新フィールドはフレッシュ値で補完。 */

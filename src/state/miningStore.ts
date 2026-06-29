@@ -10,6 +10,7 @@ import { loadState, saveState, clearSave, freshState } from '@state/persistence'
 interface MiningStore {
   readonly state: MineState;
   tick: (realDtMs: number) => void;
+  catchUp: (realMs: number) => void; // 離席/オフラインぶんを一括で進める（バックグラウンド処理）
   chooseOffer: (index: number) => void;
   toggleAuto: () => void;
   buyAppraise: () => void;
@@ -28,12 +29,13 @@ interface MiningStore {
 let accumulatorMs = 0;
 let lastSaveMs = 0;
 const AUTOSAVE_MS = 3000;
+const MAX_CATCHUP_MS = 8 * 60 * 60 * 1000; // 離席/オフラインの追いつき上限（8時間ぶんまで一括計算）
 
 export const useMiningStore = create<MiningStore>((set, get) => ({
   state: loadState() ?? freshState(), // 保存済みがあれば続きから、なければ新規
   tick: (realDtMs) => {
     accumulatorMs += realDtMs;
-    const maxBatch = MINE_STEP_MS * 20;
+    const maxBatch = MINE_STEP_MS * 20; // ライブ描画は1フレーム最大2秒ぶん（カクつき防止）。離席ぶんは catchUp 側で処理。
     if (accumulatorMs > maxBatch) accumulatorMs = maxBatch;
     if (accumulatorMs < MINE_STEP_MS) return;
     const steps = Math.floor(accumulatorMs / MINE_STEP_MS);
@@ -42,6 +44,13 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     set({ state });
     const now = Date.now();
     if (now - lastSaveMs > AUTOSAVE_MS) { lastSaveMs = now; saveState(state); } // 自動セーブ（3秒ごと）
+  },
+  catchUp: (realMs) => { // タブを閉じていた/隠れていたぶんをまとめて進める（バックグラウンド処理）。
+    const ms = Math.min(Math.max(0, realMs), MAX_CATCHUP_MS);
+    if (ms < MINE_STEP_MS) return;
+    const steps = Math.floor(ms / MINE_STEP_MS);
+    const state = stepMine(get().state, steps * MINE_STEP_MS);
+    set({ state }); lastSaveMs = Date.now(); saveState(state);
   },
   chooseOffer: (index) => {
     const s = get().state;
