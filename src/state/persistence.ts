@@ -32,7 +32,6 @@ export function loadState(): MineState | null {
       levels: { ...base.levels, ...(s.perm?.levels ?? {}) },
       weaponSkill: { ...base.weaponSkill, ...(s.perm?.weaponSkill ?? {}) },
       mastery: { ...base.mastery, ...(s.perm?.mastery ?? {}) },
-      weaponUnlocks: Array.isArray(s.perm?.weaponUnlocks) ? s.perm!.weaponUnlocks! : [],
     };
     return { ...freshState(), ...s, perm, dug: new Set<string>(s.dug), damage: new Map<string, number>(s.damage) } as unknown as MineState;
   } catch { return null; }

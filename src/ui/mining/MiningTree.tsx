@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMinePrestige, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineBuyStarDamage, useMineUnlockWeapon, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineBuyStarDamage, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 const COL = 80, ROW = 52, PADX = 30, PADY = 30, R = 16, RBIG = 20;
@@ -51,7 +51,6 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   const buyWeaponSkill = useMineBuyWeaponSkill();
   const buyIdle = useMineBuyIdle();
   const buyStarDamage = useMineBuyStarDamage();
-  const unlockWeapon = useMineUnlockWeapon();
   const refine = useMineRefine();
   const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
   const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
@@ -93,18 +92,20 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      {/* 武器の解放（序盤2種＋★で解放） */}
+      {/* 武器の解放（累計★で自動解放） */}
       <div className="flex flex-col gap-1 rounded-lg bg-sky-950/40 p-2 ring-1 ring-sky-700/40">
-        <div className="text-[11px] text-sky-100">🔓 武器の解放 <span className="text-[10px] text-sky-300/80">（解放で3択に登場・次の解放 {p.unlockMatEmoji}{formatNumber(p.unlockCost)}）</span></div>
+        <div className="text-[11px] text-sky-100">🔓 武器の自動解放
+          <span className="text-[10px] text-sky-300/80">（累計★ {formatNumber(p.starEarned)}{p.nextUnlock && ` ／ 次は ${p.nextUnlock.emoji} ＝ ⭐${p.nextUnlock.star}`}）</span>
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {p.unlocks.map((u) => (
-            <button key={u.id} onClick={() => u.status === 'locked' && unlockWeapon(u.id)} disabled={u.status !== 'locked' || !p.canUnlock}
-              title={u.status === 'base' ? `${u.label}（最初から）` : u.status === 'unlocked' ? `${u.label}（解放済み）` : `${u.label} を ${p.unlockMatEmoji}${p.unlockCost} で解放`}
-              className={['flex items-center gap-0.5 rounded-md px-2 py-1 text-[13px] leading-none transition',
-                u.status === 'locked' ? (p.canUnlock ? 'bg-sky-500 text-stone-900 hover:bg-sky-400 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500')
-                  : 'bg-stone-700 text-stone-100 cursor-default'].join(' ')}>
+            <div key={u.id}
+              title={u.status === 'base' ? `${u.label}（最初から）` : u.status === 'unlocked' ? `${u.label}（解放済み）` : `${u.label}：累計★${u.star} で自動解放`}
+              className={['flex items-center gap-0.5 rounded-md px-2 py-1 text-[13px] leading-none',
+                u.status === 'locked' ? 'bg-stone-800 text-stone-500' : 'bg-stone-700 text-stone-100'].join(' ')}>
               {u.status === 'locked' ? '🔒' : u.status === 'base' ? '⭐' : '✅'}{u.emoji}
-            </button>
+              {u.status === 'locked' && <span className="text-[9px] text-sky-300/70">⭐{u.star}</span>}
+            </div>
           ))}
         </div>
       </div>

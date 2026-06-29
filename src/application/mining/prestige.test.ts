@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockCost, unlockWeapon, WEAPON_UNLOCK_MATERIAL, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
-import { defaultMiningBalance, WEAPON_IDS, MATERIAL_IDS, BASE_WEAPONS, weaponSkillNodes } from '@domain/mining/balance';
+import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { defaultMiningBalance, WEAPON_IDS, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 // 開始武器はランダムに1つ＝武器レベル合計は「恒久武器Lv合計 + 1」
@@ -43,16 +43,18 @@ describe('mining/prestige', () => {
     expect(extraWeaponLevels(s.levels, perm.levels)).toBe(1); // 開始武器は1つ(ツルハシ)だけ+1
   });
 
-  it('序盤は武器2種のみ・素材(鉄)で解放できる（基本武器は不可）', () => {
-    const s = { ...initialMineState(), materials: { ...emptyMaterials(), [WEAPON_UNLOCK_MATERIAL]: 999 } };
-    expect([...allowedWeapons(s.perm)]).toEqual([...BASE_WEAPONS]); // 最初は2種
-    const cost = weaponUnlockCost(s.perm);
-    const r = unlockWeapon(s, 'beam');
-    expect(r.perm.weaponUnlocks).toEqual(['beam']); // 解放された
-    expect(r.materials[WEAPON_UNLOCK_MATERIAL]).toBe(999 - cost); // 素材(鉄)消費
-    expect(allowedWeapons(r.perm)).toContain('beam');
-    expect(weaponUnlockCost(r.perm)).toBeGreaterThan(cost); // 次は高い
-    expect(unlockWeapon(s, 'pick').materials[WEAPON_UNLOCK_MATERIAL]).toBe(999); // 基本武器は対象外（消費なし）
+  it('序盤は武器2種のみ・累計★で自動解放される', () => {
+    const s0 = initialMineState();
+    expect([...allowedWeapons(s0.perm)]).toEqual([...BASE_WEAPONS]); // 最初(★0)は2種のみ
+    const first = WEAPON_UNLOCK_ORDER[0]!;             // 最初に解放される武器
+    const need = weaponUnlockStar(first);
+    expect(allowedWeapons({ ...s0.perm, starEarned: need - 1 })).not.toContain(first); // 閾値未満は出ない
+    expect(allowedWeapons({ ...s0.perm, starEarned: need })).toContain(first);         // 閾値で自動解放
+    // 転生で runPoints が累計★(starEarned)に積まれ、達した武器が次走から出る
+    const s = { ...stepMine(initialMineState(), 60_000) };
+    const r = prestige({ ...s, runPoints: need }, B);
+    expect(r.perm.starEarned).toBeGreaterThanOrEqual(need);
+    expect(allowedWeapons(r.perm)).toContain(first);
   });
 
   it('コイン全体強化: コインを消費してLvが上がる／不足は不可', () => {
@@ -96,10 +98,14 @@ describe('mining/prestige', () => {
     expect(buyWeaponSkill(poor, 'pick', tier0[0]!).perm.weaponSkill.pick).toEqual([]); // 素材不足で不可
   });
 
-  it('武器スキルツリーは+5%ダメージ系が大量・武器ごとに形が違う', () => {
+  it('武器スキルツリーはノードが多く・序盤に範囲ノード(土)・武器ごとに形が違う', () => {
     const pick = weaponSkillNodes('pick'); const beam = weaponSkillNodes('beam');
     expect(pick.length).toBeGreaterThan(8);                         // ノードがいっぱい
-    expect(pick.filter((n) => n.stat === 'damage').length).toBeGreaterThan(pick.length / 2); // 過半が+ダメージ
+    expect(pick.filter((n) => n.stat === 'damage').length).toBeGreaterThanOrEqual(3); // +ダメージも複数ある
+    // ツルハシ: tier1に範囲(area)ノードが2つ・どちらも土で序盤に取れる（3方向化）
+    const area1 = pick.filter((n) => n.stat === 'area' && n.tier === 1);
+    expect(area1.length).toBe(2);
+    expect(area1.every((n) => n.matId === 'dirt' && n.matCost >= 300 && n.matCost <= 800)).toBe(true);
     expect(pick.map((n) => `${n.x},${n.y}`).join('|')).not.toBe(beam.map((n) => `${n.x},${n.y}`).join('|')); // 形が違う
   });
 

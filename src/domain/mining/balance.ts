@@ -52,6 +52,8 @@ export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
 export const WEAPON_IDS = Object.keys(WEAPON_DEFS) as WeaponId[];
 /** 最初から3択に出る武器（2種）。残りは転生ポイントで解放。 */
 export const BASE_WEAPONS: readonly WeaponId[] = ['pick', 'bullet'];
+/** 累計★で自動解放される武器の順番（必要★は balance.weaponUnlockStars）。 */
+export const WEAPON_UNLOCK_ORDER: readonly WeaponId[] = ['bomb', 'beam', 'drill', 'aura', 'ring'];
 
 /** 強化（特殊能力）の効果種別。weaponDmg は targetWeapon 指定の固有強化に使う。 */
 export type PassiveEffect = 'power' | 'rate' | 'move' | 'coin' | 'material' | 'xp' | 'range' | 'pierce' | 'crit' | 'meleeDmg' | 'shotDmg' | 'beamDmg' | 'fieldDmg' | 'weaponDmg';
@@ -125,11 +127,12 @@ export interface WeaponSkillNode {
   readonly requires: readonly number[];            // 線（描画用）。解禁は階層制で行う。
 }
 const isSpecialStat = (s: WeaponStat): boolean => s !== 'damage' && s !== 'speed';
-/** ノードの素材コスト（深い列/特殊ほど上位素材＆多い量）。 */
+/** ノードの素材コスト（浅い列＝土が大量に・深い列ほど上位素材。特殊系は量が割増）。
+ * tier0,1=土なので序盤の範囲ノード(前方右/左+1)が「土500くらい」で楽に取れる。 */
 function skillNodeCost(x: number, special: boolean): { matId: MaterialId; matCost: number } {
-  const tier = Math.min(MATERIAL_IDS.length - 1, x + (special ? 1 : 0));
-  const amount = Math.max(1, Math.round(3 * Math.pow(1.5, x) * (special ? 2.5 : 1)));
-  return { matId: MATERIAL_IDS[tier]!, matCost: amount };
+  const matIndex = Math.min(MATERIAL_IDS.length - 1, Math.max(0, x - 1)); // tier0,1=土／以降1段ずつ上位
+  const amount = Math.max(1, Math.round(150 * Math.pow(1.5, x) * (special ? 2.2 : 1)));
+  return { matId: MATERIAL_IDS[matIndex]!, matCost: amount };
 }
 // 木生成用の小さな決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
@@ -157,7 +160,7 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   let prev = [add(0, 1.5, [])];
   const cols = 6 + Math.floor(rnd() * 3); // 6〜8列
   for (let x = 1; x < cols; x++) {
-    const count = 1 + Math.floor(rnd() * 3); // 1〜3ノード/列
+    const count = x === 1 ? 2 : 1 + Math.floor(rnd() * 3); // tier1は必ず2ノード（序盤の範囲2つ＝3方向用）／以降1〜3
     const col: number[] = [];
     for (let i = 0; i < count; i++) {
       const y = count === 1 ? 1.5 : i * (3 / (count - 1));
@@ -173,8 +176,8 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const convert = (stat: WeaponStat, amount: number, fromDamage: boolean): boolean => {
     const cand = nodes
       .map((n, i) => ({ n, i }))
-      .filter((x) => x.n.x >= 2 && !x.n.big && (x.n.stat === 'speed' || (fromDamage && x.n.stat === 'damage')))
-      .sort((a, z) => (a.n.stat === z.n.stat ? z.n.x - a.n.x : a.n.stat === 'speed' ? -1 : 1))[0]; // speed優先・深い順
+      .filter((x) => x.n.x >= 1 && !x.n.big && (x.n.stat === 'speed' || (fromDamage && x.n.stat === 'damage')))
+      .sort((a, z) => (a.n.x !== z.n.x ? a.n.x - z.n.x : a.n.stat === 'speed' ? -1 : 1))[0]; // 浅い順（序盤で取れる）・同列はspeed優先
     if (!cand) return false;
     nodes[cand.i] = { ...cand.n, stat, amount, big: true };
     return true;
@@ -245,7 +248,7 @@ export interface MiningBalance {
 
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
-  readonly weaponUnlockBase: number; readonly weaponUnlockGrowth: number; // 武器解放コスト（素材・鉄）
+  readonly weaponUnlockStars: readonly number[]; // 武器を累計★で自動解放する閾値（WEAPON_UNLOCK_ORDER順）
   // ★(転生ポイント)は「全体ダメージ強化」専用。線形効果＋幾何コストで自己制限（インフレで壊れない）。
   readonly starDmgPerLvl: number; readonly starDmgCostBase: number; readonly starDmgCostGrowth: number;
   // 武器スキルツリー（素材で買う・階層制）。tier(列)ごとに素材の質(=tier)と量が上がる（コストはノードに焼き込み）。
@@ -306,7 +309,7 @@ export const defaultMiningBalance: MiningBalance = {
 
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
-  weaponUnlockBase: 8, weaponUnlockGrowth: 1.7,
+  weaponUnlockStars: [20, 55, 120, 220, 380],
   starDmgPerLvl: 0.10, starDmgCostBase: 5, starDmgCostGrowth: 1.5,
   tierUnlockCount: 2,
   idleMatCostBase: 4, idleMatCostGrowth: 1.6,

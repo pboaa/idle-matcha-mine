@@ -44,9 +44,12 @@ export function makeOffer(rng: Rng, levels: Levels, appraise: number, allowed: r
   });
 }
 
-/** 自動モード/放置時の取得選択は完全ランダム（運要素＝持ち込みがランダム）。 */
+/** 自動モード/放置時の取得選択は「レアなもの優先」（epic>rare>common、同率はランダム）。 */
 export function autoPick(offer: readonly OfferChoice[], rng: Rng): OfferChoice {
-  return offer[Math.floor(rng.next() * offer.length)]!;
+  const rank = (r: OfferRarity): number => (r === 'epic' ? 2 : r === 'rare' ? 1 : 0);
+  const best = Math.max(...offer.map((o) => rank(o.rarity)));
+  const top = offer.filter((o) => rank(o.rarity) === best);
+  return top[Math.floor(rng.next() * top.length)]!;
 }
 
 // 三択は放置で自動選択されるので「特殊な強化要素(貫通/範囲/多点)」は持たせない。

@@ -1,5 +1,5 @@
 import type { MiningBalance, ChoiceId, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
@@ -59,25 +59,16 @@ export function buyCoinUp(state: MineState, id: CoinUpId): MineState {
   return { ...state, coins: state.coins - cost, coinUp: { ...state.coinUp, [id]: state.coinUp[id] + 1 } };
 }
 
-// ===== 武器ごとの恒久スキルツリー（★ポイントで解放・グラフ） =====
-// ===== 武器の解放（★ポイント・序盤は2種のみ） =====
-/** 3択に出せる武器（基本2種＋解放済み）。 */
-export function allowedWeapons(perm: Perm): readonly WeaponId[] {
-  return [...BASE_WEAPONS, ...perm.weaponUnlocks];
+// ===== 武器の解放（累計★で自動解放・序盤は2種のみ） =====
+/** その武器が解放されるのに必要な累計★（基本武器は0、対象外はInfinity）。 */
+export function weaponUnlockStar(w: WeaponId, b: MiningBalance = defaultMiningBalance): number {
+  if (BASE_WEAPONS.includes(w)) return 0;
+  const i = WEAPON_UNLOCK_ORDER.indexOf(w);
+  return i < 0 ? Infinity : (b.weaponUnlockStars[i] ?? Infinity);
 }
-/** 武器解放に使う素材（鉄）。 */
-export const WEAPON_UNLOCK_MATERIAL: MaterialId = 'iron';
-/** 次の武器解放のコスト（素材・解放数で増える）。 */
-export function weaponUnlockCost(perm: Perm, b: MiningBalance = defaultMiningBalance): number {
-  return Math.floor(b.weaponUnlockBase * Math.pow(b.weaponUnlockGrowth, perm.weaponUnlocks.length));
-}
-/** 武器を1つ解放（素材=鉄を消費）。基本武器/解放済み/素材不足なら何もしない。 */
-export function unlockWeapon(state: MineState, w: WeaponId, b: MiningBalance = defaultMiningBalance): MineState {
-  if (BASE_WEAPONS.includes(w) || state.perm.weaponUnlocks.includes(w)) return state;
-  const cost = weaponUnlockCost(state.perm, b);
-  if (state.materials[WEAPON_UNLOCK_MATERIAL] < cost) return state;
-  const materials = { ...state.materials, [WEAPON_UNLOCK_MATERIAL]: state.materials[WEAPON_UNLOCK_MATERIAL] - cost };
-  return { ...state, materials, perm: { ...state.perm, weaponUnlocks: [...state.perm.weaponUnlocks, w] } };
+/** 3択に出せる武器（基本2種＋累計★が閾値に達したもの）。 */
+export function allowedWeapons(perm: Perm, b: MiningBalance = defaultMiningBalance): readonly WeaponId[] {
+  return [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER.filter((w) => perm.starEarned >= weaponUnlockStar(w, b))];
 }
 
 /** その階層(列)が解禁済みか（下の階層を tierUnlockCount だけ買っていれば次が開く）。 */
@@ -173,8 +164,9 @@ export function gainMastery(state: MineState, b: MiningBalance = defaultMiningBa
   return next;
 }
 
-/** 転生: 走行をリセット。獲得予定★(runPoints)をここで★(points)に加算してもらえる。鉱石・恒久は保持。使った武器は+1熟練。 */
+/** 転生: 走行をリセット。獲得予定★(runPoints)をここで★(points)に加算してもらえる。鉱石・恒久は保持。
+ * 使った武器は+1熟練。累計★(starEarned)も加算し、閾値に達した武器が次走から3択に出る（自動解放）。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const perm = { ...state.perm, mastery: gainMastery(state, b) };
+  const perm = { ...state.perm, mastery: gainMastery(state, b), starEarned: state.perm.starEarned + state.runPoints };
   return freshRun(b, state.materials, perm, state.prestiges + 1, state.rngState, state.points + state.runPoints);
 }

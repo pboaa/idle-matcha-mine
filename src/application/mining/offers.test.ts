@@ -74,20 +74,28 @@ describe('mining/offers', () => {
     expect(seen.has(generic[0]!)).toBe(true);
   });
 
-  it('autoPick は完全ランダム（自動の持ち込みは運）', () => {
-    const offer = [
+  it('autoPick はレア優先（同率はランダム）', () => {
+    const rng = createRng(11);
+    // 同率(全common)はランダムにばらける＝必ず3択内
+    const common = [
       { id: 'speed', rarity: 'common', bonus: null },
       { id: 'luck', rarity: 'common', bonus: null },
       { id: 'power', rarity: 'common', bonus: null },
     ] as const;
-    const rng = createRng(11);
     const ids = new Set<string>();
     for (let i = 0; i < 50; i++) {
-      const id = autoPick(offer, rng).id;
+      const id = autoPick(common, rng).id;
       ids.add(id);
-      expect(['speed', 'luck', 'power']).toContain(id); // 必ず3択内
+      expect(['speed', 'luck', 'power']).toContain(id);
     }
-    expect(ids.size).toBeGreaterThan(1);                 // ばらける＝偏らない
+    expect(ids.size).toBeGreaterThan(1);
+    // レア/エピックがあれば必ずそれを取る
+    const mixed = [
+      { id: 'speed', rarity: 'common', bonus: null },
+      { id: 'luck', rarity: 'epic', bonus: null },
+      { id: 'power', rarity: 'rare', bonus: null },
+    ] as const;
+    for (let i = 0; i < 20; i++) expect(autoPick(mixed, rng).id).toBe('luck'); // epicを優先
   });
 
   it('武器固有ユニークは対応武器を持っていないと3択に出ない', () => {

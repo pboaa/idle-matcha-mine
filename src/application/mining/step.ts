@@ -107,11 +107,11 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     const spread = Math.floor((lvl - 1) / b.areaPerLvls) + (def.pattern === 'nearest' ? 0 : areaAdd);
     const targets = 1 + (def.pattern === 'nearest' ? areaAdd : 0); // 弾はツリーの範囲で多点同時
     switch (def.pattern) {
-      case 'front': { // ツルハシ: 最初は前方1マス、spreadで横に広がる（横振り）。
+      case 'front': { // ツルハシ: 前方1マス。範囲(area)で1マスずつ右→左→右…と横に広がる（spread2で前方+右+左=3方向）。
         if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) {
           const d = dirToward(pos, target); const perp = { x: d.y, y: d.x };
           deal(f, dmg, id);
-          for (let k = 1; k <= spread; k++) { deal({ x: f.x + perp.x * k, y: f.y + perp.y * k }, dmg, id); deal({ x: f.x - perp.x * k, y: f.y - perp.y * k }, dmg, id); }
+          for (let s = 1; s <= spread; s++) { const k = Math.ceil(s / 2); const sign = s % 2 === 1 ? 1 : -1; deal({ x: f.x + perp.x * sign * k, y: f.y + perp.y * sign * k }, dmg, id); }
         } } break; }
       case 'nearest': { // 弾: 固有特性で「targets」点を同時に撃つ（最寄りから順に）。
         let hit = 0;
