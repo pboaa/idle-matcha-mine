@@ -130,13 +130,13 @@ export interface MiningBalance {
 
 export const defaultMiningBalance: MiningBalance = {
   worldSize: 30,
-  baseRate: 0.36,
+  baseRate: 0.28,
   moveCost: 0.5,
   dropVisualMs: 900,
   fxVisualMs: 220,
 
   hardnessBase: 1,
-  hardnessGrowth: 1.26,
+  hardnessGrowth: 1.34,
   distHardness: 0.06,
   valueGrowth: 1.13,
   kinds: {
