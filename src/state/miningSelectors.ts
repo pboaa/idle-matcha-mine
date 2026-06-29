@@ -326,3 +326,5 @@ export const useMineSetTarget = (): ((cell: { x: number; y: number }) => void) =
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);
 export const useMineSave = (): (() => void) => useMiningStore((s) => s.save);
 export const useMineResetData = (): (() => void) => useMiningStore((s) => s.resetData);
+export const useMineExportSave = (): (() => string) => useMiningStore((s) => s.exportSave);
+export const useMineImportSave = (): ((text: string) => boolean) => useMiningStore((s) => s.importSave);

@@ -5,7 +5,7 @@ import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upg
 import { prestige, buyCoinUp, buyWeaponSkill, buyWeaponSkillMax, buyIdle, refine } from '@application/mining/prestige';
 import type { MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
 import type { Cell } from '@domain/grid/position';
-import { loadState, saveState, clearSave, freshState } from '@state/persistence';
+import { loadState, saveState, clearSave, freshState, exportSave, importSave } from '@state/persistence';
 
 interface MiningStore {
   readonly state: MineState;
@@ -24,6 +24,8 @@ interface MiningStore {
   refine: (from: MaterialId) => void;
   save: () => void;       // 即時セーブ（離脱時など）
   resetData: () => void;  // セーブ削除して最初から
+  exportSave: () => string;          // セーブを文字列で書き出し
+  importSave: (text: string) => boolean; // 文字列からセーブを読み込み（成功でtrue）
 }
 
 let accumulatorMs = 0;
@@ -69,4 +71,6 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),
   save: () => saveState(get().state),
   resetData: () => { clearSave(); lastSaveMs = Date.now(); set({ state: freshState() }); },
+  exportSave: () => exportSave(get().state),
+  importSave: (text) => { const s = importSave(text); if (!s) return false; lastSaveMs = Date.now(); saveState(s); set({ state: s }); return true; },
 }));

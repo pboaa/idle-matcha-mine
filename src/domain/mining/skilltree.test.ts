@@ -29,15 +29,14 @@ describe('mining/skilltree', () => {
     expect(lr.every((n) => n.stat === 'area' && n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い
   });
 
-  it('グリッドに貫通/範囲/射程/固有が織り交ぜられている（武器ごとに有効なもの）', () => {
+  it('特殊系(範囲/射程/貫通/固有)は1ツリーに約2個だけ（インフレ防止）・残りはfiller', () => {
     const beam = weaponSkillNodes('beam'); // 直線系＝貫通も範囲も射程も有効
-    for (const stat of ['range', 'area', 'pierce', 'unique'] as const) expect(beam.some((n) => n.stat === stat)).toBe(true);
-    expect(beam.filter((n) => n.stat === 'damage' || n.stat === 'speed').length).toBeGreaterThan(beam.length / 2); // fillerが過半（特殊はまばら）
-    // フィールド系(オーラ)は範囲(area)/貫通(pierce)は無効＝出ない、射程(range)はある。
+    for (const stat of ['range', 'area', 'pierce', 'unique'] as const) expect(beam.filter((n) => n.stat === stat).length).toBe(2); // 各2個ぴったり
+    expect(beam.filter((n) => n.stat === 'damage' || n.stat === 'speed').length).toBeGreaterThan(beam.length * 0.9); // 9割超がfiller
+    // フィールド系(オーラ)は範囲(area)/貫通(pierce)は無効＝出ない、射程(range)は2個。
     const aura = weaponSkillNodes('aura');
-    expect(aura.some((n) => n.stat === 'area')).toBe(false);
-    expect(aura.some((n) => n.stat === 'pierce')).toBe(false);
-    expect(aura.some((n) => n.stat === 'range')).toBe(true);
+    expect(aura.some((n) => n.stat === 'area' || n.stat === 'pierce')).toBe(false);
+    expect(aura.filter((n) => n.stat === 'range').length).toBe(2);
   });
 
   it('1ノード＝1素材・深い階層ほど高コスト＆上位素材。全体では色んな素材が要る', () => {

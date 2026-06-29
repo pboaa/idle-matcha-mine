@@ -89,16 +89,19 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const cellAt = (tier: number, x: number, y: number): Cell => cells[indexAt(tier, x, y)]!;
   for (const cell of cells) if (cell.root) cell.amount = 0.05; // 中央＝起点（少し大きめ）
   if (isPick) { const cen = skillGridCenter(0); for (const dx of [-1, 1]) { const cell = cellAt(0, cen + dx, cen); cell.stat = 'area'; cell.amount = 1; cell.special = true; cell.pickArea = true; } } // 階層1の中央左右＝安い範囲（3方向・ツルハシのみ）
-  // 全セルに「貫通/範囲/射程/固有/火力/速度」を織り交ぜる。特殊はまばら（深いグリッドほど少し多め）に。
-  const specials = weaponSpecials(w);
-  for (const cell of cells) {
-    if (cell.root || cell.pickArea) continue;
-    const pSpecial = 0.12 + cell.grid * 0.03; // 階層1=12% → 階層5=24%（深いほど特殊多め）
-    const pUnique = 0.05 + cell.grid * 0.01;  // 固有も深いほど少し多め
-    if (cell.statKey < pUnique && cell.grid >= 1) { cell.stat = 'unique'; cell.amount = 0.10 + cell.grid * 0.01; cell.special = true; }
-    else if (specials.length > 0 && cell.statKey < pUnique + pSpecial) { cell.stat = specials[Math.floor(cell.sortKey * specials.length)]!; cell.amount = 1; cell.special = true; }
-    else cell.stat = cell.sortKey < 0.4 ? 'speed' : 'damage'; // filler（小さい火力/速度）
-  }
+  // まず全セルを小さなfiller（火力/速度）に。
+  for (const cell of cells) if (!cell.root && !cell.pickArea) cell.stat = cell.sortKey < 0.4 ? 'speed' : 'damage';
+  // 特殊系（範囲/射程/貫通/固有）は「1ツリーに約2個ずつ」だけ。インフレ防止＝多くは積めない。深いグリッドの外周に配置。
+  const pickCell = (grid: number): Cell | undefined =>
+    cells.filter((c) => c.grid === grid && !c.root && !c.pickArea && !c.special && c.ring >= 1).sort((a, b) => (b.ring - a.ring) || (a.sortKey - b.sortKey))[0];
+  const placeTwo = (stat: WeaponStat, amount: (g: number) => number): void => {
+    for (const grid of [2, 4]) { // 中盤と終盤に1個ずつ（別グリッド＝段階的に取得）
+      const c = pickCell(grid) ?? pickCell(grid - 1) ?? pickCell(grid + 1 < SKILL_TIERS ? grid + 1 : 1);
+      if (c) { c.stat = stat; c.amount = amount(c.grid); c.special = true; }
+    }
+  };
+  for (const stat of weaponSpecials(w)) { if (isPick && stat === 'area') continue; placeTwo(stat, () => 1); } // ツルハシの範囲は中央左右ぶんで充足
+  placeTwo('unique', (g) => 0.10 + g * 0.01); // 固有も2個（深いほど少し強い）
   // 同グリッド内の上下左右を requires に（中央は最初から解放可）。
   const neighbors = (cell: Cell): number[] => {
     const size = skillGridSize(cell.grid);

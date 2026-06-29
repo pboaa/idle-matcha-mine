@@ -1,4 +1,4 @@
-import { useMinePrestige, useMinePrestigeAct, useMineResetData } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineResetData, useMineExportSave, useMineImportSave } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 /** 転生画面（シンプル）: 今回の獲得予定★を確認して転生するだけ。強化は「転生ツリー」で。 */
@@ -6,6 +6,18 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
   const p = useMinePrestige();
   const doPrestige = useMinePrestigeAct();
   const resetData = useMineResetData();
+  const exportSave = useMineExportSave();
+  const importSave = useMineImportSave();
+  const onExport = (): void => {
+    const code = exportSave();
+    navigator.clipboard?.writeText(code).then(() => window.alert('セーブをクリップボードにコピーしました（テスト用に保存/共有できます）'),
+      () => window.prompt('セーブ文字列（コピーしてください）', code));
+  };
+  const onImport = (): void => {
+    const text = window.prompt('セーブ文字列を貼り付け（上書きされます）');
+    if (text == null) return;
+    window.alert(importSave(text) ? '読み込みました' : '読み込めませんでした（文字列が不正です）');
+  };
 
   return (
     <div className="flex w-[22rem] flex-col gap-3 rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
@@ -43,13 +55,15 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
         🌳 転生ツリーを開く（★で強化）
       </button>
 
-      {/* データ: 自動セーブ＋削除 */}
-      <div className="flex items-center justify-between border-t border-stone-700 pt-2 text-[10px] text-stone-500">
-        <span>💾 自動セーブ中</span>
-        <button onClick={() => { if (window.confirm('セーブを削除して最初からやり直します。よろしいですか？')) resetData(); }}
-          className="rounded bg-stone-800 px-2 py-0.5 text-rose-300 ring-1 ring-rose-900/60 hover:bg-stone-700">
-          🗑️ データ削除
-        </button>
+      {/* データ: 自動セーブ＋書き出し/読み込み＋削除 */}
+      <div className="flex items-center justify-between gap-1 border-t border-stone-700 pt-2 text-[10px] text-stone-500">
+        <span>💾 自動セーブ</span>
+        <div className="flex gap-1">
+          <button onClick={onExport} className="rounded bg-stone-800 px-2 py-0.5 text-sky-300 ring-1 ring-sky-900/60 hover:bg-stone-700">📤 書き出し</button>
+          <button onClick={onImport} className="rounded bg-stone-800 px-2 py-0.5 text-emerald-300 ring-1 ring-emerald-900/60 hover:bg-stone-700">📥 読み込み</button>
+          <button onClick={() => { if (window.confirm('セーブを削除して最初からやり直します。よろしいですか？')) resetData(); }}
+            className="rounded bg-stone-800 px-2 py-0.5 text-rose-300 ring-1 ring-rose-900/60 hover:bg-stone-700">🗑️ 削除</button>
+        </div>
       </div>
     </div>
   );
