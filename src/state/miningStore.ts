@@ -3,7 +3,7 @@ import { initialMineState, type MineState } from '@application/mining/mineState'
 import { defaultMiningBalance } from '@domain/mining/balance';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
-import { prestige, buyPerm, buyWeaponUp, refine, type PermId } from '@application/mining/prestige';
+import { prestige, buyPerm, buyRunUp, buyWeaponSkill, refine, type PermId } from '@application/mining/prestige';
 import type { MaterialId, WeaponId, WeaponStat } from '@domain/mining/balance';
 
 interface MiningStore {
@@ -15,7 +15,8 @@ interface MiningStore {
   buyBoost: () => void;
   prestige: () => void;
   buyPerm: (id: PermId) => void;
-  buyWeaponUp: (weapon: WeaponId, stat: WeaponStat) => void;
+  buyRunUp: (weapon: WeaponId, stat: WeaponStat) => void;
+  buyWeaponSkill: (weapon: WeaponId) => void;
   refine: (from: MaterialId) => void;
 }
 
@@ -42,6 +43,7 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   buyPerm: (id) => set((st) => ({ state: buyPerm(st.state, id) })),
-  buyWeaponUp: (weapon, stat) => set((st) => ({ state: buyWeaponUp(st.state, weapon, stat) })),
+  buyRunUp: (weapon, stat) => set((st) => ({ state: buyRunUp(st.state, weapon, stat) })),
+  buyWeaponSkill: (weapon) => set((st) => ({ state: buyWeaponSkill(st.state, weapon) })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),
 }));

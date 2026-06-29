@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyWeaponUp, weaponUpCost, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { buyPerm, buyRunUp, runUpCost, buyWeaponSkill, weaponSkillCost, oreToPoints, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
 import { defaultMiningBalance, WEAPON_IDS } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -35,7 +35,7 @@ describe('mining/prestige', () => {
 
   it('恒久強化は次走の開始レベルに乗る＋開始は必ずツルハシ（freshRun）', () => {
     const perm: Perm = { ...emptyPerm(), levels: { ...emptyPerm().levels, pick: 2, bullet: 1, speed: 3 }, appraise: 1 };
-    const s = freshRun(B, emptyMaterials(), perm, 0);
+    const s = freshRun(B, perm, 0);
     expect(s.levels.pick).toBe(2 + 1);                    // 恒久2 + 開始ツルハシ1
     expect(s.levels.bullet).toBe(1);                      // 恒久そのまま（開始は乗らない）
     expect(s.levels.speed).toBe(3);                       // パッシブも恒久そのまま
@@ -59,33 +59,42 @@ describe('mining/prestige', () => {
     expect(s2.mastery.pick).toBeGreaterThanOrEqual(before); // 永続保持＆さらに加算
   });
 
-  it('武器強化ツリー: 素材(鉱石)を消費してLvが上がる／適用外(貫通×非直線)は不可', () => {
+  it('ラン強化: 鉱石を消費してLvが上がる／適用外(貫通×非直線)は不可', () => {
     const s0 = { ...initialMineState(), materials: { ...emptyMaterials(), dirt: 9999, ore: 9999 } };
-    const cost = weaponUpCost('pick', 'damage', s0.perm);
-    const s1 = buyWeaponUp(s0, 'pick', 'damage');
-    expect(s1.perm.weaponUp.pick.damage).toBe(1);
+    const cost = runUpCost('pick', 'damage', s0.runUp);
+    const s1 = buyRunUp(s0, 'pick', 'damage');
+    expect(s1.runUp.pick.damage).toBe(1);
     expect(s1.materials.dirt).toBe(9999 - cost); // ダメージは土を消費
-    expect(buyWeaponUp(s0, 'pick', 'pierce').perm.weaponUp.pick.pierce).toBe(0); // ツルハシは直線でない＝貫通不可
-    expect(buyWeaponUp(s0, 'beam', 'pierce').perm.weaponUp.beam.pierce).toBe(1);  // ビームは直線＝貫通可
+    expect(buyRunUp(s0, 'pick', 'pierce').runUp.pick.pierce).toBe(0); // ツルハシは直線でない＝貫通不可
+    expect(buyRunUp(s0, 'beam', 'pierce').runUp.beam.pierce).toBe(1);  // ビームは直線＝貫通可
   });
 
-  it('武器強化ツリー: ダメージ強化で対象武器の威力が上がる', () => {
+  it('ラン強化: ダメージ強化で対象武器の威力が上がる', () => {
     const base = { ...initialMineState(), autoMode: false };
     const pickDmg = (s: ReturnType<typeof stepMine>): number => s.dmgByWeapon.pick;
     const noUp = pickDmg(stepMine(base, 500));
-    const upped = { ...base, perm: { ...base.perm, weaponUp: { ...base.perm.weaponUp, pick: { ...base.perm.weaponUp.pick, damage: 5 } } } };
+    const upped = { ...base, runUp: { ...base.runUp, pick: { ...base.runUp.pick, damage: 5 } } };
     expect(pickDmg(stepMine(upped, 500))).toBeGreaterThan(noUp); // +8%/Lv × 5
   });
 
-  it('転生: 走行はリセット、素材/恒久/回数は保持', () => {
-    let s = stepMine(initialMineState(), 30_000);
-    s = { ...s, perm: { ...s.perm, levels: { ...s.perm.levels, pick: 1 } } };
-    const matsBefore = { ...s.materials };
+  it('武器スキルツリー: ポイントでノード解放／ポイント不足は不可', () => {
+    const s0 = { ...initialMineState(), points: 100 };
+    const cost = weaponSkillCost('pick', s0.perm)!;
+    const s1 = buyWeaponSkill(s0, 'pick');
+    expect(s1.perm.weaponSkill.pick).toBe(1);     // 1ノード解放
+    expect(s1.points).toBe(100 - cost);            // ポイント消費
+    const poor = { ...initialMineState(), points: 0 };
+    expect(buyWeaponSkill(poor, 'pick').perm.weaponSkill.pick).toBe(0); // 不足で不可
+  });
+
+  it('転生: 走行リセット・残り鉱石はポイントへ変換・恒久/回数は保持', () => {
+    const s = stepMine(initialMineState(), 30_000);
+    const expectPoints = s.points + oreToPoints(s.materials, B);
     const r = prestige(s, B);
     expect(r.floor).toBe(0);
     expect(r.level).toBe(1);
-    expect(r.levels.pick).toBe(1 + 1);       // 恒久pick1 + 開始ツルハシ1
-    expect(r.materials).toEqual(matsBefore);  // 素材保持
+    expect(r.materials).toEqual(emptyMaterials()); // 鉱石はリセット（変換済み）
+    expect(r.points).toBe(expectPoints);           // 残り鉱石→ポイント
     expect(r.prestiges).toBe(s.prestiges + 1);
     expect(r.coins).toBe(0); // コインはリセット
   });

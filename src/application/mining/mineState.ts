@@ -16,11 +16,13 @@ export interface OfferChoice { readonly id: ChoiceId; readonly rarity: OfferRari
 export interface MineMeta { readonly appraise: number }
 export type Materials = Record<MaterialId, number>;
 export type WeaponMastery = Record<WeaponId, number>;
-/** 武器ごとの恒久ステータス強化Lv（ダメージ/攻撃速度/射程/貫通/固有）。 */
+/** 武器ごとのステータス強化Lv（ダメージ/攻撃速度/射程/貫通/固有）。ラン中の鉱石強化に使う。 */
 export type WeaponStatLevels = Record<WeaponStat, number>;
 export type WeaponUpgrades = Record<WeaponId, WeaponStatLevels>;
-/** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器ごとの強化ツリー。 */
-export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponUp: WeaponUpgrades }
+/** 武器ごとの恒久スキルツリー進捗（解放済みノード数）。ポイントで伸ばす。 */
+export type WeaponSkill = Record<WeaponId, number>;
+/** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器ごとのスキルツリー。 */
+export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponSkill: WeaponSkill }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
@@ -29,8 +31,10 @@ const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.ma
 export const emptyMaterials = (): Materials => ({ dirt: 0, stone: 0, ore: 0, gem: 0 });
 export const emptyMastery = (): WeaponMastery => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as WeaponMastery;
 const zeroStats = (): WeaponStatLevels => Object.fromEntries(WEAPON_STATS.map((s) => [s, 0])) as WeaponStatLevels;
+/** 武器ごとのステータスLvマップ（ラン中の鉱石強化 runUp の初期値）。 */
 export const emptyWeaponUp = (): WeaponUpgrades => Object.fromEntries(WEAPON_IDS.map((w) => [w, zeroStats()])) as WeaponUpgrades;
-export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponUp: emptyWeaponUp() });
+export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, 0])) as WeaponSkill;
+export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponSkill: emptyWeaponSkill() });
 export const totalMastery = (m: WeaponMastery): number => WEAPON_IDS.reduce((a, w) => a + m[w], 0);
 
 export interface MineState {
@@ -57,16 +61,18 @@ export interface MineState {
   readonly dmgByWeapon: Record<WeaponId, number>;
   readonly weaponCd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
 
-  readonly materials: Materials;
+  readonly materials: Materials;   // 鉱石（ラン中の通貨・採掘で集め、ラン中の強化に使う。転生で残りはポイントへ）
+  readonly runUp: WeaponUpgrades;  // ラン中の武器強化（鉱石で購入・転生でリセット）
+  readonly points: number;         // 恒久ポイント（転生時に残り鉱石を変換して貯まる）
   readonly perm: Perm;
   readonly prestiges: number;
   readonly mastery: WeaponMastery; // 武器ごとの熟練度（永続・転生時に上がる）。武器ダメージ＋合計でスループット。
 }
 
-/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。素材/恒久/熟練度は引き継ぐ。seed は走行ごとの変化用。 */
+/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。鉱石/ラン強化はリセット、恒久(perm)/熟練度/ポイントは引き継ぐ。 */
 export function freshRun(
-  b: MiningBalance, materials: Materials, perm: Perm, prestiges: number,
-  seed = 123456, mastery: WeaponMastery = emptyMastery(),
+  b: MiningBalance, perm: Perm, prestiges: number,
+  seed = 123456, mastery: WeaponMastery = emptyMastery(), points = 0,
 ): MineState {
   const base = baseOf(b);
   const levels = zeroLevels();
@@ -81,12 +87,13 @@ export function freshRun(
     boost: 0, // 採掘ブーストはコインで毎走購入（転生でリセット）
     dmgByWeapon: zeroDmg(),
     weaponCd: zeroDmg(),
-    materials, perm, prestiges, mastery,
+    materials: emptyMaterials(), runUp: emptyWeaponUp(), points,
+    perm, prestiges, mastery,
   };
 }
 
 export function initialMineState(b: MiningBalance = defaultMiningBalance, seed = 123456): MineState {
-  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed, emptyMastery());
+  return freshRun(b, emptyPerm(), 0, seed, emptyMastery(), 0);
 }
 
 export { MATERIAL_IDS };

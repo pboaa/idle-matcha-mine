@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initialMineState, freshRun, emptyMaterials, emptyPerm, emptyMastery } from '@application/mining/mineState';
+import { initialMineState, freshRun, emptyPerm, emptyMastery } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
 import { defaultMiningBalance, WEAPON_IDS } from '@domain/mining/balance';
 
@@ -49,7 +49,7 @@ describe('mining/step', () => {
 
   it('熟練度(永続)は周回で序盤を速くする（合計熟練の移動/射程スループット）', () => {
     const masteryAll = (n: number) => { const m = emptyMastery(); for (const w of WEAPON_IDS) m[w] = n; return m; };
-    const fresh = (n: number) => freshRun(defaultMiningBalance, emptyMaterials(), emptyPerm(), 0, 123456, masteryAll(n));
+    const fresh = (n: number) => freshRun(defaultMiningBalance, emptyPerm(), 0, 123456, masteryAll(n));
     const low = stepMine(fresh(0), 120_000);
     const high = stepMine(fresh(20), 120_000); // 周回を重ねた状態（各武器+20）
     // 累計採掘量（階×総タイル + その階の採掘）で比較＝より多く掘れている＝サクサク

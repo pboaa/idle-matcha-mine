@@ -95,6 +95,24 @@ export const WEAPON_STAT_DEFS: Record<WeaponStat, WeaponStatDef> = {
 export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean =>
   !WEAPON_STAT_DEFS[stat].lineOnly || WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward';
 
+// ===== 武器ごとの恒久スキルツリー（tier型・ポイントで解放）。少しずつ伸び、所々に大ノード。 =====
+export interface WeaponSkillNode { readonly stat: WeaponStat; readonly amount: number; readonly cost: number; readonly big?: boolean }
+/** 全武器共通のノード列（武器ごとに独立して上から順に解放）。amount: damage/speed/uniqueは倍率の加算、rangeはマス+。 */
+export const WEAPON_SKILL_NODES: readonly WeaponSkillNode[] = [
+  { stat: 'damage', amount: 0.15, cost: 2 },
+  { stat: 'speed', amount: 0.15, cost: 3 },
+  { stat: 'damage', amount: 0.20, cost: 5 },
+  { stat: 'range', amount: 1, cost: 10, big: true },   // 大: 射程+1
+  { stat: 'speed', amount: 0.20, cost: 8 },
+  { stat: 'damage', amount: 0.25, cost: 14 },
+  { stat: 'unique', amount: 0.6, cost: 28, big: true }, // 大: 固有+60%
+  { stat: 'damage', amount: 0.35, cost: 22 },
+  { stat: 'speed', amount: 0.30, cost: 34 },
+  { stat: 'range', amount: 1, cost: 60, big: true },    // 大: 射程+1
+  { stat: 'damage', amount: 0.50, cost: 50 },
+  { stat: 'unique', amount: 1.0, cost: 120, big: true }, // 大: 固有+100%
+];
+
 export const isWeapon = (id: ChoiceId): id is WeaponId => id in WEAPON_DEFS;
 export const choiceMeta = (id: ChoiceId): { label: string; emoji: string; desc: string } =>
   isWeapon(id) ? WEAPON_DEFS[id] : PASSIVE_DEFS[id as PassiveId];
@@ -141,6 +159,8 @@ export interface MiningBalance {
   readonly masteryMovePerLvl: number;    // 合計熟練1につき移動速度+（永続・周回で序盤が速くなる主因）
   readonly masteryRangePerLvl: number;   // 合計熟練ごとに武器の射程/範囲+1（永続・浅い階を一掃＝サクサク）
 
+  readonly oreToPointRate: number; // 鉱石(価値=kind.mult)→ポイント変換係数。少しずつ貯めて大ノードを解放する想定。
+
   readonly permStatBase: number; readonly permStatGrowth: number;
   readonly permPickBase: number; readonly permPickGrowth: number;
   readonly permWeaponBase: number; readonly permWeaponGrowth: number;
@@ -185,6 +205,8 @@ export const defaultMiningBalance: MiningBalance = {
   boostPerLvl: 0.08, boostCostBase: 40, boostCostGrowth: 1.35,
 
   masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05,
+
+  oreToPointRate: 0.03,
 
   permStatBase: 25, permStatGrowth: 1.6,
   permPickBase: 18, permPickGrowth: 1.7,
