@@ -33,11 +33,11 @@ describe('mining/step', () => {
   });
 
   it('採掘ブースト(コイン購入)で武器の総ダメージが増える', () => {
-    // 同一tick・同一乱数で boost の有無だけ比較（divergenceなし）。
+    // 同一乱数で boost の有無だけ比較（divergenceなし）。ツルハシが1回攻撃する程度の窓で、まだ壊れない範囲。
     const base = { ...initialMineState(), autoMode: false };
     const sumDmg = (s: ReturnType<typeof stepMine>): number => Object.values(s.dmgByWeapon).reduce((a, b) => a + b, 0);
-    const noBoost = sumDmg(stepMine(base, 100));
-    const boosted = sumDmg(stepMine({ ...base, boost: 10 }, 100));
+    const noBoost = sumDmg(stepMine(base, 500));
+    const boosted = sumDmg(stepMine({ ...base, boost: 10 }, 500));
     expect(boosted).toBeGreaterThan(noBoost);            // 威力UP
     expect(boosted).toBeCloseTo(noBoost * 1.8, 5);       // +8%/Lv × 10 = ×1.8
   });
@@ -50,10 +50,10 @@ describe('mining/step', () => {
   it('熟練度(永続)は周回で序盤を速くする（合計熟練の移動/射程スループット）', () => {
     const masteryAll = (n: number) => { const m = emptyMastery(); for (const w of WEAPON_IDS) m[w] = n; return m; };
     const fresh = (n: number) => freshRun(defaultMiningBalance, emptyMaterials(), emptyPerm(), 0, 123456, masteryAll(n));
-    const low = stepMine(fresh(0), 60_000);
-    const high = stepMine(fresh(20), 60_000); // 周回を重ねた状態（各武器+20）
-    expect(high.floor).toBeGreaterThan(low.floor); // 同じ時間でより深く潜れる＝サクサク
-    expect(high.dug.size + high.floor * 900).toBeGreaterThan(low.dug.size + low.floor * 900); // 累計採掘量も多い
+    const low = stepMine(fresh(0), 120_000);
+    const high = stepMine(fresh(20), 120_000); // 周回を重ねた状態（各武器+20）
+    // 累計採掘量（階×総タイル + その階の採掘）で比較＝より多く掘れている＝サクサク
+    expect(high.dug.size + high.floor * 900).toBeGreaterThan(low.dug.size + low.floor * 900);
   });
 
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {

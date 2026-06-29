@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { sameCell } from '@domain/grid/position';
-import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness } from '@domain/mining/tile';
+import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '@domain/mining/tile';
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
 import { totalMastery } from '@application/mining/mineState';
@@ -43,7 +43,6 @@ export function buildMineView(state: MineState): MineViewVM {
   const x0 = state.cam.x - (VIEW_W - 1) / 2;
   const y0 = state.cam.y - (VIEW_H - 1) / 2;
   const front = miningFrontCell(state);
-  const hp = tileHardness(state.floor, B);
   const tiles: MineTileVM[] = [];
   for (let ry = 0; ry < VIEW_H; ry++) {
     for (let rx = 0; rx < VIEW_W; rx++) {
@@ -52,7 +51,7 @@ export function buildMineView(state: MineState): MineViewVM {
       if (!inBounds(c, B)) { tiles.push({ rx, ry, kind: 'wall', color: '#1c1917', isBase: false, front: false, crack: 0 }); continue; }
       const k = `${c.x},${c.y}`;
       const dug = state.dug.has(k);
-      const ratio = dug ? 0 : Math.min(1, (state.damage.get(k) ?? 0) / hp);
+      const ratio = dug ? 0 : Math.min(1, (state.damage.get(k) ?? 0) / tileHardness(state.floor, tileDist(c, B), B));
       tiles.push({ rx, ry, kind: dug ? 'dug' : 'solid', color: dug ? '#2e2a26' : kindAt(c, state.floor, B).color, isBase: c.x === BASE.x && c.y === BASE.y, front: isFront, crack: ratio <= 0 ? 0 : Math.min(3, 1 + Math.floor(ratio * 3)) });
     }
   }

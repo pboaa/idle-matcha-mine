@@ -22,17 +22,19 @@ export interface WeaponDef {
   readonly tag: WeaponTag; readonly pattern: WeaponPattern;
   readonly baseDmg: number; readonly dmgPerLvl: number;
   readonly rangeBase: number; readonly rangePerLvls: number; // 射程/半径（rangePerLvls レベルごとに +1）
+  readonly attackIntervalMs: number; // 攻撃間隔（小さいほど手数が多い）。1ヒットの威力 = baseDmg×interval/1000。
   readonly fxColor: string; // 命中エフェクトの色
 }
 
+// baseDmg は「毎秒の素ダメージ」。1ヒットはこれに attackIntervalMs/1000 を掛けた塊で出る（＝DPSは間隔に依らず一定）。
 export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
-  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を横振り（3マス）', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.28, rangeBase: 1, rangePerLvls: 99, fxColor: '#fbbf24' },
-  bullet: { id: 'bullet', label: '弾', emoji: '🔫', desc: '近くの1マスを撃つ', tag: 'shot', pattern: 'nearest', baseDmg: 0.35, dmgPerLvl: 0.18, rangeBase: 5, rangePerLvls: 99, fxColor: '#f87171' },
-  bomb: { id: 'bomb', label: '爆弾', emoji: '💣', desc: '近くで小爆発（3x3）', tag: 'shot', pattern: 'burst', baseDmg: 0.12, dmgPerLvl: 0.055, rangeBase: 6, rangePerLvls: 99, fxColor: '#fb923c' },
-  beam: { id: 'beam', label: 'ビーム', emoji: '⚡', desc: '十字に削る', tag: 'beam', pattern: 'cross', baseDmg: 0.07, dmgPerLvl: 0.03, rangeBase: 1, rangePerLvls: 3, fxColor: '#67e8f9' },
-  drill: { id: 'drill', label: 'ドリル', emoji: '🌀', desc: '進行方向へ貫く', tag: 'beam', pattern: 'forward', baseDmg: 0.18, dmgPerLvl: 0.07, rangeBase: 2, rangePerLvls: 2, fxColor: '#a78bfa' },
-  aura: { id: 'aura', label: 'オーラ', emoji: '💥', desc: '周囲をじわっと削る', tag: 'field', pattern: 'around', baseDmg: 0.045, dmgPerLvl: 0.02, rangeBase: 1, rangePerLvls: 4, fxColor: '#f472b6' },
-  ring: { id: 'ring', label: 'リング', emoji: '🪃', desc: '外周をぐるりと削る', tag: 'field', pattern: 'ring', baseDmg: 0.035, dmgPerLvl: 0.015, rangeBase: 2, rangePerLvls: 3, fxColor: '#bef264' },
+  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を横振り（3マス）', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.28, rangeBase: 1, rangePerLvls: 99, attackIntervalMs: 500, fxColor: '#fbbf24' },
+  bullet: { id: 'bullet', label: '弾', emoji: '🔫', desc: '近くの1マスを撃つ', tag: 'shot', pattern: 'nearest', baseDmg: 0.35, dmgPerLvl: 0.18, rangeBase: 5, rangePerLvls: 99, attackIntervalMs: 300, fxColor: '#f87171' },
+  bomb: { id: 'bomb', label: '爆弾', emoji: '💣', desc: '近くで小爆発（3x3）', tag: 'shot', pattern: 'burst', baseDmg: 0.12, dmgPerLvl: 0.055, rangeBase: 6, rangePerLvls: 99, attackIntervalMs: 800, fxColor: '#fb923c' },
+  beam: { id: 'beam', label: 'ビーム', emoji: '⚡', desc: '十字に削る', tag: 'beam', pattern: 'cross', baseDmg: 0.07, dmgPerLvl: 0.03, rangeBase: 1, rangePerLvls: 3, attackIntervalMs: 250, fxColor: '#67e8f9' },
+  drill: { id: 'drill', label: 'ドリル', emoji: '🌀', desc: '進行方向へ貫く', tag: 'beam', pattern: 'forward', baseDmg: 0.18, dmgPerLvl: 0.07, rangeBase: 2, rangePerLvls: 2, attackIntervalMs: 400, fxColor: '#a78bfa' },
+  aura: { id: 'aura', label: 'オーラ', emoji: '💥', desc: '周囲をじわっと削る', tag: 'field', pattern: 'around', baseDmg: 0.045, dmgPerLvl: 0.02, rangeBase: 1, rangePerLvls: 4, attackIntervalMs: 700, fxColor: '#f472b6' },
+  ring: { id: 'ring', label: 'リング', emoji: '🪃', desc: '外周をぐるりと削る', tag: 'field', pattern: 'ring', baseDmg: 0.035, dmgPerLvl: 0.015, rangeBase: 2, rangePerLvls: 3, attackIntervalMs: 600, fxColor: '#bef264' },
 };
 export const WEAPON_IDS = Object.keys(WEAPON_DEFS) as WeaponId[];
 
@@ -90,6 +92,7 @@ export interface MiningBalance {
 
   readonly hardnessBase: number;
   readonly hardnessGrowth: number; // 階ごとの硬さ倍率（幾何級数＝乗算で伸びる火力に追従）
+  readonly distHardness: number;   // 拠点からの距離1マスごとの硬さ+（同じ階でも外側ほど固い）
   readonly valueGrowth: number;    // 階ごとの価値倍率（幾何級数・硬さよりやや緩く）
   readonly kinds: { readonly dirt: MiningKind; readonly stone: MiningKind; readonly ore: MiningKind; readonly gem: MiningKind };
   readonly kindThresh: { readonly dirtMax: number; readonly stoneMax: number; readonly oreMax: number; readonly boostPerFloor: number; readonly boostMax: number };
@@ -122,13 +125,14 @@ export interface MiningBalance {
 
 export const defaultMiningBalance: MiningBalance = {
   worldSize: 30,
-  baseRate: 0.45,
+  baseRate: 0.36,
   moveCost: 0.5,
   dropVisualMs: 900,
   fxVisualMs: 220,
 
   hardnessBase: 1,
   hardnessGrowth: 1.26,
+  distHardness: 0.06,
   valueGrowth: 1.13,
   kinds: {
     dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1 },

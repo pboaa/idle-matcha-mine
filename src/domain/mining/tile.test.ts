@@ -1,15 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { kindAt, tileHardness, tileValue, baseOf, totalTilesOf } from '@domain/mining/tile';
+import { kindAt, tileHardness, tileDist, tileValue, baseOf, totalTilesOf } from '@domain/mining/tile';
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 
 describe('mining/tile', () => {
-  it('hardness は階で幾何級数的に増える', () => {
-    expect(tileHardness(0, B)).toBe(1);
-    expect(tileHardness(1, B)).toBeCloseTo(B.hardnessGrowth);
-    expect(tileHardness(3, B)).toBeCloseTo(Math.pow(B.hardnessGrowth, 3));
-    expect(tileHardness(5, B)).toBeGreaterThan(tileHardness(4, B)); // 単調増加
+  it('hardness は階で幾何級数的に増える（拠点距離0で基準）', () => {
+    expect(tileHardness(0, 0, B)).toBe(1);
+    expect(tileHardness(1, 0, B)).toBeCloseTo(B.hardnessGrowth);
+    expect(tileHardness(3, 0, B)).toBeCloseTo(Math.pow(B.hardnessGrowth, 3));
+    expect(tileHardness(5, 0, B)).toBeGreaterThan(tileHardness(4, 0, B)); // 単調増加
+  });
+
+  it('hardness は拠点から離れるほど固い（同じ階でも）', () => {
+    const base = baseOf(B);
+    expect(tileDist(base, B)).toBe(0);
+    expect(tileDist({ x: base.x + 5, y: base.y }, B)).toBe(5); // チェビシェフ距離
+    expect(tileHardness(0, 5, B)).toBeGreaterThan(tileHardness(0, 0, B)); // 外側ほど固い
+    expect(tileHardness(0, 5, B)).toBeCloseTo(1 + 5 * B.distHardness);
   });
 
   it('value は 種類×階(幾何)×コイン倍率', () => {

@@ -22,9 +22,15 @@ export function kindAt(c: Cell, floor: number, b: MiningBalance = defaultMiningB
   return b.kinds.gem;
 }
 
-/** 採掘1ブロックのHP（階が深いほど硬い・幾何級数）。乗算で伸びる火力と同じ土俵に乗せ周回ペースを安定させる。 */
-export const tileHardness = (floor: number, b: MiningBalance = defaultMiningBalance): number =>
-  b.hardnessBase * Math.pow(b.hardnessGrowth, floor);
+/** 拠点（中心）からのチェビシェフ距離（同心リング状）。 */
+export const tileDist = (c: Cell, b: MiningBalance = defaultMiningBalance): number => {
+  const base = baseOf(b);
+  return Math.max(Math.abs(c.x - base.x), Math.abs(c.y - base.y));
+};
+
+/** 採掘1ブロックのHP（階が深いほど硬い[幾何級数]＋拠点から離れるほど硬い[距離]）。乗算火力に追従しつつ、同じ階でも外周は手応えが増す。 */
+export const tileHardness = (floor: number, dist: number, b: MiningBalance = defaultMiningBalance): number =>
+  b.hardnessBase * Math.pow(b.hardnessGrowth, floor) * (1 + dist * b.distHardness);
 
 /** 採掘で得る価値（種類 × 階の深さ[幾何級数] × コイン倍率）。硬さより緩い倍率で「深い＝リッチだが無限インフレしない」。 */
 export const tileValue = (kind: MiningKind, floor: number, coinMult: number, b: MiningBalance = defaultMiningBalance): number =>

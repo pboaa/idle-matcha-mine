@@ -50,6 +50,7 @@ export interface MineState {
   readonly meta: MineMeta;
   readonly boost: number; // 走行限定の採掘ブースト（コインで購入・転生でリセット）
   readonly dmgByWeapon: Record<WeaponId, number>;
+  readonly weaponCd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
 
   readonly materials: Materials;
   readonly perm: Perm;
@@ -74,6 +75,7 @@ export function freshRun(
     meta: { appraise: perm.appraise },
     boost: 0, // 採掘ブーストはコインで毎走購入（転生でリセット）
     dmgByWeapon: zeroDmg(),
+    weaponCd: zeroDmg(),
     materials, perm, prestiges, mastery,
   };
 }
