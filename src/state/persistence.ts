@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 2; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄してフレッシュ開始）
+const VERSION = 3; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄してフレッシュ開始）。v3=8段階素材／★全体ダメージ／階層ツリー
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {

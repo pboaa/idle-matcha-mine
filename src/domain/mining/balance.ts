@@ -2,9 +2,22 @@
  * 採掘モックのマスターデータ（数値・カタログを集約）。ロジックから分離＝調整しやすい。
  */
 
-export type MaterialId = 'dirt' | 'stone' | 'ore' | 'gem';
-export const MATERIAL_IDS: readonly MaterialId[] = ['dirt', 'stone', 'ore', 'gem'];
+export type MaterialId = 'dirt' | 'stone' | 'coal' | 'copper' | 'iron' | 'silver' | 'gold' | 'gem';
 export interface MiningKind { readonly id: MaterialId; readonly name: string; readonly emoji: string; readonly color: string; readonly mult: number; readonly hardMult: number }
+// 素材は8段階（浅い=土、深いほど上位）。tier=配列index。価値(mult)と硬さ(hardMult)が段階で上昇。
+export const MINING_KINDS: readonly MiningKind[] = [
+  { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1, hardMult: 1 },
+  { id: 'stone', name: '石', emoji: '🪨', color: '#78909c', mult: 2, hardMult: 1.35 },
+  { id: 'coal', name: '石炭', emoji: '⬛', color: '#374151', mult: 4, hardMult: 1.75 },
+  { id: 'copper', name: '銅', emoji: '🟠', color: '#d97706', mult: 7, hardMult: 2.25 },
+  { id: 'iron', name: '鉄', emoji: '⚙️', color: '#9ca3af', mult: 11, hardMult: 2.9 },
+  { id: 'silver', name: '銀', emoji: '🥈', color: '#cbd5e1', mult: 17, hardMult: 3.7 },
+  { id: 'gold', name: '金', emoji: '🥇', color: '#fbbf24', mult: 26, hardMult: 4.7 },
+  { id: 'gem', name: '宝石', emoji: '💎', color: '#4dd0e1', mult: 40, hardMult: 6 },
+];
+export const MATERIAL_IDS: readonly MaterialId[] = MINING_KINDS.map((k) => k.id);
+export const materialTier = (id: MaterialId): number => MATERIAL_IDS.indexOf(id);
+export const KINDS_BY_ID: Record<MaterialId, MiningKind> = Object.fromEntries(MINING_KINDS.map((k) => [k.id, k])) as Record<MaterialId, MiningKind>;
 
 // ===== 武器・強化のカタログ（ヴァンサバ風・データ駆動） =====
 export type WeaponId = 'pick' | 'bullet' | 'bomb' | 'beam' | 'drill' | 'aura' | 'ring';
@@ -82,18 +95,16 @@ export type WeaponStat = 'damage' | 'speed' | 'range' | 'pierce' | 'area' | 'uni
 export const WEAPON_STATS: readonly WeaponStat[] = ['damage', 'speed', 'range', 'pierce', 'area', 'unique'];
 export interface WeaponStatDef {
   readonly id: WeaponStat; readonly label: string; readonly emoji: string; readonly desc: string;
-  readonly material: MaterialId;   // 消費する鉱石(=素材)。土/石=基本、鉱石/宝石=上位。
-  readonly costBase: number; readonly costGrowth: number; readonly perLvl: number;
   readonly lineOnly?: boolean;     // 貫通は直線(ビーム/ドリル)系だけ有効
   readonly notField?: boolean;     // 範囲(同時対象/横幅/方向)はフィールド系(オーラ/リング)には無効=半径は射程で
 }
 export const WEAPON_STAT_DEFS: Record<WeaponStat, WeaponStatDef> = {
-  damage: { id: 'damage', label: 'ダメージ', emoji: '⚔️', desc: 'この武器のダメージ +8%/Lv', material: 'dirt', costBase: 6, costGrowth: 1.45, perLvl: 0.08 },
-  speed: { id: 'speed', label: '攻撃速度', emoji: '⏱️', desc: 'この武器の攻撃が速くなる +8%/Lv', material: 'stone', costBase: 6, costGrowth: 1.5, perLvl: 0.08 },
-  range: { id: 'range', label: '射程', emoji: '📏', desc: 'この武器の射程/範囲 +1/Lv', material: 'ore', costBase: 3, costGrowth: 1.7, perLvl: 1 },
-  pierce: { id: 'pierce', label: '貫通', emoji: '➡️', desc: '直線がさらに奥へ +1/Lv', material: 'ore', costBase: 3, costGrowth: 1.7, perLvl: 1, lineOnly: true },
-  area: { id: 'area', label: '範囲', emoji: '💠', desc: '同時に当たる範囲/対象が広がる +1/Lv', material: 'ore', costBase: 4, costGrowth: 1.8, perLvl: 1, notField: true },
-  unique: { id: 'unique', label: '固有', emoji: '✨', desc: 'この武器だけの強力な底上げ +15%/Lv', material: 'gem', costBase: 2, costGrowth: 1.9, perLvl: 0.15 },
+  damage: { id: 'damage', label: 'ダメージ', emoji: '⚔️', desc: 'この武器のダメージ +5%/ノード' },
+  speed: { id: 'speed', label: '攻撃速度', emoji: '⏱️', desc: 'この武器の攻撃が速くなる +5%/ノード' },
+  range: { id: 'range', label: '射程', emoji: '📏', desc: 'この武器の射程/範囲 +1/ノード' },
+  pierce: { id: 'pierce', label: '貫通', emoji: '➡️', desc: '直線がさらに奥へ +1/ノード', lineOnly: true },
+  area: { id: 'area', label: '範囲', emoji: '💠', desc: '同時に当たる範囲/対象が広がる +1/ノード', notField: true },
+  unique: { id: 'unique', label: '固有', emoji: '✨', desc: 'この武器だけの強力な底上げ +10〜15%/ノード' },
 };
 /** その武器にそのステータス強化が有効か（貫通は直線系のみ／範囲はフィールド系以外）。 */
 export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean => {
@@ -103,12 +114,22 @@ export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean => {
   return true;
 };
 
-// ===== 武器ごとの恒久スキルツリー（分岐グラフ・ポイントで解放）。+5%ダメージが大量＋所々に大ノード。武器ごとに形が違う。 =====
+// ===== 武器ごとの恒久スキルツリー（階層グラフ・素材で解放）。階層(列)を tierUnlockCount だけ買うと次の階層が解禁。
+// 深い階層ほど素材の質(=tier)と量が上がる。特殊系(範囲/射程/貫通/固有)は上位素材＆割増。 =====
 export interface WeaponSkillNode {
-  readonly x: number; readonly y: number;          // グラフ上の位置（col, row）
+  readonly x: number; readonly y: number;          // グラフ上の位置（col=tier, row）
+  readonly tier: number;                            // 階層（=列x）。解禁の単位。
   readonly stat: WeaponStat; readonly amount: number;
-  readonly cost: number; readonly big?: boolean;
-  readonly requires: readonly number[];            // 解放に必要な先行ノードのindex
+  readonly matId: MaterialId; readonly matCost: number; // 解放に必要な素材と個数
+  readonly big?: boolean;
+  readonly requires: readonly number[];            // 線（描画用）。解禁は階層制で行う。
+}
+const isSpecialStat = (s: WeaponStat): boolean => s !== 'damage' && s !== 'speed';
+/** ノードの素材コスト（深い列/特殊ほど上位素材＆多い量）。 */
+function skillNodeCost(x: number, special: boolean): { matId: MaterialId; matCost: number } {
+  const tier = Math.min(MATERIAL_IDS.length - 1, x + (special ? 1 : 0));
+  const amount = Math.max(1, Math.round(3 * Math.pow(1.5, x) * (special ? 2.5 : 1)));
+  return { matId: MATERIAL_IDS[tier]!, matCost: amount };
 }
 // 木生成用の小さな決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
@@ -127,10 +148,10 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const nodes: WeaponSkillNode[] = [];
   const add = (x: number, y: number, requires: number[]): number => {
     const r = rnd();
-    let stat: WeaponStat = 'damage', amount = 0.05, cost = (x + 1) * 2, big: boolean | undefined;
-    if (x >= 2 && r < 0.20) { stat = 'unique'; amount = 0.10; cost = (x + 1) * 8; big = true; } // 特殊: 固有
+    let stat: WeaponStat = 'damage', amount = 0.05, big: boolean | undefined;
+    if (x >= 2 && r < 0.20) { stat = 'unique'; amount = 0.10; big = true; } // 特殊: 固有
     else if (r < 0.40) { stat = 'speed'; amount = 0.05; }
-    nodes.push({ x, y, stat, amount, cost, big, requires });
+    nodes.push({ x, y, tier: x, stat, amount, ...skillNodeCost(x, false), big, requires });
     return nodes.length - 1;
   };
   let prev = [add(0, 1.5, [])];
@@ -155,13 +176,14 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
       .filter((x) => x.n.x >= 2 && !x.n.big && (x.n.stat === 'speed' || (fromDamage && x.n.stat === 'damage')))
       .sort((a, z) => (a.n.stat === z.n.stat ? z.n.x - a.n.x : a.n.stat === 'speed' ? -1 : 1))[0]; // speed優先・深い順
     if (!cand) return false;
-    nodes[cand.i] = { ...cand.n, stat, amount, big: true, cost: (cand.n.x + 1) * 6 };
+    nodes[cand.i] = { ...cand.n, stat, amount, big: true };
     return true;
   };
   const specials = weaponSpecials(w);
   for (const [stat, amount] of specials) if (has(stat) < 1) convert(stat, amount, true);          // 最低1つは必ず（足りなければdamageも転用）
   for (const [stat, amount] of specials) while (has(stat) < 2 && convert(stat, amount, false)) { /* 2つ目は余ったspeedから */ }
-  return nodes;
+  // 素材コストを最終stat基準で確定（特殊系は上位素材＆割増）。
+  return nodes.map((n) => ({ ...n, ...skillNodeCost(n.x, isSpecialStat(n.stat)) }));
 }
 /** 武器ごとのスキルツリー（形が様々・起点ノード0は前提なし）。 */
 export const WEAPON_SKILL_TREES: Record<WeaponId, readonly WeaponSkillNode[]> =
@@ -202,13 +224,9 @@ export interface MiningBalance {
   readonly hardnessGrowth: number; // 階ごとの硬さ倍率（幾何級数＝乗算で伸びる火力に追従）
   readonly distHardness: number;   // 拠点からの距離1マスごとの硬さ+（同じ階でも外側ほど固い）
   readonly valueGrowth: number;    // 階ごとの価値倍率（幾何級数・硬さよりやや緩く）
-  readonly kinds: { readonly dirt: MiningKind; readonly stone: MiningKind; readonly ore: MiningKind; readonly gem: MiningKind };
-  // 素材のレア度は深さ連動: 浅い階はほぼ土、深いほど石→鉱石→宝石が解禁され出やすくなる（%は0..100のhと比較）。
-  readonly kindThresh: {
-    readonly stoneBase: number; readonly stonePerFloor: number; readonly stoneMax: number;  // 石: 浅くても少し、深いほど増える
-    readonly oreFloor: number; readonly orePerFloor: number; readonly oreMax: number;        // 鉱石(金): この階から解禁
-    readonly gemFloor: number; readonly gemPerFloor: number; readonly gemMax: number;        // 宝石(ダイヤ): さらに深い階から・ごく稀
-  };
+  readonly kinds: Record<MaterialId, MiningKind>;
+  // 素材のレア度は深さ連動: 浅い階はほぼ土、深いほど上位素材(tier1..7)が解禁され出やすくなる。index0=tier1(石)..index6=tier7(宝石)。
+  readonly matTiers: readonly { readonly unlockFloor: number; readonly perFloor: number; readonly max: number }[];
 
   readonly areaPerLvls: number;  // 武器レベル何段ごとに範囲段階(spread)が+1（射程投資でも増える）
   readonly critMult: number;     // 会心倍率
@@ -227,7 +245,12 @@ export interface MiningBalance {
 
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
-  readonly weaponUnlockBase: number; readonly weaponUnlockGrowth: number; // 武器解放のポイントコスト
+  readonly weaponUnlockBase: number; readonly weaponUnlockGrowth: number; // 武器解放コスト（素材・鉄）
+  // ★(転生ポイント)は「全体ダメージ強化」専用。線形効果＋幾何コストで自己制限（インフレで壊れない）。
+  readonly starDmgPerLvl: number; readonly starDmgCostBase: number; readonly starDmgCostGrowth: number;
+  // 武器スキルツリー（素材で買う・階層制）。tier(列)ごとに素材の質(=tier)と量が上がる（コストはノードに焼き込み）。
+  readonly tierUnlockCount: number;  // 各階層で何ノード買えば次の階層が解禁されるか
+  readonly idleMatCostBase: number; readonly idleMatCostGrowth: number; // 放置ツリー（素材・銀）
   readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
   readonly masteryGateBase: number; readonly masteryGateGrowth: number; // 熟練+1に必要な「その走行のその武器ダメージ」閾値（Lvが上がるほど高く＝段々取りにくく）
   readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
@@ -256,17 +279,16 @@ export const defaultMiningBalance: MiningBalance = {
   hardnessGrowth: 1.34,
   distHardness: 0.05,
   valueGrowth: 1.13,
-  kinds: {
-    dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1, hardMult: 1 },
-    stone: { id: 'stone', name: '石', emoji: '🪨', color: '#78909c', mult: 2, hardMult: 1.5 },
-    ore: { id: 'ore', name: '鉱石', emoji: '🟡', color: '#ffd54f', mult: 5, hardMult: 2.5 },
-    gem: { id: 'gem', name: '宝石', emoji: '💎', color: '#4dd0e1', mult: 12, hardMult: 4 },
-  },
-  kindThresh: {
-    stoneBase: 4, stonePerFloor: 2, stoneMax: 40,
-    oreFloor: 3, orePerFloor: 1.5, oreMax: 18,
-    gemFloor: 8, gemPerFloor: 0.5, gemMax: 6,
-  },
+  kinds: KINDS_BY_ID,
+  matTiers: [
+    { unlockFloor: 0, perFloor: 4, max: 38 },    // tier1 石
+    { unlockFloor: 1, perFloor: 3, max: 24 },    // tier2 石炭
+    { unlockFloor: 3, perFloor: 2.5, max: 17 },  // tier3 銅
+    { unlockFloor: 6, perFloor: 2, max: 12 },    // tier4 鉄
+    { unlockFloor: 10, perFloor: 1.6, max: 9 },  // tier5 銀
+    { unlockFloor: 14, perFloor: 1.2, max: 6 },  // tier6 金
+    { unlockFloor: 19, perFloor: 0.9, max: 4 },  // tier7 宝石
+  ],
 
   areaPerLvls: 6,
   critMult: 3,
@@ -284,7 +306,10 @@ export const defaultMiningBalance: MiningBalance = {
 
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
-  weaponUnlockBase: 15, weaponUnlockGrowth: 1.5,
+  weaponUnlockBase: 8, weaponUnlockGrowth: 1.7,
+  starDmgPerLvl: 0.10, starDmgCostBase: 5, starDmgCostGrowth: 1.5,
+  tierUnlockCount: 2,
+  idleMatCostBase: 4, idleMatCostGrowth: 1.6,
   masteryPerLvl: 0.08,
   masteryGateBase: 300, masteryGateGrowth: 1.9,
 

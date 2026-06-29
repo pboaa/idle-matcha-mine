@@ -5,7 +5,7 @@ import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { type MineState, type Levels, type WeaponStatLevels } from '@application/mining/mineState';
-import { weaponSkillStats, autoEfficiency, allowedWeapons } from '@application/mining/prestige';
+import { weaponSkillStats, autoEfficiency, allowedWeapons, globalDamageMult } from '@application/mining/prestige';
 import { xpForNext, makeOffer, autoPick, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
@@ -209,8 +209,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋自動効率(自動は火力減・放置ツリーで回復)。
-  const globalMul = boostMul(state.boost, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
+  // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋★全体ダメージ(恒久)＋自動効率(自動は火力減・放置ツリーで回復)。
+  const globalMul = boostMul(state.boost, b) * globalDamageMult(state.perm.starDamage, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, mastery: state.perm.mastery, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
@@ -247,7 +247,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   };
   // 保留中の3択を一定時間放置したら自動選択（手動が基本・なにもしなければ自動）。
   if (offer && offerAt !== null && now - offerAt >= b.offerAutoMs) {
-    applyChoice(autoPick(offer, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
+    applyChoice(autoPick(offer, rng));
     offer = null; offerAt = null;
   }
   const allowed = allowedWeapons(state.perm); // 序盤は2種のみ、★で解放
@@ -256,7 +256,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     level += 1;
     runPoints += b.pointsPerLevel; // 進行で獲得予定★が貯まる（転生でもらえる）
     const choices = makeOffer(rng, levels, meta.appraise, allowed, b);
-    if (state.autoMode) applyChoice(autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
+    if (state.autoMode) applyChoice(autoPick(choices, rng));
     else { offer = choices; offerAt = now; } // 手動: 3択を提示して待つ
   }
 

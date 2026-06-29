@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockCost, unlockWeapon, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
-import { defaultMiningBalance, WEAPON_IDS, BASE_WEAPONS, weaponSkillNodes } from '@domain/mining/balance';
+import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockCost, unlockWeapon, WEAPON_UNLOCK_MATERIAL, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { defaultMiningBalance, WEAPON_IDS, MATERIAL_IDS, BASE_WEAPONS, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 // 開始武器はランダムに1つ＝武器レベル合計は「恒久武器Lv合計 + 1」
@@ -12,7 +12,7 @@ const extraWeaponLevels = (levels: Record<string, number>, perm: Record<string, 
 describe('mining/prestige', () => {
   it('採掘で素材がたまる（コインと別資源）', () => {
     const s = stepMine(initialMineState(), 8000);
-    const totalMat = s.materials.dirt + s.materials.stone + s.materials.ore + s.materials.gem;
+    const totalMat = MATERIAL_IDS.reduce((a, id) => a + s.materials[id], 0);
     expect(totalMat).toBeGreaterThan(0);
     expect(s.coins).toBeGreaterThan(0); // コインも別で増える
   });
@@ -43,16 +43,16 @@ describe('mining/prestige', () => {
     expect(extraWeaponLevels(s.levels, perm.levels)).toBe(1); // 開始武器は1つ(ツルハシ)だけ+1
   });
 
-  it('序盤は武器2種のみ・★で解放できる（基本武器は不可）', () => {
-    const s = { ...initialMineState(), points: 999 };
+  it('序盤は武器2種のみ・素材(鉄)で解放できる（基本武器は不可）', () => {
+    const s = { ...initialMineState(), materials: { ...emptyMaterials(), [WEAPON_UNLOCK_MATERIAL]: 999 } };
     expect([...allowedWeapons(s.perm)]).toEqual([...BASE_WEAPONS]); // 最初は2種
     const cost = weaponUnlockCost(s.perm);
     const r = unlockWeapon(s, 'beam');
     expect(r.perm.weaponUnlocks).toEqual(['beam']); // 解放された
-    expect(r.points).toBe(999 - cost);              // ★消費
+    expect(r.materials[WEAPON_UNLOCK_MATERIAL]).toBe(999 - cost); // 素材(鉄)消費
     expect(allowedWeapons(r.perm)).toContain('beam');
     expect(weaponUnlockCost(r.perm)).toBeGreaterThan(cost); // 次は高い
-    expect(unlockWeapon(s, 'pick').points).toBe(999); // 基本武器は解放対象外（消費なし）
+    expect(unlockWeapon(s, 'pick').materials[WEAPON_UNLOCK_MATERIAL]).toBe(999); // 基本武器は対象外（消費なし）
   });
 
   it('コイン全体強化: コインを消費してLvが上がる／不足は不可', () => {
@@ -66,7 +66,7 @@ describe('mining/prestige', () => {
   });
 
   it('コイン全体強化(強欲)で素材獲得が増える', () => {
-    const dug = (s: ReturnType<typeof stepMine>): number => s.materials.dirt + s.materials.stone;
+    const dug = (s: ReturnType<typeof stepMine>): number => MATERIAL_IDS.reduce((a, id) => a + s.materials[id], 0);
     // 独立した新規state（stepMineはdugを破壊的更新するので使い回さない）。手動＋目標で同じ採掘量。
     const make = (greed: number) => ({ ...initialMineState(), autoMode: false, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 0, y: 0 } }, coinUp: { haste: 0, greed, luck: 0 } });
     const plain = dug(stepMine(make(0), 20_000));
@@ -75,18 +75,25 @@ describe('mining/prestige', () => {
   });
 
 
-  it('武器スキルツリー(グラフ): 前提を満たすノードをポイントで解放', () => {
+  it('武器スキルツリー(階層): 素材で解放・下の階層を埋めると次が解禁', () => {
     const nodes = weaponSkillNodes('pick');
-    const gated = nodes.findIndex((n) => n.requires.length > 0); // 前提のあるノード
-    const s0 = { ...initialMineState(), points: 9999 };
-    expect(skillNodeUnlockable('pick', [], 0)).toBe(true);          // 起点は前提なし
-    expect(skillNodeUnlockable('pick', [], gated)).toBe(false);     // 前提が未解放
-    expect(buyWeaponSkill(s0, 'pick', gated).perm.weaponSkill.pick).toEqual([]); // 前提未達は不可
-    const s1 = buyWeaponSkill(s0, 'pick', 0);
-    expect(s1.perm.weaponSkill.pick).toEqual([0]);                 // 起点解放
-    expect(s1.points).toBe(9999 - nodes[0]!.cost);                // ポイント消費
-    const poor = { ...initialMineState(), points: 0 };
-    expect(buyWeaponSkill(poor, 'pick', 0).perm.weaponSkill.pick).toEqual([]); // ポイント不足で不可
+    const tier0 = nodes.map((_, i) => i).filter((i) => nodes[i]!.tier === 0);
+    const tier1plus = nodes.findIndex((n) => n.tier >= 1); // 上の階層のノード
+    const rich = { ...emptyMaterials() };
+    for (const id of MATERIAL_IDS) rich[id] = 99999; // 素材たっぷり
+    const s0 = { ...initialMineState(), materials: rich };
+    expect(skillNodeUnlockable('pick', [], tier0[0]!)).toBe(true);       // 起点(tier0)は解禁済み
+    expect(skillNodeUnlockable('pick', [], tier1plus)).toBe(false);      // 下の階層が未達なので不可
+    const n0 = nodes[tier0[0]!]!;
+    const s1 = buyWeaponSkill(s0, 'pick', tier0[0]!);
+    expect(s1.perm.weaponSkill.pick).toEqual([tier0[0]]);               // 起点解放
+    expect(s1.materials[n0.matId]).toBe(99999 - n0.matCost);            // 素材消費
+    // tier0 を tierUnlockCount だけ買うと tier1 が解禁される
+    let s = s0;
+    for (const i of tier0.slice(0, B.tierUnlockCount)) s = buyWeaponSkill(s, 'pick', i);
+    expect(skillNodeUnlockable('pick', s.perm.weaponSkill.pick, tier1plus)).toBe(true);
+    const poor = { ...initialMineState(), materials: emptyMaterials() };
+    expect(buyWeaponSkill(poor, 'pick', tier0[0]!).perm.weaponSkill.pick).toEqual([]); // 素材不足で不可
   });
 
   it('武器スキルツリーは+5%ダメージ系が大量・武器ごとに形が違う', () => {

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { type MineState } from '@application/mining/mineState';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
-import { prestige, buyPerm, buyCoinUp, buyWeaponSkill, buyIdle, unlockWeapon, refine, type PermId } from '@application/mining/prestige';
+import { prestige, buyPerm, buyCoinUp, buyWeaponSkill, buyIdle, buyStarDamage, unlockWeapon, refine, type PermId } from '@application/mining/prestige';
 import type { MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
 import type { Cell } from '@domain/grid/position';
 import { loadState, saveState, clearSave, freshState } from '@state/persistence';
@@ -19,6 +19,7 @@ interface MiningStore {
   buyCoinUp: (id: CoinUpId) => void;
   buyWeaponSkill: (weapon: WeaponId, nodeIndex: number) => void;
   buyIdle: () => void;
+  buyStarDamage: () => void;
   unlockWeapon: (w: WeaponId) => void;
   setTarget: (cell: Cell) => void; // 手動モードで猫の目標を設定
   refine: (from: MaterialId) => void;
@@ -57,6 +58,7 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   buyCoinUp: (id) => set((st) => ({ state: buyCoinUp(st.state, id) })),
   buyWeaponSkill: (weapon, nodeIndex) => set((st) => ({ state: buyWeaponSkill(st.state, weapon, nodeIndex) })),
   buyIdle: () => set((st) => ({ state: buyIdle(st.state) })),
+  buyStarDamage: () => set((st) => ({ state: buyStarDamage(st.state) })),
   unlockWeapon: (w) => set((st) => ({ state: unlockWeapon(st.state, w) })),
   setTarget: (cell) => set((st) => (st.state.autoMode ? {} : { state: { ...st.state, cat: { ...st.state.cat, target: cell } } })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),

@@ -9,7 +9,7 @@ export type PermId = ChoiceId | 'appraise';
 export function permMaterial(id: PermId): MaterialId {
   if (id === 'appraise') return 'gem';
   if (id === 'pick') return 'stone';
-  if (isWeapon(id)) return 'ore'; // 武器
+  if (isWeapon(id)) return 'copper'; // 武器
   return 'dirt'; // パッシブ強化
 }
 
@@ -65,30 +65,46 @@ export function buyCoinUp(state: MineState, id: CoinUpId): MineState {
 export function allowedWeapons(perm: Perm): readonly WeaponId[] {
   return [...BASE_WEAPONS, ...perm.weaponUnlocks];
 }
-/** 次の武器解放のコスト（解放数で増える）。 */
+/** 武器解放に使う素材（鉄）。 */
+export const WEAPON_UNLOCK_MATERIAL: MaterialId = 'iron';
+/** 次の武器解放のコスト（素材・解放数で増える）。 */
 export function weaponUnlockCost(perm: Perm, b: MiningBalance = defaultMiningBalance): number {
   return Math.floor(b.weaponUnlockBase * Math.pow(b.weaponUnlockGrowth, perm.weaponUnlocks.length));
 }
-/** 武器を1つ解放（★消費）。基本武器/解放済み/ポイント不足なら何もしない。 */
+/** 武器を1つ解放（素材=鉄を消費）。基本武器/解放済み/素材不足なら何もしない。 */
 export function unlockWeapon(state: MineState, w: WeaponId, b: MiningBalance = defaultMiningBalance): MineState {
   if (BASE_WEAPONS.includes(w) || state.perm.weaponUnlocks.includes(w)) return state;
   const cost = weaponUnlockCost(state.perm, b);
-  if (state.points < cost) return state;
-  return { ...state, points: state.points - cost, perm: { ...state.perm, weaponUnlocks: [...state.perm.weaponUnlocks, w] } };
+  if (state.materials[WEAPON_UNLOCK_MATERIAL] < cost) return state;
+  const materials = { ...state.materials, [WEAPON_UNLOCK_MATERIAL]: state.materials[WEAPON_UNLOCK_MATERIAL] - cost };
+  return { ...state, materials, perm: { ...state.perm, weaponUnlocks: [...state.perm.weaponUnlocks, w] } };
 }
 
-/** そのノードが今解放できるか（前提を全て満たし・未解放）。 */
-export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number): boolean {
-  const n = weaponSkillNodes(weapon)[nodeIndex];
-  return !!n && !unlocked.includes(nodeIndex) && n.requires.every((r) => unlocked.includes(r));
+/** その階層(列)が解禁済みか（下の階層を tierUnlockCount だけ買っていれば次が開く）。 */
+export function skillTierOpen(weapon: WeaponId, unlocked: readonly number[], tier: number, b: MiningBalance = defaultMiningBalance): boolean {
+  if (tier <= 0) return true;
+  const nodes = weaponSkillNodes(weapon);
+  for (let t = 0; t < tier; t++) {
+    const inTier = nodes.filter((n) => n.tier === t).length;
+    const need = Math.min(b.tierUnlockCount, inTier);
+    const bought = unlocked.filter((i) => nodes[i]?.tier === t).length;
+    if (bought < need) return false; // 下の階層がまだ条件未達
+  }
+  return true;
 }
-/** 武器スキルツリーのノードを1つ解放（前提＋ポイントを満たせば）。 */
-export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number): MineState {
+/** そのノードが今解放できるか（未解放・階層が解禁済み・素材は別途チェック）。 */
+export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number, b: MiningBalance = defaultMiningBalance): boolean {
+  const n = weaponSkillNodes(weapon)[nodeIndex];
+  return !!n && !unlocked.includes(nodeIndex) && skillTierOpen(weapon, unlocked, n.tier, b);
+}
+/** 武器スキルツリーのノードを1つ解放（階層解禁＋素材を満たせば）。 */
+export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number, b: MiningBalance = defaultMiningBalance): MineState {
   const unlocked = state.perm.weaponSkill[weapon];
   const node = weaponSkillNodes(weapon)[nodeIndex];
-  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex) || state.points < node.cost) return state;
+  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex, b) || state.materials[node.matId] < node.matCost) return state;
+  const materials = { ...state.materials, [node.matId]: state.materials[node.matId] - node.matCost };
   const weaponSkill = { ...state.perm.weaponSkill, [weapon]: [...unlocked, nodeIndex] };
-  return { ...state, points: state.points - node.cost, perm: { ...state.perm, weaponSkill } };
+  return { ...state, materials, perm: { ...state.perm, weaponSkill } };
 }
 /** 解放済みノードの累積ステータス（武器に恒久で乗る）。 */
 export function weaponSkillStats(weapon: WeaponId, unlocked: readonly number[]): WeaponStatLevels {
@@ -107,16 +123,35 @@ export function autoEfficiency(idle: number, b: MiningBalance = defaultMiningBal
 export function idleMaxLevel(b: MiningBalance = defaultMiningBalance): number {
   return Math.ceil((1 - b.autoEffBase) / b.idleEffPerLvl);
 }
-/** 放置ツリーの次の1段のコスト（ポイント）。最大なら null。 */
+/** 放置ツリーに使う素材（銀）。 */
+export const IDLE_MATERIAL: MaterialId = 'silver';
+/** 放置ツリーの次の1段のコスト（素材=銀）。最大なら null。 */
 export function idleCost(idle: number, b: MiningBalance = defaultMiningBalance): number | null {
   if (idle >= idleMaxLevel(b)) return null;
-  return Math.floor(b.idleCostBase * Math.pow(b.idleCostGrowth, idle));
+  return Math.floor(b.idleMatCostBase * Math.pow(b.idleMatCostGrowth, idle));
 }
-/** 放置ツリーを1段解放（ポイント消費）。 */
+/** 放置ツリーを1段解放（素材=銀を消費）。 */
 export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
   const cost = idleCost(state.perm.idle, b);
-  if (cost === null || state.points < cost) return state;
-  return { ...state, points: state.points - cost, perm: { ...state.perm, idle: state.perm.idle + 1 } };
+  if (cost === null || state.materials[IDLE_MATERIAL] < cost) return state;
+  const materials = { ...state.materials, [IDLE_MATERIAL]: state.materials[IDLE_MATERIAL] - cost };
+  return { ...state, materials, perm: { ...state.perm, idle: state.perm.idle + 1 } };
+}
+
+// ===== ★ポイント＝全体ダメージ強化（唯一の用途）。線形効果＋幾何コストでインフレ自己制限。 =====
+/** 全武器に乗る全体ダメージ倍率（1 + Lv × starDmgPerLvl）。 */
+export function globalDamageMult(starDamage: number, b: MiningBalance = defaultMiningBalance): number {
+  return 1 + starDamage * b.starDmgPerLvl;
+}
+/** 全体ダメージ強化の次の1段のコスト（★）。 */
+export function starDamageCost(starDamage: number, b: MiningBalance = defaultMiningBalance): number {
+  return Math.floor(b.starDmgCostBase * Math.pow(b.starDmgCostGrowth, starDamage));
+}
+/** 全体ダメージ強化を1段買う（★を消費）。 */
+export function buyStarDamage(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
+  const cost = starDamageCost(state.perm.starDamage, b);
+  if (state.points < cost) return state;
+  return { ...state, points: state.points - cost, perm: { ...state.perm, starDamage: state.perm.starDamage + 1 } };
 }
 
 // ===== 熟練度（転生で使った武器が少しずつ恒久強化・幾何の硬さに追従させる線形） =====

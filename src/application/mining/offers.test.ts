@@ -3,7 +3,6 @@ import { createRng } from '@shared/rng';
 import { initialMineState } from '@application/mining/mineState';
 import { makeOffer, autoPick, applyOfferChoice, appraiseCost, buyAppraise, rareChance, epicChance, boostCost, buyBoost, boostMul } from '@application/mining/upgrades';
 import { defaultMiningBalance, PASSIVE_IDS, WEAPON_IDS } from '@domain/mining/balance';
-import { emptyPerm } from '@application/mining/mineState';
 
 const B = defaultMiningBalance;
 const lv = () => initialMineState().levels;
@@ -75,19 +74,20 @@ describe('mining/offers', () => {
     expect(seen.has(generic[0]!)).toBe(true);
   });
 
-  it('autoPick は恒久強化(perm)済みのものを優先で取る', () => {
+  it('autoPick は完全ランダム（自動の持ち込みは運）', () => {
     const offer = [
       { id: 'speed', rarity: 'common', bonus: null },
       { id: 'luck', rarity: 'common', bonus: null },
       { id: 'power', rarity: 'common', bonus: null },
     ] as const;
-    const perm = { ...emptyPerm(), levels: { ...emptyPerm().levels, luck: 3 } }; // luck を恒久強化済み
     const rng = createRng(11);
-    for (let i = 0; i < 20; i++) expect(autoPick(offer, rng, perm).id).toBe('luck'); // 常に優先
-    // perm 無しなら従来通りランダム（必ずしも luck ではない）
     const ids = new Set<string>();
-    for (let i = 0; i < 50; i++) ids.add(autoPick(offer, rng).id);
-    expect(ids.size).toBeGreaterThan(1);
+    for (let i = 0; i < 50; i++) {
+      const id = autoPick(offer, rng).id;
+      ids.add(id);
+      expect(['speed', 'luck', 'power']).toContain(id); // 必ず3択内
+    }
+    expect(ids.size).toBeGreaterThan(1);                 // ばらける＝偏らない
   });
 
   it('武器固有ユニークは対応武器を持っていないと3択に出ない', () => {

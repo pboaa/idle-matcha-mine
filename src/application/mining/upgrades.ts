@@ -1,7 +1,7 @@
 import { type Rng } from '@shared/rng';
 import type { MiningBalance, ChoiceId, OfferRarity, WeaponId } from '@domain/mining/balance';
-import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, defaultMiningBalance, isWeapon } from '@domain/mining/balance';
-import type { MineState, OfferChoice, Levels, WeaponSkill } from '@application/mining/mineState';
+import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, defaultMiningBalance } from '@domain/mining/balance';
+import type { MineState, OfferChoice, Levels } from '@application/mining/mineState';
 
 export const xpForNext = (level: number, b: MiningBalance = defaultMiningBalance): number => b.xpBase + level * b.xpPerLevel;
 
@@ -44,22 +44,9 @@ export function makeOffer(rng: Rng, levels: Levels, appraise: number, allowed: r
   });
 }
 
-/** 自動モードの取得選択。3択(=持ち込み)はランダムだが、強化済み(開始Lv＋スキルツリー)のものを優先で取る。 */
-export function autoPick(offer: readonly OfferChoice[], rng: Rng, opts?: { readonly levels: Levels; readonly weaponSkill?: WeaponSkill }): OfferChoice {
-  const priority = (c: OfferChoice): number => {
-    if (!opts) return 0;
-    let p = opts.levels[c.id];
-    if (isWeapon(c.id) && opts.weaponSkill) p += opts.weaponSkill[c.id].length; // 恒久スキルツリーへの投資（解放数）
-    return p;
-  };
-  let best = -1;
-  const top: OfferChoice[] = [];
-  for (const c of offer) {
-    const p = priority(c);
-    if (p > best) { best = p; top.length = 0; top.push(c); }
-    else if (p === best) top.push(c);
-  }
-  return top[Math.floor(rng.next() * top.length)]!;
+/** 自動モード/放置時の取得選択は完全ランダム（運要素＝持ち込みがランダム）。 */
+export function autoPick(offer: readonly OfferChoice[], rng: Rng): OfferChoice {
+  return offer[Math.floor(rng.next() * offer.length)]!;
 }
 
 // 三択は放置で自動選択されるので「特殊な強化要素(貫通/範囲/多点)」は持たせない。
