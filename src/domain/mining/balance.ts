@@ -95,22 +95,26 @@ export const WEAPON_STAT_DEFS: Record<WeaponStat, WeaponStatDef> = {
 export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean =>
   !WEAPON_STAT_DEFS[stat].lineOnly || WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward';
 
-// ===== 武器ごとの恒久スキルツリー（tier型・ポイントで解放）。少しずつ伸び、所々に大ノード。 =====
-export interface WeaponSkillNode { readonly stat: WeaponStat; readonly amount: number; readonly cost: number; readonly big?: boolean }
-/** 全武器共通のノード列（武器ごとに独立して上から順に解放）。amount: damage/speed/uniqueは倍率の加算、rangeはマス+。 */
+// ===== 武器ごとの恒久スキルツリー（分岐グラフ・ポイントで解放）。前提を満たすと広がる。所々に大ノード。 =====
+export interface WeaponSkillNode {
+  readonly x: number; readonly y: number;          // グラフ上の位置（col, row）
+  readonly stat: WeaponStat; readonly amount: number;
+  readonly cost: number; readonly big?: boolean;
+  readonly requires: readonly number[];            // 解放に必要な先行ノードのindex
+}
+/** 全武器共通のノードグラフ（武器ごとに独立に解放）。amount: damage/speed/uniqueは倍率加算、rangeはマス+。 */
 export const WEAPON_SKILL_NODES: readonly WeaponSkillNode[] = [
-  { stat: 'damage', amount: 0.15, cost: 2 },
-  { stat: 'speed', amount: 0.15, cost: 3 },
-  { stat: 'damage', amount: 0.20, cost: 5 },
-  { stat: 'range', amount: 1, cost: 10, big: true },   // 大: 射程+1
-  { stat: 'speed', amount: 0.20, cost: 8 },
-  { stat: 'damage', amount: 0.25, cost: 14 },
-  { stat: 'unique', amount: 0.6, cost: 28, big: true }, // 大: 固有+60%
-  { stat: 'damage', amount: 0.35, cost: 22 },
-  { stat: 'speed', amount: 0.30, cost: 34 },
-  { stat: 'range', amount: 1, cost: 60, big: true },    // 大: 射程+1
-  { stat: 'damage', amount: 0.50, cost: 50 },
-  { stat: 'unique', amount: 1.0, cost: 120, big: true }, // 大: 固有+100%
+  { x: 0, y: 1.5, stat: 'damage', amount: 0.10, cost: 1, requires: [] },             // 0 起点
+  { x: 1, y: 0.5, stat: 'damage', amount: 0.15, cost: 2, requires: [0] },            // 1 威力枝
+  { x: 1, y: 2.5, stat: 'speed', amount: 0.15, cost: 2, requires: [0] },             // 2 速度枝
+  { x: 2, y: 0, stat: 'damage', amount: 0.20, cost: 4, requires: [1] },              // 3
+  { x: 2, y: 1, stat: 'range', amount: 1, cost: 8, big: true, requires: [1] },       // 4 大:射程
+  { x: 2, y: 2, stat: 'speed', amount: 0.20, cost: 4, requires: [2] },               // 5
+  { x: 2, y: 3, stat: 'range', amount: 1, cost: 8, big: true, requires: [2] },       // 6 大:射程
+  { x: 3, y: 0.5, stat: 'unique', amount: 0.5, cost: 18, big: true, requires: [3, 4] }, // 7 大:威力の極
+  { x: 3, y: 2.5, stat: 'unique', amount: 0.5, cost: 18, big: true, requires: [5, 6] }, // 8 大:速度の極
+  { x: 4, y: 1.5, stat: 'damage', amount: 0.40, cost: 30, requires: [7, 8] },        // 9 合流
+  { x: 5, y: 1.5, stat: 'unique', amount: 1.0, cost: 70, big: true, requires: [9] }, // 10 最終大
 ];
 
 export const isWeapon = (id: ChoiceId): id is WeaponId => id in WEAPON_DEFS;

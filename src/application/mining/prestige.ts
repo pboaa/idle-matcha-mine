@@ -67,23 +67,23 @@ export function buyRunUp(state: MineState, weapon: WeaponId, stat: WeaponStat): 
 export function oreToPoints(materials: MineState['materials'], b: MiningBalance = defaultMiningBalance): number {
   return Math.floor(MATERIAL_IDS.reduce((a, m) => a + materials[m] * b.kinds[m].mult, 0) * b.oreToPointRate);
 }
-/** 次に解放できるノードのコスト（ポイント）。これ以上無ければ null。 */
-export function weaponSkillCost(weapon: WeaponId, perm: Perm): number | null {
-  const node = WEAPON_SKILL_NODES[perm.weaponSkill[weapon]];
-  return node ? node.cost : null;
+/** そのノードが今解放できるか（前提を全て満たし・未解放）。 */
+export function skillNodeUnlockable(unlocked: readonly number[], nodeIndex: number): boolean {
+  const n = WEAPON_SKILL_NODES[nodeIndex];
+  return !!n && !unlocked.includes(nodeIndex) && n.requires.every((r) => unlocked.includes(r));
 }
-/** 武器のスキルツリーを1ノード解放（ポイント消費）。 */
-export function buyWeaponSkill(state: MineState, weapon: WeaponId): MineState {
-  const idx = state.perm.weaponSkill[weapon];
-  const node = WEAPON_SKILL_NODES[idx];
-  if (!node || state.points < node.cost) return state;
-  const weaponSkill = { ...state.perm.weaponSkill, [weapon]: idx + 1 };
+/** 武器スキルツリーのノードを1つ解放（前提＋ポイントを満たせば）。 */
+export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number): MineState {
+  const unlocked = state.perm.weaponSkill[weapon];
+  const node = WEAPON_SKILL_NODES[nodeIndex];
+  if (!node || !skillNodeUnlockable(unlocked, nodeIndex) || state.points < node.cost) return state;
+  const weaponSkill = { ...state.perm.weaponSkill, [weapon]: [...unlocked, nodeIndex] };
   return { ...state, points: state.points - node.cost, perm: { ...state.perm, weaponSkill } };
 }
 /** 解放済みノードの累積ステータス（武器に恒久で乗る）。 */
-export function weaponSkillStats(unlocked: number): WeaponStatLevels {
+export function weaponSkillStats(unlocked: readonly number[]): WeaponStatLevels {
   const s: WeaponStatLevels = { damage: 0, speed: 0, range: 0, pierce: 0, unique: 0 };
-  for (let i = 0; i < unlocked && i < WEAPON_SKILL_NODES.length; i++) { const n = WEAPON_SKILL_NODES[i]!; s[n.stat] += n.amount; }
+  for (const i of unlocked) { const n = WEAPON_SKILL_NODES[i]; if (n) s[n.stat] += n.amount; }
   return s;
 }
 

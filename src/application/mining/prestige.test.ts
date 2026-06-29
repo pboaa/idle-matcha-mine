@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyRunUp, runUpCost, buyWeaponSkill, weaponSkillCost, oreToPoints, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
-import { defaultMiningBalance, WEAPON_IDS } from '@domain/mining/balance';
+import { buyPerm, buyRunUp, runUpCost, buyWeaponSkill, skillNodeUnlockable, oreToPoints, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { defaultMiningBalance, WEAPON_IDS, WEAPON_SKILL_NODES } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 // 開始武器はランダムに1つ＝武器レベル合計は「恒久武器Lv合計 + 1」
@@ -77,14 +77,17 @@ describe('mining/prestige', () => {
     expect(pickDmg(stepMine(upped, 500))).toBeGreaterThan(noUp); // +8%/Lv × 5
   });
 
-  it('武器スキルツリー: ポイントでノード解放／ポイント不足は不可', () => {
+  it('武器スキルツリー(グラフ): 前提を満たすノードをポイントで解放', () => {
     const s0 = { ...initialMineState(), points: 100 };
-    const cost = weaponSkillCost('pick', s0.perm)!;
-    const s1 = buyWeaponSkill(s0, 'pick');
-    expect(s1.perm.weaponSkill.pick).toBe(1);     // 1ノード解放
-    expect(s1.points).toBe(100 - cost);            // ポイント消費
+    expect(skillNodeUnlockable(s0.perm.weaponSkill.pick, 0)).toBe(true);  // 起点は前提なし
+    expect(skillNodeUnlockable(s0.perm.weaponSkill.pick, 3)).toBe(false); // ノード3は前提[1]が未解放
+    const cost0 = WEAPON_SKILL_NODES[0]!.cost;
+    const s1 = buyWeaponSkill(s0, 'pick', 0);
+    expect(s1.perm.weaponSkill.pick).toEqual([0]);   // 起点解放
+    expect(s1.points).toBe(100 - cost0);             // ポイント消費
+    expect(buyWeaponSkill(s1, 'pick', 3).perm.weaponSkill.pick).toEqual([0]); // 前提未達は不可
     const poor = { ...initialMineState(), points: 0 };
-    expect(buyWeaponSkill(poor, 'pick').perm.weaponSkill.pick).toBe(0); // 不足で不可
+    expect(buyWeaponSkill(poor, 'pick', 0).perm.weaponSkill.pick).toEqual([]); // ポイント不足で不可
   });
 
   it('転生: 走行リセット・残り鉱石はポイントへ変換・恒久/回数は保持', () => {

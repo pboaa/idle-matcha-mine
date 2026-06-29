@@ -16,7 +16,7 @@ interface MiningStore {
   prestige: () => void;
   buyPerm: (id: PermId) => void;
   buyRunUp: (weapon: WeaponId, stat: WeaponStat) => void;
-  buyWeaponSkill: (weapon: WeaponId) => void;
+  buyWeaponSkill: (weapon: WeaponId, nodeIndex: number) => void;
   refine: (from: MaterialId) => void;
 }
 
@@ -44,6 +44,6 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   buyPerm: (id) => set((st) => ({ state: buyPerm(st.state, id) })),
   buyRunUp: (weapon, stat) => set((st) => ({ state: buyRunUp(st.state, weapon, stat) })),
-  buyWeaponSkill: (weapon) => set((st) => ({ state: buyWeaponSkill(st.state, weapon) })),
+  buyWeaponSkill: (weapon, nodeIndex) => set((st) => ({ state: buyWeaponSkill(st.state, weapon, nodeIndex) })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),
 }));

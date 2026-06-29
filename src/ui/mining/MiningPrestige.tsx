@@ -1,6 +1,50 @@
 import { useState } from 'react';
-import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyRunUp, useMineBuyWeaponSkill, useMineRefine, type WeaponId } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyRunUp, useMineBuyWeaponSkill, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
+
+const COL = 80, ROW = 52, PADX = 30, PADY = 30, R = 16, RBIG = 20;
+const nodeFill = (n: MineSkillNodeVM): string =>
+  n.state === 'unlocked' ? '#b45309' : n.state === 'available' ? (n.can ? '#f59e0b' : '#57534e') : '#292524';
+const nodeStroke = (n: MineSkillNodeVM): string =>
+  n.state === 'unlocked' ? '#fbbf24' : n.state === 'available' ? '#fde68a' : '#44403c';
+
+/** 武器スキルツリーの分岐グラフ（SVG）。前提を線で繋ぎ、解放可能ノードをクリックで取得。 */
+function SkillGraph({ nodes, onBuy }: { nodes: readonly MineSkillNodeVM[]; onBuy: (index: number) => void }) {
+  const maxX = Math.max(...nodes.map((n) => n.x));
+  const maxY = Math.max(...nodes.map((n) => n.y));
+  const w = PADX * 2 + maxX * COL;
+  const h = PADY * 2 + maxY * ROW;
+  const cx = (n: MineSkillNodeVM): number => PADX + n.x * COL;
+  const cy = (n: MineSkillNodeVM): number => PADY + n.y * ROW;
+  return (
+    <div className="overflow-x-auto">
+      <svg width={w} height={h} className="block">
+        {/* 前提のエッジ */}
+        {nodes.flatMap((n) => n.requires.map((r) => {
+          const p = nodes[r]; if (!p) return null;
+          const lit = n.state === 'unlocked';
+          return <line key={`${n.index}-${r}`} x1={cx(p)} y1={cy(p)} x2={cx(n)} y2={cy(n)} stroke={lit ? '#f59e0b' : '#57534e'} strokeWidth={lit ? 3 : 2} />;
+        }))}
+        {/* ノード */}
+        {nodes.map((n) => {
+          const r = n.big ? RBIG : R;
+          const clickable = n.state === 'available' && n.can;
+          return (
+            <g key={n.index} onClick={() => clickable && onBuy(n.index)} style={{ cursor: clickable ? 'pointer' : 'default' }}>
+              <title>{`${n.label}${n.big ? '（大）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.state === 'available' ? (n.can ? 'クリックで解放' : 'ポイント不足') : '前提が必要'} ／ ⭐${n.cost}`}</title>
+              {clickable && <circle cx={cx(n)} cy={cy(n)} r={r + 4} fill="none" stroke="#fde68a" strokeWidth={2} opacity={0.5} className="animate-[pop_1.2s_ease-in-out_infinite]" />}
+              <circle cx={cx(n)} cy={cy(n)} r={r} fill={nodeFill(n)} stroke={nodeStroke(n)} strokeWidth={n.big ? 3 : 2} />
+              <text x={cx(n)} y={cy(n)} textAnchor="middle" dominantBaseline="central" fontSize={n.big ? 18 : 14}>{n.emoji}</text>
+              <text x={cx(n)} y={cy(n) + r + 9} textAnchor="middle" fontSize={9} fill={n.state === 'unlocked' ? '#fbbf24' : n.state === 'locked' ? '#57534e' : '#fde68a'}>
+                {n.state === 'unlocked' ? '✓' : `⭐${n.cost}`}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 /** 工房/転生モーダル: 熟練度／鉱石(ラン中)・ポイント／武器ごとの強化(ラン強化＋スキルツリー)／転生。 */
 export function MiningPrestige({ onClose }: { onClose: () => void }) {
@@ -97,22 +141,13 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* スキルツリー（ポイント・恒久・上から順に解放） */}
+            {/* スキルツリー（ポイント・恒久・分岐グラフ） */}
             <div className="rounded-md bg-amber-950/30 p-1.5 ring-1 ring-amber-800/30">
-              <div className="mb-1 text-[10px] text-amber-300/80">スキルツリー（ポイント・恒久） 解放 {wt.skillUnlocked}/{wt.skillNodes.length}</div>
-              <div className="flex flex-col gap-1">
-                {wt.skillNodes.map((n) => (
-                  <button key={n.index} onClick={() => buyWeaponSkill(wt.id)} disabled={n.state !== 'next' || !n.can}
-                    title={n.state === 'locked' ? '前のノードを先に解放' : n.state === 'unlocked' ? '解放済み' : 'クリックで解放'}
-                    className={['flex items-center justify-between rounded px-2 py-1 text-[11px] transition',
-                      n.state === 'unlocked' ? 'bg-amber-700/40 text-amber-100'
-                        : n.state === 'next' ? (n.can ? 'bg-amber-500 text-stone-900 hover:bg-amber-400 active:scale-95 font-bold' : 'bg-stone-800 text-stone-400 cursor-not-allowed ring-1 ring-amber-700/50')
-                          : 'bg-stone-900/60 text-stone-600 cursor-not-allowed'].join(' ')}>
-                    <span className="truncate">{n.state === 'unlocked' ? '✅' : n.big ? '⭐' : '•'} {n.emoji}{n.label}{n.big && <span className="ml-1 text-[8px] text-fuchsia-300">大</span>}</span>
-                    <span className="ml-1 whitespace-nowrap text-[10px]">{n.state === 'unlocked' ? '済' : `⭐${n.cost}`}</span>
-                  </button>
-                ))}
+              <div className="mb-1 flex items-center justify-between text-[10px] text-amber-300/80">
+                <span>スキルツリー（ポイント・恒久・前提を満たすと広がる）</span>
+                <span>解放 {wt.skillUnlocked}/{wt.skillTotal}</span>
               </div>
+              <SkillGraph nodes={wt.skillNodes} onBuy={(i) => buyWeaponSkill(wt.id, i)} />
             </div>
           </div>
         ) : (

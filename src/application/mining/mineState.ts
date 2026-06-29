@@ -19,8 +19,8 @@ export type WeaponMastery = Record<WeaponId, number>;
 /** 武器ごとのステータス強化Lv（ダメージ/攻撃速度/射程/貫通/固有）。ラン中の鉱石強化に使う。 */
 export type WeaponStatLevels = Record<WeaponStat, number>;
 export type WeaponUpgrades = Record<WeaponId, WeaponStatLevels>;
-/** 武器ごとの恒久スキルツリー進捗（解放済みノード数）。ポイントで伸ばす。 */
-export type WeaponSkill = Record<WeaponId, number>;
+/** 武器ごとの恒久スキルツリー進捗（解放済みノードindexの配列）。ポイントで解放。 */
+export type WeaponSkill = Record<WeaponId, number[]>;
 /** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器ごとのスキルツリー。 */
 export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponSkill: WeaponSkill }
 
@@ -33,7 +33,7 @@ export const emptyMastery = (): WeaponMastery => Object.fromEntries(WEAPON_IDS.m
 const zeroStats = (): WeaponStatLevels => Object.fromEntries(WEAPON_STATS.map((s) => [s, 0])) as WeaponStatLevels;
 /** 武器ごとのステータスLvマップ（ラン中の鉱石強化 runUp の初期値）。 */
 export const emptyWeaponUp = (): WeaponUpgrades => Object.fromEntries(WEAPON_IDS.map((w) => [w, zeroStats()])) as WeaponUpgrades;
-export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, 0])) as WeaponSkill;
+export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
 export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponSkill: emptyWeaponSkill() });
 export const totalMastery = (m: WeaponMastery): number => WEAPON_IDS.reduce((a, w) => a + m[w], 0);
 

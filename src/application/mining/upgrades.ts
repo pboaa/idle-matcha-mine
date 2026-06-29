@@ -50,7 +50,7 @@ export function autoPick(offer: readonly OfferChoice[], rng: Rng, opts?: { reado
     if (!opts) return 0;
     let p = opts.levels[c.id];
     if (isWeapon(c.id)) {
-      if (opts.weaponSkill) p += opts.weaponSkill[c.id];                              // 恒久スキルツリーへの投資
+      if (opts.weaponSkill) p += opts.weaponSkill[c.id].length;                       // 恒久スキルツリーへの投資（解放数）
       if (opts.runUp) for (const s of WEAPON_STATS) p += opts.runUp[c.id][s];          // ラン中の強化
     }
     return p;
