@@ -25,6 +25,14 @@ describe('mining/offers', () => {
     expect(offerLevelCap('power')).toBe(B.maxPassiveLevel);
   });
 
+  it('射程(範囲)・貫通のパッシブは3択に出さない（ツリー側で扱う）', () => {
+    const all = new Set<string>();
+    for (let i = 0; i < 300; i++) makeOffer(createRng(i * 7 + 1), lv(), 0, WEAPON_IDS, B).forEach((c) => all.add(c.id));
+    expect(all.has('range')).toBe(false);
+    expect(all.has('pierce')).toBe(false);
+    expect(all.has('power')).toBe(true); // 他のパッシブは出る
+  });
+
   it('makeOffer は3枠・各枠に rarity', () => {
     const o = makeOffer(createRng(1), lv(), 0, WEAPON_IDS, B);
     expect(o.length).toBe(3);

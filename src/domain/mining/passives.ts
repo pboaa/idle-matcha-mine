@@ -16,14 +16,15 @@ export interface PassiveDef {
   readonly effect: PassiveEffect; readonly perLvl: number;
   readonly reqWeapon?: WeaponId;    // この武器を所持中のみ3択に出る（武器固有のユニーク強化）
   readonly targetWeapon?: WeaponId; // weaponDmg をこの武器だけに乗せる
+  readonly noOffer?: boolean;       // 3択に出さない（範囲/貫通はツリー側で扱うため除外）
 }
 
 export const PASSIVE_DEFS: Record<PassiveId, PassiveDef> = {
   // 汎用（全体）特殊能力
   power: { id: 'power', label: '威力', emoji: '💪', desc: '全武器のダメージ+', effect: 'power', perLvl: 0.10 },
   bighit: { id: 'bighit', label: '強撃', emoji: '💢', desc: '全武器のダメージ+（大）', effect: 'power', perLvl: 0.18 },
-  range: { id: 'range', label: '射程', emoji: '📏', desc: '武器の射程/範囲 +1', effect: 'range', perLvl: 0.5 },
-  pierce: { id: 'pierce', label: '貫通', emoji: '➡️', desc: 'ビーム/ドリルが奥まで貫通 +1', effect: 'pierce', perLvl: 1 },
+  range: { id: 'range', label: '射程', emoji: '📏', desc: '武器の射程/範囲 +1', effect: 'range', perLvl: 0.5, noOffer: true },
+  pierce: { id: 'pierce', label: '貫通', emoji: '➡️', desc: 'ビーム/ドリルが奥まで貫通 +1', effect: 'pierce', perLvl: 1, noOffer: true },
   crit: { id: 'crit', label: '会心', emoji: '✨', desc: 'たまに3倍ダメージ', effect: 'crit', perLvl: 0.05 },
   speed: { id: 'speed', label: '速さ', emoji: '🏃', desc: '採掘/移動が速い', effect: 'rate', perLvl: 0.14 },
   haste: { id: 'haste', label: '俊足', emoji: '👟', desc: '移動が速い', effect: 'move', perLvl: 0.20 },

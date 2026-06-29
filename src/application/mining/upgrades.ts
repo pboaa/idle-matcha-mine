@@ -29,6 +29,7 @@ export function makeOffer(rng: Rng, levels: Levels, appraise: number, allowed: r
   for (const id of WEAPON_IDS) if (allowed.includes(id) && (levels[id] > 0 || canNewWeapon) && levels[id] < b.maxWeaponLevel) pool.push(id);
   for (const id of PASSIVE_IDS) {
     const def = PASSIVE_DEFS[id];
+    if (def.noOffer) continue;                                 // 範囲(射程)/貫通は3択に出さない
     if (def.reqWeapon && levels[def.reqWeapon] <= 0) continue; // 武器固有強化は対応武器を持っている時だけ
     if (levels[id] <= 0 && !canNewPassive) continue;           // 強化は最大 maxPassives 個（既存はLv上げのため出る）
     if (levels[id] >= b.maxPassiveLevel) continue;             // 上限Lv到達は出さない

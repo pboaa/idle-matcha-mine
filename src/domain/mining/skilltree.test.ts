@@ -22,25 +22,18 @@ describe('mining/skilltree', () => {
     }
   });
 
-  it('貫通(pierce)・範囲(area)のツリー強化は全武器で削除（射程rangeと固有uniqueのみ）', () => {
-    for (const w of WEAPON_IDS) {
-      const n = weaponSkillNodes(w);
-      expect(n.some((x) => x.stat === 'area')).toBe(false);   // 範囲ノードは無い
-      expect(n.some((x) => x.stat === 'pierce')).toBe(false); // 貫通ノードも無い
-    }
-  });
-
-  it('特殊系は「1グリッドに約2個」だけ（インフレ防止）・残りはfiller', () => {
-    const beam = weaponSkillNodes('beam');
+  it('特殊系は「1グリッドに約2個」だけ（インフレ防止）・残りはfiller。種類は巡回でバリエーション', () => {
+    const beam = weaponSkillNodes('beam'); // 直線系＝貫通も範囲も射程も有効
     for (let grid = 1; grid < SKILL_TIERS; grid++) {
-      const specials = beam.filter((n) => n.tier === grid && (n.stat === 'range' || n.stat === 'unique'));
+      const specials = beam.filter((n) => n.tier === grid && (n.stat === 'range' || n.stat === 'area' || n.stat === 'pierce' || n.stat === 'unique'));
       expect(specials.length).toBeLessThanOrEqual(2); // 1グリッド最大2個
     }
-    for (const stat of ['range', 'unique'] as const) expect(beam.some((n) => n.stat === stat)).toBe(true);
+    for (const stat of ['range', 'area', 'pierce', 'unique'] as const) expect(beam.some((n) => n.stat === stat)).toBe(true); // 種類が一通りある
     expect(beam.filter((n) => n.stat === 'damage' || n.stat === 'speed').length).toBeGreaterThan(beam.length * 0.9); // 9割超がfiller
-    // ツルハシ(front)は射程概念なし＝固有のみ。
-    expect(weaponSkillNodes('pick').some((n) => n.stat === 'range')).toBe(false);
-    expect(weaponSkillNodes('pick').some((n) => n.stat === 'unique')).toBe(true);
+    // フィールド系(オーラ)は範囲/貫通は無効＝出ない、射程は出る。
+    const aura = weaponSkillNodes('aura');
+    expect(aura.some((n) => n.stat === 'area' || n.stat === 'pierce')).toBe(false);
+    expect(aura.some((n) => n.stat === 'range')).toBe(true);
   });
 
   it('メインツリー: 全体強化のステータス（power/crit/coin等）で構成・武器ステータスは無い', () => {
