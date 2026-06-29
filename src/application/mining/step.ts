@@ -104,8 +104,8 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     const isField = def.pattern === 'around' || def.pattern === 'ring';
     const range = weaponRange(def, lvl, rangeBonus + rangeAdd + (isField ? q : 0)); // オーラ/リングは固有特性で半径+
     const lineRange = range + pierceBonus + pierceAdd + (isLine ? q : 0);           // 直線系は固有特性で貫通+
-    // 範囲段階: レベル(areaPerLvls段ごと)＋射程投資で増える。前方/爆発は固有特性で範囲+。
-    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + rangeBonus + rangeAdd + (def.pattern === 'front' || def.pattern === 'burst' ? q : 0);
+    // 範囲段階(方向/横幅): レベル(areaPerLvls段ごと)で緩やかに増える。射程投資は「長さ」専用で広がり方には影響させない。
+    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + (def.pattern === 'front' || def.pattern === 'burst' ? q : 0);
     const targets = 1 + (def.pattern === 'nearest' ? q : 0); // 弾は固有特性で多点同時
     switch (def.pattern) {
       case 'front': { // ツルハシ: 最初は前方1マス、spreadで横に広がる（横振り）。
