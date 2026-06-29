@@ -26,7 +26,7 @@ describe('mining/skilltree', () => {
     const c = skillGridCenter(0);
     const lr = weaponSkillNodes('pick').filter((n) => n.tier === 0 && n.y === c && (n.x === c - 1 || n.x === c + 1));
     expect(lr.length).toBe(2);
-    expect(lr.every((n) => n.stat === 'area' && n.matId === 'dirt' && n.matCost <= 50)).toBe(true); // 安い
+    expect(lr.every((n) => n.stat === 'area' && n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い
   });
 
   it('ツリーの特殊は射程のみ（範囲/貫通は強すぎたため削除・ツルハシの範囲のみ例外）', () => {
@@ -42,10 +42,13 @@ describe('mining/skilltree', () => {
     }
   });
 
-  it('深い階層ほど高コスト＆上位素材（終盤ほど上げにくい）', () => {
+  it('深い階層ほど高コスト＆「色んな素材」を要求（種類が増える・量も増える）', () => {
     const nodes = weaponSkillNodes('bullet');
-    const rootCost = (t: number): number => nodes.find((n) => n.tier === t && n.root)!.matCost;
-    expect(rootCost(4)).toBeGreaterThan(rootCost(0)); // 深い階層ほど高い
+    const root = (t: number): typeof nodes[number] => nodes.find((n) => n.tier === t && n.root)!;
+    const total = (t: number): number => root(t).matCosts.reduce((a, c) => a + c.amount, 0);
+    expect(total(4)).toBeGreaterThan(total(0));                          // 深い階層ほど量が多い
+    expect(root(4).matCosts.length).toBeGreaterThan(root(0).matCosts.length); // 深い階層ほど素材の種類が増える
+    expect(root(0).matCosts.length).toBe(1);                            // 階層1中央は1種（安い）
   });
 
   it('weaponStatApplies: 貫通=直線系のみ／範囲=フィールド系以外', () => {

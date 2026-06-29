@@ -52,12 +52,14 @@ export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[
   if (!skillGridOpen(weapon, unlocked, n.tier)) return false; // その階層グリッドが未解禁
   return !!n.root || n.requires.some((r) => unlocked.includes(r));
 }
-/** 武器スキルツリーのノードを1つ解放（隣接解禁＋素材を満たせば）。 */
+/** 武器スキルツリーのノードを1つ解放（隣接解禁＋必要素材を全て満たせば）。 */
 export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number): MineState {
   const unlocked = state.perm.weaponSkill[weapon];
   const node = weaponSkillNodes(weapon)[nodeIndex];
-  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex) || state.materials[node.matId] < node.matCost) return state;
-  const materials = { ...state.materials, [node.matId]: state.materials[node.matId] - node.matCost };
+  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex)) return state;
+  if (node.matCosts.some((c) => state.materials[c.matId] < c.amount)) return state; // どれか不足なら不可
+  const materials = { ...state.materials };
+  for (const c of node.matCosts) materials[c.matId] -= c.amount;
   const weaponSkill = { ...state.perm.weaponSkill, [weapon]: [...unlocked, nodeIndex] };
   return { ...state, materials, perm: { ...state.perm, weaponSkill } };
 }

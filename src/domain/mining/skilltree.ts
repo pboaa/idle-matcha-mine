@@ -33,29 +33,36 @@ export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean => {
 // 各階層は1つのグリッド。中央が起点（最初から解放可）・隣接を買うと外へ広がる。
 // 階層が深いほどグリッドは大きく(5x5→10x10)・素材は上位＆高額＝終盤ほど上げにくい。
 // 前の階層を一定数解放すると次の階層グリッドが解禁。
-export const SKILL_GRID_SIZES = [5, 6, 8, 9, 10] as const; // 階層1..5
+export const SKILL_GRID_SIZES = [5, 7, 9, 11, 13] as const; // 階層1..5（奇数＝中央が明確）
 export const SKILL_TIERS = SKILL_GRID_SIZES.length;        // 5
 export const skillGridSize = (tier: number): number => SKILL_GRID_SIZES[tier] ?? SKILL_GRID_SIZES[SKILL_GRID_SIZES.length - 1]!;
 export const skillGridCenter = (tier: number): number => Math.floor((skillGridSize(tier) - 1) / 2);
 /** 次の階層グリッドを解禁するのに必要な「前の階層の解放数」（外ほど多い＝終盤ほど重い）。 */
-export const skillGridUnlockNeed = (tier: number): number => Math.ceil(skillGridSize(tier) ** 2 * 0.35);
+export const skillGridUnlockNeed = (tier: number): number => Math.ceil(skillGridSize(tier) ** 2 * 0.22);
 
+export interface MatCost { readonly matId: MaterialId; readonly amount: number }
 export interface WeaponSkillNode {
   readonly x: number; readonly y: number;          // そのグリッド内の座標
   readonly tier: number;                            // 階層(=どのグリッド。0..SKILL_TIERS-1)
   readonly stat: WeaponStat; readonly amount: number;
-  readonly matId: MaterialId; readonly matCost: number; // 解放に必要な素材と個数
+  readonly matCosts: readonly MatCost[];           // 解放に必要な素材（上位ほど複数種・多くなる）
   readonly big?: boolean;
   readonly root?: boolean;                          // そのグリッドの中央（階層が解禁されたら最初に解放可能）
   readonly requires: readonly number[];            // 同グリッド内の上下左右隣接ノードindex（どれか解放済みで解禁）
 }
-/** ノードの素材コスト（階層が深いほど上位素材＆高額・グリッド外周ほど少し高い。ツルハシ序盤の範囲だけ安い）。 */
-function nodeCost(tier: number, ring: number, special: boolean, pickArea: boolean): { matId: MaterialId; matCost: number } {
-  if (pickArea) return { matId: MATERIAL_IDS[0]!, matCost: 25 }; // サクサク用：ツルハシ中央左右の範囲は土で安く
-  const matIndex = Math.min(MATERIAL_IDS.length - 1, tier + Math.floor(ring / 2)); // 階層主・外周従
-  const base = Math.round(10 * Math.pow(2.4, tier));                               // 10,24,58,138,332
-  const amount = Math.max(1, Math.round(base * (1 + ring * 0.4)));
-  return { matId: MATERIAL_IDS[matIndex]!, matCost: special ? amount * 6 : amount };
+/** ノードの素材コスト（深い階層ほど「色んな素材」を要求＝種類が増え量も増える。下位素材ほど多く要る）。
+ * ツルハシ序盤の範囲だけ土で安く。 */
+function nodeCost(tier: number, ring: number, special: boolean, pickArea: boolean): MatCost[] {
+  if (pickArea) return [{ matId: MATERIAL_IDS[0]!, amount: 25 }]; // サクサク用：ツルハシ中央左右の範囲は土で安く
+  const primary = Math.min(MATERIAL_IDS.length - 1, tier + Math.floor(ring / 2)); // 主素材（階層＋外周。中央は手頃な素材・外周ほど上位）
+  const types = Math.min(primary + 1, 1 + tier, 3);                                                  // 種類数（深いほど多い・最大3）
+  const base = Math.round(6 * Math.pow(1.85, tier) * (1 + ring * 0.25));                             // 量の基準（階層・外周で増える）
+  const costs: MatCost[] = [];
+  for (let k = 0; k < types; k++) { // 主素材から下位へ。下位ほど多く要る（数が増えていく）。
+    const amount = Math.max(1, Math.round(base * (special ? 3 : 1) * (1 + k * 0.8)));
+    costs.push({ matId: MATERIAL_IDS[primary - k]!, amount });
+  }
+  return costs;
 }
 // 決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
@@ -109,7 +116,7 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   };
   return cells.map((cell) => ({
     x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined,
-    ...nodeCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell),
+    matCosts: nodeCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell),
   }));
 }
 

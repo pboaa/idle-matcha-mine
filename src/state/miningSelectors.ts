@@ -219,7 +219,7 @@ export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: s
 export interface MineSkillNodeVM {
   readonly index: number; readonly x: number; readonly y: number; readonly tier: number;
   readonly emoji: string; readonly label: string; readonly big: boolean; readonly root: boolean;
-  readonly matEmoji: string; readonly matCost: number; // 素材コスト
+  readonly costs: readonly { readonly emoji: string; readonly amount: number; readonly enough: boolean }[]; // 必要素材（複数）
   readonly state: 'unlocked' | 'available' | 'locked'; readonly visible: boolean; readonly can: boolean;
 }
 /** ツリーで強化された累積内容（分かりやすい表示用）。 */
@@ -288,10 +288,11 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
         const available = skillNodeUnlockable(w, unlocked, i);
         return {
           index: i, x: n.x, y: n.y, tier: n.tier, emoji: WEAPON_STAT_DEFS[n.stat].emoji, label: skillNodeLabel(n.stat, n.amount),
-          matEmoji: matEmoji(n.matId), matCost: n.matCost, big: !!n.big, root: !!n.root,
+          costs: n.matCosts.map((c) => ({ emoji: matEmoji(c.matId), amount: c.amount, enough: state.materials[c.matId] >= c.amount })),
+          big: !!n.big, root: !!n.root,
           state: isUnlocked ? 'unlocked' as const : available ? 'available' as const : 'locked' as const,
           visible: isUnlocked || available, // 解放済み or 隣接で解禁可＝「見えている」（広げると現れる）
-          can: available && state.materials[n.matId] >= n.matCost,
+          can: available && n.matCosts.every((c) => state.materials[c.matId] >= c.amount),
         };
       });
       const tiers: MineTierVM[] = Array.from({ length: SKILL_TIERS }, (_, tier) => {

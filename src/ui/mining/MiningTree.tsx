@@ -12,15 +12,19 @@ function SkillGrid({ size, nodes, onBuy }: { size: number; nodes: readonly MineS
   const cell = size >= 9 ? '1.45rem' : '1.7rem';
   return (
     <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${size}, ${cell})` }}>
-      {nodes.map((n) => (
-        <button key={n.index} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.index)}
-          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? 'クリックで解放' : '素材不足'} ／ ${n.matEmoji}${n.matCost}`}
-          style={{ height: cell }}
-          className={['flex flex-col items-center justify-center rounded-[3px] text-[11px] leading-none ring-1 transition', n.big && n.visible ? 'ring-2' : '', cellCls(n)].join(' ')}>
-          {n.visible && <span>{n.state === 'unlocked' ? (n.root ? '◎' : '✓') : n.emoji}</span>}
-          {n.visible && n.state !== 'unlocked' && <span className="text-[7px] leading-none opacity-90">{n.matEmoji}{n.matCost >= 1000 ? formatNumber(n.matCost) : n.matCost}</span>}
-        </button>
-      ))}
+      {nodes.map((n) => {
+        const costStr = n.costs.map((c) => `${c.emoji}${formatNumber(c.amount)}`).join(' ');
+        const top = n.costs[0];
+        return (
+          <button key={n.index} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.index)}
+            title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? 'クリックで解放' : '素材不足'} ／ ${costStr}`}
+            style={{ height: cell }}
+            className={['flex flex-col items-center justify-center rounded-[3px] text-[11px] leading-none ring-1 transition', n.big && n.visible ? 'ring-2' : '', cellCls(n)].join(' ')}>
+            {n.visible && <span>{n.state === 'unlocked' ? (n.root ? '◎' : '✓') : n.emoji}</span>}
+            {n.visible && n.state !== 'unlocked' && top && <span className="text-[7px] leading-none opacity-90">{top.emoji}{top.amount >= 1000 ? formatNumber(top.amount) : top.amount}{n.costs.length > 1 ? '+' : ''}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -75,7 +75,7 @@ describe('mining/prestige', () => {
     const root = nodes[rootIdx]!;
     const s1 = buyWeaponSkill(s0, 'pick', rootIdx);
     expect(s1.perm.weaponSkill.pick).toEqual([rootIdx]);              // 階層1中央を解放
-    expect(s1.materials[root.matId]).toBe(9_999_999 - root.matCost);  // 素材消費
+    for (const c of root.matCosts) expect(s1.materials[c.matId]).toBe(9_999_999 - c.amount); // 必要素材を全て消費
     const neighbor = root.requires[0]!;
     expect(skillNodeUnlockable('pick', s1.perm.weaponSkill.pick, neighbor)).toBe(true); // 隣接が解禁
     const poor = { ...initialMineState(), materials: emptyMaterials() };
@@ -86,7 +86,7 @@ describe('mining/prestige', () => {
     const pick = weaponSkillNodes('pick'); const beam = weaponSkillNodes('beam');
     const lr = pick.filter((n) => n.stat === 'area');
     expect(lr.length).toBeGreaterThanOrEqual(2);                    // 範囲ノード（左右）
-    expect(lr.some((n) => n.matId === 'dirt' && n.matCost <= 50)).toBe(true); // 安い土＝サクサク3方向
+    expect(lr.some((n) => n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い土＝サクサク3方向
     expect(pick.map((n) => `${n.stat}`).join('|')).not.toBe(beam.map((n) => `${n.stat}`).join('|')); // 形が違う
   });
 
