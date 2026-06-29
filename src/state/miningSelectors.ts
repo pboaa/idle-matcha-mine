@@ -161,6 +161,7 @@ export interface MineHudVM {
   readonly boost: MineBoostVM;
   readonly coinUps: readonly MineCoinUpVM[];
   readonly autoEffPct: number; // 自動モードの火力倍率%（手動は実質100%）
+  readonly idleBonusPct: number; readonly idleBonusMaxed: boolean; // 放置(時間経過)ボーナス%（火力＆採掘速度・上限あり）
 }
 
 /** 所持する強化のうち威力に効くものの現在倍率（ダメージ影響度）。 */
@@ -206,6 +207,8 @@ export function buildMineHud(state: MineState): MineHudVM {
       return { id, emoji: def.emoji, label: def.label, desc: def.desc, lv: state.coinUp[id], cost, can: state.coins >= cost, pct: Math.round(state.coinUp[id] * def.perLvl * 100) };
     }),
     autoEffPct: Math.round(autoEfficiency(state.perm.idle) * 100),
+    idleBonusPct: Math.round(Math.min(B.timePowerCap, (state.time / 60000) * B.timePowerPerMin) * 100),
+    idleBonusMaxed: (state.time / 60000) * B.timePowerPerMin >= B.timePowerCap,
   };
 }
 

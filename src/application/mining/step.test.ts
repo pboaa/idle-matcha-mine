@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { defaultMiningBalance, weaponSkillNodes } from '@domain/mining/balance';
+import { defaultMiningBalance } from '@domain/mining/balance';
 
 describe('mining/step', () => {
   it('決定的（同じ初期状態・同じ時間で一致）', () => {
@@ -32,6 +32,21 @@ describe('mining/step', () => {
   it('カメラは常に猫に固定（猫は画面の真ん中）', () => {
     const s = stepMine(initialMineState(), 10_000);
     expect(s.cam).toEqual(s.cat.pos); // カメラ＝猫の位置＝常に中央
+  });
+
+  it('放置(時間経過)で火力＆採掘速度が増え、上限で頭打ち（放置ゲー報酬）', () => {
+    const B = defaultMiningBalance;
+    // 同じ位置・同じ攻撃を「経過時間だけ違えて」比較（火力＝1ヒットのダメージが時間で増える）。
+    const dmgAt = (startMs: number): number => {
+      const init = initialMineState();
+      const s = { ...init, time: startMs, autoMode: false, levels: { ...init.levels, pick: 1 }, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } } };
+      return stepMine({ ...s, time: startMs }, 600).dmgByWeapon.pick;
+    };
+    const d0 = dmgAt(0); const d10 = dmgAt(10 * 60_000); const dCap = dmgAt(60 * 60_000);
+    expect(d10).toBeGreaterThan(d0);                 // 時間経過で火力UP
+    expect(dCap).toBeGreaterThan(d10);
+    // 上限: cap到達後(60分)は1+cap倍まで。0分比で (1+cap) を超えない（±誤差）。
+    expect(dCap / d0).toBeLessThanOrEqual(1 + B.timePowerCap + 0.01);
   });
 
   it('全部掘ると次の階へ（小ワールドで検証・balance注入）', () => {
@@ -91,22 +106,6 @@ describe('mining/step', () => {
     };
     expect(beamDirs(1)).toBe(2);            // Lv1: 2方向
     expect(beamDirs(10)).toBeGreaterThan(2); // 高Lv: 4/8方向
-  });
-
-  it('特殊強化は転生ツリー側: 範囲で弾が多点同時／貫通で直線が伸びる', () => {
-    // 三択(自動選択)には特殊効果を載せない。範囲(area)/貫通(pierce)はスキルツリーのノードで取得する。
-    const nodeIndex = (weapon: 'bullet' | 'beam', stat: string): number => weaponSkillNodes(weapon).findIndex((n) => n.stat === stat);
-    const cells = (weapon: 'bullet' | 'beam', stat: string | null): number => {
-      const init = initialMineState();
-      const idx = stat ? nodeIndex(weapon, stat) : -1;
-      const perm = { ...init.perm, weaponSkill: { ...init.perm.weaponSkill, [weapon]: idx >= 0 ? [idx] : [] } };
-      const s = { ...init, autoMode: false, levels: { ...init.levels, pick: 0, [weapon]: 1 }, perm };
-      const r = stepMine(s, 350); // 弾/ビームが1回攻撃
-      return new Set(r.fx.filter((f) => f.weapon === weapon).flatMap((f) => f.cells.map((c) => `${c.x},${c.y}`))).size;
-    };
-    expect(cells('bullet', null)).toBe(1);                         // 範囲ノードなし: 1点
-    expect(cells('bullet', 'area')).toBeGreaterThan(1);            // 範囲ノードで多点同時
-    expect(cells('beam', 'pierce')).toBeGreaterThan(cells('beam', null)); // 貫通ノードで直線が伸びる
   });
 
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {

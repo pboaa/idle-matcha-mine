@@ -29,19 +29,17 @@ describe('mining/skilltree', () => {
     expect(lr.every((n) => n.stat === 'area' && n.matId === 'dirt' && n.matCost <= 50)).toBe(true); // 安い
   });
 
-  it('その他の武器: 範囲/射程/貫通は深い階層(終盤)に分散して出る', () => {
+  it('ツリーの特殊は射程のみ（範囲/貫通は強すぎたため削除・ツルハシの範囲のみ例外）', () => {
     for (const w of WEAPON_IDS) {
-      if (w === 'pick') continue;
-      const specials = weaponSkillNodes(w).filter((n) => n.stat === 'range' || n.stat === 'area' || n.stat === 'pierce');
-      expect(specials.length).toBeGreaterThanOrEqual(4);
-      expect(specials.every((n) => n.tier >= 1)).toBe(true);                 // 階層2以降
-      expect(specials.some((n) => n.tier === SKILL_TIERS - 1)).toBe(true);   // 最終階層にもある＝終盤まで
+      const nodes = weaponSkillNodes(w);
+      expect(nodes.some((n) => n.stat === 'pierce')).toBe(false);            // 貫通ノードは無い
+      if (w !== 'pick') expect(nodes.some((n) => n.stat === 'area')).toBe(false); // 範囲も無い（ツルハシ以外）
+      if (w !== 'pick') {
+        const range = nodes.filter((n) => n.stat === 'range');
+        expect(range.length).toBeGreaterThanOrEqual(4);                      // 射程は残す
+        expect(range.some((n) => n.tier === SKILL_TIERS - 1)).toBe(true);    // 最終階層まで分散＝終盤まで
+      }
     }
-  });
-
-  it('ビーム: 範囲(area)は最大方向数(8本=spread6)に届く数だけある', () => {
-    const beamArea = weaponSkillNodes('beam').filter((n) => n.stat === 'area').length;
-    expect(beamArea).toBeGreaterThanOrEqual(6); // spread6 で 8方向
   });
 
   it('深い階層ほど高コスト＆上位素材（終盤ほど上げにくい）', () => {

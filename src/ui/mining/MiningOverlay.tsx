@@ -23,6 +23,7 @@ export function MiningOverlay() {
           🪙 {formatNumber(hud.coins)}
           <span className="ml-2 text-stone-200">地下 {hud.floor + 1}階</span>
           {hud.runPoints > 0 && <span className="ml-2 text-fuchsia-300" title="転生でもらえる★">⭐+{formatNumber(hud.runPoints)}</span>}
+          {hud.idleBonusPct > 0 && <span className={['ml-2', hud.idleBonusMaxed ? 'text-emerald-300' : 'text-emerald-400'].join(' ')} title="放置ボーナス: 時間で火力＆採掘速度が上昇（上限あり）">🌙+{hud.idleBonusPct}%{hud.idleBonusMaxed ? '(MAX)' : ''}</span>}
         </div>
         <button onClick={toggleAuto} title="手動: 移動も3択も自分で操作（火力100%） ／ 自動: おまかせ（火力↓・放置ツリーで回復）"
           className={['pointer-events-auto rounded-md px-2 py-1 text-[11px] font-bold shadow backdrop-blur-sm transition', hud.autoMode ? 'bg-emerald-600/90 text-white hover:bg-emerald-500' : 'bg-amber-400/90 text-stone-900 hover:bg-amber-300'].join(' ')}>

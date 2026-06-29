@@ -114,8 +114,11 @@ export interface MiningBalance {
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
   readonly weaponUnlockStars: readonly number[]; // 武器を累計★で自動解放する閾値（WEAPON_UNLOCK_ORDER順）
-  // ★(累計)は消費せず、貯まるほど全体ダメージが自動で上がる（1+starDmgPerLvl×√累計★＝√で逓減・壊れない）。
+  // ★(累計)は消費せず、貯まるほど全体ダメージが自動で上がる（1+starDmgPerLvl×√累計★＝√で逓減・壊れない）。転生の比重を大きめに。
   readonly starDmgPerLvl: number;
+  // 放置（時間経過）でその走行の火力＆採掘速度が微増していく（上限あり・放置ゲー報酬）。
+  readonly timePowerPerMin: number; // 1分ごとの上昇（火力＆速度に乗る）
+  readonly timePowerCap: number;    // 上限（例: 0.6 = +60%）
   // 武器スキルツリー（素材で買う・グリッド型・中央から隣接で解禁）。コストはノードに焼き込み。
   readonly idleMatCostBase: number; readonly idleMatCostGrowth: number; // 放置ツリー（素材・銀）
   readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
@@ -169,7 +172,8 @@ export const defaultMiningBalance: MiningBalance = {
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockStars: [20, 55, 120, 220, 380],
-  starDmgPerLvl: 0.12,
+  starDmgPerLvl: 0.20,
+  timePowerPerMin: 0.05, timePowerCap: 0.6,
   idleMatCostBase: 4, idleMatCostGrowth: 1.6,
   masteryPerLvl: 0.08,
   masteryGateBase: 300, masteryGateGrowth: 1.9,

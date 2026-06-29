@@ -59,14 +59,10 @@ function nodeCost(tier: number, ring: number, special: boolean, pickArea: boolea
 }
 // 決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
-/** その武器で意味を持つ特殊強化（範囲/射程/貫通）。三択には載せずツリーで取る。 */
+/** ツリーで取れる特殊強化。範囲(area)/貫通(pierce)は強すぎたためツリーから削除し、射程(range)のみ。
+ * ツルハシ(front)は射程概念がないので無し（範囲は中央左右の3方向ぶんだけ別途・安価に置く）。 */
 function weaponSpecials(w: WeaponId): WeaponStat[] {
-  const pat = WEAPON_DEFS[w].pattern;
-  const out: WeaponStat[] = [];
-  if (weaponStatApplies('area', w)) out.push('area');     // 範囲: spread/同時対象（フィールド系以外）
-  if (pat !== 'front') out.push('range');                  // 射程: 前方(ツルハシ)は射程概念がないので除外
-  if (weaponStatApplies('pierce', w)) out.push('pierce'); // 貫通: 直線系のみ
-  return out;
+  return WEAPON_DEFS[w].pattern === 'front' ? [] : ['range'];
 }
 interface Cell { grid: number; x: number; y: number; ring: number; stat: WeaponStat; amount: number; special: boolean; pickArea: boolean; root: boolean; statKey: number; sortKey: number }
 /** 1武器ぶんの「5グリッド（5階層）」ツリーを生成。各グリッドは中央起点・隣接で解放。特殊は深い階層へ分散（終盤まで）。 */
@@ -86,13 +82,10 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const indexAt = (tier: number, x: number, y: number): number => startOf[tier]! + y * skillGridSize(tier) + x;
   const cellAt = (tier: number, x: number, y: number): Cell => cells[indexAt(tier, x, y)]!;
   for (const cell of cells) if (cell.root) cell.amount = 0.05; // 中央＝起点（少し大きめ）
-  if (isPick) { const cen = skillGridCenter(0); for (const dx of [-1, 1]) { const cell = cellAt(0, cen + dx, cen); cell.stat = 'area'; cell.amount = 1; cell.special = true; cell.pickArea = true; } } // 階層1の中央左右＝安い範囲（3方向）
-  // 特殊(範囲/射程/貫通)を階層1..4へ分散配置（外へ進むほど増える＝終盤まで）。ビーム/ドリルの範囲は6個。
+  if (isPick) { const cen = skillGridCenter(0); for (const dx of [-1, 1]) { const cell = cellAt(0, cen + dx, cen); cell.stat = 'area'; cell.amount = 1; cell.special = true; cell.pickArea = true; } } // 階層1の中央左右＝安い範囲（3方向・ツルハシのみ）
+  // 特殊(射程のみ)を階層1..4へ分散配置（外へ進むほど増える＝終盤まで）。
   const queue: WeaponStat[] = [];
-  for (const stat of weaponSpecials(w)) {
-    const isLineArea = stat === 'area' && (WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward');
-    for (let i = 0; i < (isLineArea ? 6 : 4); i++) queue.push(stat);
-  }
+  for (const stat of weaponSpecials(w)) for (let i = 0; i < 4; i++) queue.push(stat);
   const gridSpan = SKILL_TIERS - 1; // 階層1..(SKILL_TIERS-1)
   const avail = new Map<number, Cell[]>();
   for (let t = 1; t < SKILL_TIERS; t++) avail.set(t, cells.filter((c) => c.grid === t && !c.special && !c.root && c.ring >= 1).sort((a, b) => (b.ring - a.ring) || (a.sortKey - b.sortKey))); // 外周優先

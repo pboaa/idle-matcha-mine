@@ -100,9 +100,11 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const t = passiveTotals(L);
   let pos = state.cat.pos;
   const cu = state.coinUp; // コインで買う全体強化（走行限定）: 移動/素材/コイン。
+  // 放置（時間経過）ボーナス: その走行の経過時間で火力＆採掘速度が微増（上限あり・放置ゲー報酬）。
+  const timeMult = 1 + Math.min(b.timePowerCap, (now / 60000) * b.timePowerPerMin);
   const moveCost = b.moveCost / (1 + t.move + cu.haste * COIN_UP_DEFS.haste.perLvl);
   // 繰り越す移動ゲージは1マスぶんに制限。壁の手前で詰まっている間に溜め込み、壊れた瞬間に大量ワープするのを防ぐ。
-  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * dt;
+  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * timeMult * dt;
   let target = state.cat.target;
   let coins = state.coins;
   let xpGain = 0;
@@ -154,8 +156,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋★全体ダメージ(恒久)＋自動効率(自動は火力減・放置ツリーで回復)。
-  const globalMul = boostMul(state.boost, b) * globalDamageMult(state.perm.starEarned, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
+  // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋★全体ダメージ(恒久)＋放置時間ボーナス＋自動効率。
+  const globalMul = boostMul(state.boost, b) * globalDamageMult(state.perm.starEarned, b) * timeMult * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, mastery: state.perm.mastery, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
