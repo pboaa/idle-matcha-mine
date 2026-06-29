@@ -5,7 +5,7 @@ import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { type MineState, type Levels, type WeaponMastery, type WeaponStatLevels, totalMastery } from '@application/mining/mineState';
-import { weaponSkillStats } from '@application/mining/prestige';
+import { weaponSkillStats, autoEfficiency } from '@application/mining/prestige';
 import { xpForNext, makeOffer, autoPick, appraiseCost, appraiseCapped, boostCost, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
@@ -171,7 +171,11 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   };
 
   // 移動: ターゲットへ空洞を歩く（壁の手前で止まり武器で削る）。
-  if (!target || !isSolid(dug, target, b)) target = pickTarget(dug, pos, rng, b);
+  if (state.autoMode) {
+    if (!target || !isSolid(dug, target, b)) target = pickTarget(dug, pos, rng, b); // 自動は最寄りを自分で選ぶ
+  } else if (target && (sameCell(pos, target) || !inBounds(target, b))) {
+    target = null; // 手動: 到達/圏外で解除（次のクリック待ち）。プレイヤーがcat.targetを設定する。
+  }
   if (target) {
     let guard = 0;
     while (gauge >= moveCost && !sameCell(pos, target) && guard++ < 64) {
@@ -181,8 +185,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)は全武器共通、熟練度(永続)は武器ごとに乗る。
-  const globalMul = boostMul(state.boost, b);
+  // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋自動効率(自動は火力減・放置ツリーで回復)。
+  const globalMul = boostMul(state.boost, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, skillStats, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);

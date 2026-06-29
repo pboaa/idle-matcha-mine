@@ -4,7 +4,7 @@ import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
 import { totalMastery } from '@application/mining/mineState';
-import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, oreToPoints, type PermId } from '@application/mining/prestige';
+import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, oreToPoints, autoEfficiency, idleCost, idleMaxLevel, type PermId } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
   WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, COIN_UP_IDS, COIN_UP_DEFS, defaultMiningBalance, choiceMeta, isWeapon,
@@ -32,9 +32,12 @@ export interface MineEffectVM { readonly id: number; readonly kind: MineEffectKi
 const FX_KIND: Record<WeaponPattern, MineEffectKind> = { front: 'impact', nearest: 'impact', burst: 'burst', cross: 'line', forward: 'line', around: 'field', ring: 'field' };
 export interface MineViewVM {
   readonly w: number; readonly h: number;
+  readonly x0: number; readonly y0: number;   // ビュー左上のワールド座標（クリック→セル変換用）
+  readonly manual: boolean;                    // 手動モード（クリックで猫を誘導できる）
   readonly tiles: readonly MineTileVM[]; readonly drops: readonly MineDropVM[];
   readonly effects: readonly MineEffectVM[];
   readonly catRx: number; readonly catRy: number;
+  readonly targetRx: number | null; readonly targetRy: number | null; // 手動目標マーカー（ビュー座標）
   /** 所持武器の絵文字（猫の周りを回る演出用）。 */
   readonly orbit: readonly string[];
 }
@@ -82,7 +85,14 @@ export function buildMineView(state: MineState): MineViewVM {
     effects.push({ id: f.id, kind: FX_KIND[def.pattern], color: def.fxColor, ox: f.origin.x - x0, oy: f.origin.y - y0, cells: take });
   }
   const orbit = WEAPON_IDS.filter((w) => state.levels[w] > 0).map((w) => choiceMeta(w).emoji);
-  return { w: VIEW_W, h: VIEW_H, tiles, drops, effects, catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0, orbit };
+  const tgt = state.cat.target;
+  const inView = tgt && tgt.x - x0 >= 0 && tgt.x - x0 < VIEW_W && tgt.y - y0 >= 0 && tgt.y - y0 < VIEW_H;
+  return {
+    w: VIEW_W, h: VIEW_H, x0, y0, manual: !state.autoMode, tiles, drops, effects,
+    catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0,
+    targetRx: inView ? tgt!.x - x0 : null, targetRy: inView ? tgt!.y - y0 : null,
+    orbit,
+  };
 }
 
 // front を selectors 内で再計算（step に依存しすぎない簡易版）
@@ -153,6 +163,7 @@ export interface MineHudVM {
   readonly meta: MineMetaVM;
   readonly boost: MineBoostVM;
   readonly coinUps: readonly MineCoinUpVM[];
+  readonly autoEffPct: number; // 自動モードの火力倍率%（手動は実質100%）
   readonly mastery: MineMasteryVM;
 }
 
@@ -212,6 +223,7 @@ export function buildMineHud(state: MineState): MineHudVM {
       const def = COIN_UP_DEFS[id]; const cost = coinUpCost(id, state.coinUp);
       return { id, emoji: def.emoji, label: def.label, desc: def.desc, lv: state.coinUp[id], cost, can: state.coins >= cost, pct: Math.round(state.coinUp[id] * def.perLvl * 100) };
     }),
+    autoEffPct: Math.round(autoEfficiency(state.perm.idle) * 100),
     mastery: buildMasteryVM(state),
   };
 }
@@ -227,10 +239,12 @@ export interface MineSkillNodeVM {
   readonly requires: readonly number[]; readonly state: 'unlocked' | 'available' | 'locked'; readonly can: boolean;
 }
 export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly masteryLv: number; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number }
+/** 放置ツリー（自動効率）。 */
+export interface MineIdleVM { readonly lv: number; readonly maxLv: number; readonly autoEffPct: number; readonly cost: number | null; readonly can: boolean; readonly maxed: boolean }
 export interface MinePrestigeVM {
   readonly prestiges: number; readonly points: number; readonly pointsPreview: number;
   readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[];
-  readonly mastery: MineMasteryVM; readonly weaponTree: readonly MineWeaponTreeVM[];
+  readonly mastery: MineMasteryVM; readonly weaponTree: readonly MineWeaponTreeVM[]; readonly idle: MineIdleVM;
 }
 
 /** スキルノードの表示文（amount を stat に応じて整形）。 */
@@ -259,6 +273,10 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
     }),
     refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
     mastery: buildMasteryVM(state),
+    idle: (() => {
+      const cost = idleCost(state.perm.idle); const maxLv = idleMaxLevel();
+      return { lv: state.perm.idle, maxLv, autoEffPct: Math.round(autoEfficiency(state.perm.idle) * 100), cost, can: cost !== null && state.points >= cost, maxed: cost === null };
+    })(),
     weaponTree: WEAPON_IDS.map((w) => {
       const unlocked = state.perm.weaponSkill[w];
       return {
@@ -290,4 +308,6 @@ export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.pr
 export const useMineBuyPerm = (): ((id: PermId) => void) => useMiningStore((s) => s.buyPerm);
 export const useMineBuyCoinUp = (): ((id: CoinUpId) => void) => useMiningStore((s) => s.buyCoinUp);
 export const useMineBuyWeaponSkill = (): ((weapon: WeaponId, nodeIndex: number) => void) => useMiningStore((s) => s.buyWeaponSkill);
+export const useMineBuyIdle = (): (() => void) => useMiningStore((s) => s.buyIdle);
+export const useMineSetTarget = (): ((cell: { x: number; y: number }) => void) => useMiningStore((s) => s.setTarget);
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);

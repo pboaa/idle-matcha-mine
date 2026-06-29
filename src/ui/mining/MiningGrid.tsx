@@ -1,4 +1,4 @@
-import { useMineView } from '@state/miningSelectors';
+import { useMineView, useMineSetTarget } from '@state/miningSelectors';
 
 const CELL = 30;
 
@@ -15,10 +15,18 @@ function Cracks({ stage }: { stage: number }) {
 /** 採掘ビューポート＋猫（周りに所持武器が回る）＋素材の演出ドロップ。 */
 export function MiningGrid() {
   const view = useMineView();
+  const setTarget = useMineSetTarget();
   const cx = (view.catRx + 0.5) * CELL;
   const cy = (view.catRy + 0.5) * CELL;
+  const onClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (!view.manual) return; // 手動モードのみ猫を誘導
+    const rect = e.currentTarget.getBoundingClientRect();
+    const rx = Math.floor((e.clientX - rect.left) / CELL);
+    const ry = Math.floor((e.clientY - rect.top) / CELL);
+    setTarget({ x: view.x0 + rx, y: view.y0 + ry });
+  };
   return (
-    <div className="relative overflow-hidden rounded-lg ring-2 ring-stone-950/70 shadow-inner" style={{ width: view.w * CELL, height: view.h * CELL }}>
+    <div onClick={onClick} className={['relative overflow-hidden rounded-lg ring-2 ring-stone-950/70 shadow-inner', view.manual ? 'cursor-crosshair' : ''].join(' ')} style={{ width: view.w * CELL, height: view.h * CELL }}>
       <div className="grid" style={{ gridTemplateColumns: `repeat(${view.w}, ${CELL}px)`, gridTemplateRows: `repeat(${view.h}, ${CELL}px)` }}>
         {view.tiles.map((t) => (
           <div key={`${t.rx},${t.ry}`} style={{ background: t.color }} className={['relative', t.kind === 'solid' ? 'border border-black/25' : '', t.front ? 'ring-2 ring-amber-300' : ''].join(' ')}>
@@ -74,6 +82,12 @@ export function MiningGrid() {
             return <span key={i} className="absolute text-[14px] drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]" style={{ transform: `translate(-50%,-50%) translate(${Math.cos(a) * 22}px, ${Math.sin(a) * 22}px)` }}>{e}</span>;
           })}
         </div>
+      )}
+
+      {/* 手動目標マーカー */}
+      {view.manual && view.targetRx !== null && view.targetRy !== null && (
+        <span className="pointer-events-none absolute z-[16] rounded-full ring-2 ring-amber-300 animate-[pop_1s_ease-in-out_infinite]"
+          style={{ left: view.targetRx * CELL + 4, top: view.targetRy * CELL + 4, width: CELL - 8, height: CELL - 8 }} />
       )}
 
       {/* 猫 */}

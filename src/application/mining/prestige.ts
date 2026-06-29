@@ -84,6 +84,27 @@ export function weaponSkillStats(unlocked: readonly number[]): WeaponStatLevels 
   return s;
 }
 
+// ===== 放置ツリー（自動モードの効率・ポイントで恒久解放） =====
+/** 自動モードの火力倍率（放置Lvで base→1.0）。手動は常に1.0。 */
+export function autoEfficiency(idle: number, b: MiningBalance = defaultMiningBalance): number {
+  return Math.min(1, b.autoEffBase + idle * b.idleEffPerLvl);
+}
+/** 放置ツリーの最大Lv（自動効率100%に到達する解放数）。 */
+export function idleMaxLevel(b: MiningBalance = defaultMiningBalance): number {
+  return Math.ceil((1 - b.autoEffBase) / b.idleEffPerLvl);
+}
+/** 放置ツリーの次の1段のコスト（ポイント）。最大なら null。 */
+export function idleCost(idle: number, b: MiningBalance = defaultMiningBalance): number | null {
+  if (idle >= idleMaxLevel(b)) return null;
+  return Math.floor(b.idleCostBase * Math.pow(b.idleCostGrowth, idle));
+}
+/** 放置ツリーを1段解放（ポイント消費）。 */
+export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
+  const cost = idleCost(state.perm.idle, b);
+  if (cost === null || state.points < cost) return state;
+  return { ...state, points: state.points - cost, perm: { ...state.perm, idle: state.perm.idle + 1 } };
+}
+
 /** 転生時の熟練度獲得: その走行で十分掘った(seq>=masteryMinTiles)時のみ、実際にダメージを出した武器ごとに +1。
  *  転生ボタン連打（ほぼ未採掘の即転生）では増えない。 */
 export function masteryGainOnPrestige(state: MineState, b: MiningBalance = defaultMiningBalance): WeaponMastery {

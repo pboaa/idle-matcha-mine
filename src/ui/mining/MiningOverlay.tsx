@@ -23,13 +23,20 @@ export function MiningOverlay() {
           🪙 {formatNumber(hud.coins)}
           <span className="ml-2 text-stone-200">地下 {hud.floor + 1}階</span>
         </div>
-        <button onClick={toggleAuto} title="手動: 3択を自分で選ぶ ／ 自動: おまかせ"
+        <button onClick={toggleAuto} title="手動: 移動も3択も自分で操作（火力100%） ／ 自動: おまかせ（火力↓・放置ツリーで回復）"
           className={['pointer-events-auto rounded-md px-2 py-1 text-[11px] font-bold shadow backdrop-blur-sm transition', hud.autoMode ? 'bg-emerald-600/90 text-white hover:bg-emerald-500' : 'bg-amber-400/90 text-stone-900 hover:bg-amber-300'].join(' ')}>
-          {hud.autoMode ? '⚙️ 自動' : '✋ 手動'}
+          {hud.autoMode ? `⚙️ 自動 火力${hud.autoEffPct}%` : '✋ 手動 火力100%'}
         </button>
       </div>
 
       <div className="flex-1" />
+
+      {/* 手動モードのヒント（移動はクリックで誘導） */}
+      {!hud.autoMode && hud.offer.length === 0 && (
+        <div className="flex justify-center pb-1">
+          <span className="pointer-events-none rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-amber-200 backdrop-blur-sm">✋ クリックで猫を誘導（火力100%）</span>
+        </div>
+      )}
 
       {/* 下部: Lv＋XPバー／階の掘削進捗 */}
       <div className="flex flex-col gap-1 p-1.5">

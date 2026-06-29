@@ -33,8 +33,8 @@ describe('mining/step', () => {
   });
 
   it('採掘ブースト(コイン購入)で武器の総ダメージが増える', () => {
-    // 同一乱数で boost の有無だけ比較（divergenceなし）。ツルハシが1回攻撃する程度の窓で、まだ壊れない範囲。
-    const base = { ...initialMineState(), autoMode: false };
+    // 同一乱数で boost の有無だけ比較（divergenceなし）。手動＝目標を前方の壁に固定してツルハシを撃たせる。
+    const base = { ...initialMineState(), autoMode: false, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } } };
     const sumDmg = (s: ReturnType<typeof stepMine>): number => Object.values(s.dmgByWeapon).reduce((a, b) => a + b, 0);
     const noBoost = sumDmg(stepMine(base, 500));
     const boosted = sumDmg(stepMine({ ...base, boost: 10 }, 500));

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyWeaponSkill, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 const COL = 80, ROW = 52, PADX = 30, PADY = 30, R = 16, RBIG = 20;
@@ -52,6 +52,7 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
   const doPrestige = useMinePrestigeAct();
   const buyPerm = useMineBuyPerm();
   const buyWeaponSkill = useMineBuyWeaponSkill();
+  const buyIdle = useMineBuyIdle();
   const refine = useMineRefine();
   const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
   const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
@@ -100,7 +101,19 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* 武器ごとの強化（ラン強化=鉱石／スキルツリー=ポイント）— 武器/強化の個別タブ */}
+      {/* 放置ツリー（ポイントで自動効率を100%へ） */}
+      <div className="flex items-center justify-between rounded-lg bg-emerald-950/40 p-2 ring-1 ring-emerald-700/40">
+        <div className="text-[12px] text-emerald-100">
+          🌙 放置ツリー Lv{p.idle.lv}/{p.idle.maxLv}
+          <span className="ml-1 text-[10px] text-emerald-300/80">自動モードの火力 {p.idle.autoEffPct}%（手動は常に100%）</span>
+        </div>
+        <button onClick={buyIdle} disabled={!p.idle.can}
+          className={['rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.idle.maxed ? 'bg-emerald-700 text-emerald-200' : p.idle.can ? 'bg-emerald-400 text-stone-900 hover:bg-emerald-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
+          {p.idle.maxed ? 'MAX(100%)' : <>⭐{formatNumber(p.idle.cost ?? 0)}</>}
+        </button>
+      </div>
+
+      {/* 武器ごとの強化（スキルツリー=ポイント）— 武器/強化の個別タブ */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <div className="text-[10px] text-stone-500">武器ごとの強化</div>

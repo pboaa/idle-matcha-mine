@@ -26,8 +26,8 @@ describe('mining/balance', () => {
 
   it('ツルハシは他武器と同程度（武器無しでも掘れる／全武器ありでも極端に速くない）', () => {
     const pickOnly = stepMine(initialMineState(), 120_000); // 自動で武器も付くので…
-    // 武器を完全に無効化した状態(pickのみ固定)で比較
-    let onlyPick: MineState = { ...initialMineState(), autoMode: false }; // レベルアップ提示を保留＝強化が乗らない
+    // 武器を完全に無効化した状態(pickのみ固定)で比較。手動なので遠い目標へツルハシで掘り進ませる。
+    let onlyPick: MineState = { ...initialMineState(), autoMode: false, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 0, y: 0 } } };
     onlyPick = stepMine(onlyPick, 120_000);
     const pickDug = onlyPick.dug.size;
     console.log(`2分: 自動強化あり 掘削${pickOnly.dug.size} / ピックのみ(強化保留) 掘削${pickDug}`);

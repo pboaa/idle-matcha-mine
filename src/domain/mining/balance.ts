@@ -180,6 +180,11 @@ export interface MiningBalance {
 
   readonly oreToPointRate: number; // 鉱石(価値=kind.mult)→ポイント変換係数。少しずつ貯めて大ノードを解放する想定。
 
+  // 自動モードの効率（自動は火力が下がる。放置ツリーをポイントで上げると100%へ）
+  readonly autoEffBase: number;    // 放置ツリーLv0での自動効率（火力倍率）
+  readonly idleEffPerLvl: number;  // 放置ツリー1Lvあたりの自動効率+
+  readonly idleCostBase: number; readonly idleCostGrowth: number; // 放置ツリーのポイントコスト
+
   readonly permStatBase: number; readonly permStatGrowth: number;
   readonly permPickBase: number; readonly permPickGrowth: number;
   readonly permWeaponBase: number; readonly permWeaponGrowth: number;
@@ -226,6 +231,8 @@ export const defaultMiningBalance: MiningBalance = {
   masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05, masteryMinTiles: 40,
 
   oreToPointRate: 0.03,
+
+  autoEffBase: 0.5, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 
   permStatBase: 25, permStatGrowth: 1.6,
   permPickBase: 18, permPickGrowth: 1.7,

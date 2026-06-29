@@ -44,7 +44,7 @@ describe('mining/prestige', () => {
   });
 
   it('熟練度は武器ごと・転生時に上がる（使った武器が+1）／消えない', () => {
-    let s = stepMine(initialMineState(), 120_000); // ツルハシなど複数の武器を使う
+    let s = stepMine(initialMineState(), 240_000); // 自動は火力半減ぶん長めに掘る（seq>=masteryMinTiles）
     const usedPick = s.levels.pick > 0;
     expect(usedPick).toBe(true);
     const pickBefore = s.mastery.pick; // 初回は0
@@ -71,7 +71,7 @@ describe('mining/prestige', () => {
 
   it('コイン全体強化(強欲)で素材獲得が増える', () => {
     const dug = (s: ReturnType<typeof stepMine>): number => s.materials.dirt + s.materials.stone;
-    const base = { ...initialMineState(), autoMode: false };
+    const base = initialMineState(); // 自動モード（移動あり）。greedは火力に依らず素材取得を増やす。
     const plain = dug(stepMine(base, 20_000));
     const greedy = dug(stepMine({ ...base, coinUp: { ...base.coinUp, greed: 30 } }, 20_000));
     expect(greedy).toBeGreaterThan(plain); // 強欲で素材が増えやすい
