@@ -162,6 +162,7 @@ export interface MiningBalance {
   readonly masteryPerLvl: number;        // 武器の熟練1につきその武器ダメージ+（既定+10%/Lv＝転生1回ぶん）
   readonly masteryMovePerLvl: number;    // 合計熟練1につき移動速度+（永続・周回で序盤が速くなる主因）
   readonly masteryRangePerLvl: number;   // 合計熟練ごとに武器の射程/範囲+1（永続・浅い階を一掃＝サクサク）
+  readonly masteryMinTiles: number;      // この走行で最低これだけ掘らないと熟練度を獲得できない（転生連打の抑止）
 
   readonly oreToPointRate: number; // 鉱石(価値=kind.mult)→ポイント変換係数。少しずつ貯めて大ノードを解放する想定。
 
@@ -208,7 +209,7 @@ export const defaultMiningBalance: MiningBalance = {
 
   boostPerLvl: 0.08, boostCostBase: 40, boostCostGrowth: 1.35,
 
-  masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05,
+  masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05, masteryMinTiles: 40,
 
   oreToPointRate: 0.03,
 

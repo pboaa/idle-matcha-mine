@@ -77,6 +77,13 @@ describe('mining/prestige', () => {
     expect(pickDmg(stepMine(upped, 500))).toBeGreaterThan(noUp); // +8%/Lv × 5
   });
 
+  it('転生連打の抑止: ほぼ未採掘の即転生では熟練度が増えない', () => {
+    const fresh = stepMine(initialMineState(), 300); // ほぼ掘っていない（seq < masteryMinTiles）
+    const r = prestige(fresh, B);
+    expect(r.mastery.pick).toBe(0); // 連打しても上がらない
+    expect(fresh.seq).toBeLessThan(B.masteryMinTiles);
+  });
+
   it('武器スキルツリー(グラフ): 前提を満たすノードをポイントで解放', () => {
     const s0 = { ...initialMineState(), points: 100 };
     expect(skillNodeUnlockable(s0.perm.weaponSkill.pick, 0)).toBe(true);  // 起点は前提なし

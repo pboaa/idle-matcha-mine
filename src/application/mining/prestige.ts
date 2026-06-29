@@ -87,15 +87,17 @@ export function weaponSkillStats(unlocked: readonly number[]): WeaponStatLevels 
   return s;
 }
 
-/** 転生時の熟練度獲得: その走行で使った（Lv1以上の）武器ごとに +1（≒ダメージ+masteryPerLvl）。 */
-export function masteryGainOnPrestige(state: MineState): WeaponMastery {
+/** 転生時の熟練度獲得: その走行で十分掘った(seq>=masteryMinTiles)時のみ、実際にダメージを出した武器ごとに +1。
+ *  転生ボタン連打（ほぼ未採掘の即転生）では増えない。 */
+export function masteryGainOnPrestige(state: MineState, b: MiningBalance = defaultMiningBalance): WeaponMastery {
   const next = { ...state.mastery };
-  for (const w of WEAPON_IDS) if (state.levels[w] > 0) next[w] += 1;
+  if (state.seq < b.masteryMinTiles) return next; // 走行が短すぎる＝連打抑止
+  for (const w of WEAPON_IDS) if (state.dmgByWeapon[w] > 0) next[w] += 1;
   return next;
 }
 
 /** 転生: 走行をリセット。残った鉱石はポイントへ変換し、ポイント/恒久/熟練度を引き継ぐ。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
   const points = state.points + oreToPoints(state.materials, b);
-  return freshRun(b, state.perm, state.prestiges + 1, state.rngState, masteryGainOnPrestige(state), points);
+  return freshRun(b, state.perm, state.prestiges + 1, state.rngState, masteryGainOnPrestige(state, b), points);
 }
