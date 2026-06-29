@@ -17,6 +17,12 @@ const DIRS_8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1,
 const isDug = (dug: ReadonlySet<string>, c: Cell): boolean => dug.has(cellKey(c));
 const isSolid = (dug: ReadonlySet<string>, c: Cell, b: MiningBalance): boolean => inBounds(c, b) && !dug.has(cellKey(c));
 
+/** カメラ追従（デッドゾーン）: 猫が中央±dz内なら世界を固定、外に出たら最小限だけ追従。猫スプライトが滑らかに動く。 */
+function followCam(cam: Cell, pos: Cell, dz: number): Cell {
+  const fx = pos.x - cam.x, fy = pos.y - cam.y;
+  return { x: cam.x + (fx > dz ? fx - dz : fx < -dz ? fx + dz : 0), y: cam.y + (fy > dz ? fy - dz : fy < -dz ? fy + dz : 0) };
+}
+
 function stepToward(from: Cell, target: Cell): Cell {
   const dx = target.x - from.x; const dy = target.y - from.y;
   if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) return { x: from.x + Math.sign(dx), y: from.y };
@@ -253,7 +259,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   return {
     ...state,
     time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
-    cat: { pos, gauge, target }, cam: { ...pos },
+    cat: { pos, gauge, target }, cam: followCam(state.cam, pos, b.camDeadzone),
     xp, level, levels, weaponQuality, offer, offerAt, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials, points,
   };
 }

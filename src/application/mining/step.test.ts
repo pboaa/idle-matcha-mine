@@ -19,9 +19,11 @@ describe('mining/step', () => {
     expect(s.coins).toBeGreaterThan(0);
   });
 
-  it('猫は常に画面中心（cam = cat.pos）', () => {
+  it('カメラはデッドゾーン内で猫を追従（猫が中央付近を滑らかに動く）', () => {
+    const B = defaultMiningBalance;
     const s = stepMine(initialMineState(), 10_000);
-    expect(s.cam).toEqual(s.cat.pos);
+    expect(Math.abs(s.cam.x - s.cat.pos.x)).toBeLessThanOrEqual(B.camDeadzone); // 猫はデッドゾーン内
+    expect(Math.abs(s.cam.y - s.cat.pos.y)).toBeLessThanOrEqual(B.camDeadzone);
   });
 
   it('全部掘ると次の階へ（小ワールドで検証・balance注入）', () => {

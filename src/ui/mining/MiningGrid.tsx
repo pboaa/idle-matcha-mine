@@ -91,7 +91,7 @@ export function MiningGrid() {
       )}
 
       {/* 猫 */}
-      <div className="pointer-events-none absolute z-10 flex items-center justify-center" style={{ left: view.catRx * CELL, top: view.catRy * CELL, width: CELL, height: CELL, transition: 'left 150ms linear, top 150ms linear' }}>
+      <div className="pointer-events-none absolute z-10 flex items-center justify-center" style={{ left: view.catRx * CELL, top: view.catRy * CELL, width: CELL, height: CELL, transition: 'left 220ms ease-out, top 220ms ease-out' }}>
         <span className="animate-[catbob_0.9s_ease-in-out_infinite] text-[24px] leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.7)]">🐱</span>
       </div>
     </div>

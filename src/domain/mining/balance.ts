@@ -162,6 +162,7 @@ export type OfferRarity = 'common' | 'rare' | 'epic';
 // ===== スカラー数値 =====
 export interface MiningBalance {
   readonly worldSize: number;
+  readonly camDeadzone: number;  // カメラ追従のデッドゾーン半径（中央±これ以内は世界を固定＝猫が滑らかに動く）
   readonly baseRate: number;
   readonly moveCost: number;
   readonly dropVisualMs: number;
@@ -212,6 +213,7 @@ export interface MiningBalance {
 
 export const defaultMiningBalance: MiningBalance = {
   worldSize: 30,
+  camDeadzone: 4,
   baseRate: 0.5,
   moveCost: 0.5,
   dropVisualMs: 900,
