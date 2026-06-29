@@ -1,5 +1,5 @@
 import { type Rng } from '@shared/rng';
-import type { MiningBalance, ChoiceId, OfferRarity } from '@domain/mining/balance';
+import type { MiningBalance, ChoiceId, OfferRarity, WeaponId } from '@domain/mining/balance';
 import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, defaultMiningBalance, isWeapon } from '@domain/mining/balance';
 import type { MineState, OfferChoice, Levels, WeaponSkill } from '@application/mining/mineState';
 
@@ -17,12 +17,12 @@ function rollRarity(rng: Rng, rare: number, epic: number): OfferRarity {
 
 const owned = (levels: Levels): ChoiceId[] => ([...WEAPON_IDS, ...PASSIVE_IDS] as ChoiceId[]).filter((id) => levels[id] > 0);
 
-/** 3択。武器は所持数制限(maxWeapons)・強化(特殊能力)も所持数制限(maxPassives)あり。武器固有強化はその武器所持が条件。 */
-export function makeOffer(rng: Rng, levels: Levels, appraise: number, b: MiningBalance = defaultMiningBalance): OfferChoice[] {
+/** 3択。武器は解放済み(allowed)のみ＋所持数制限(maxWeapons)、強化も所持数制限(maxPassives)。武器固有強化はその武器所持が条件。 */
+export function makeOffer(rng: Rng, levels: Levels, appraise: number, allowed: readonly WeaponId[], b: MiningBalance = defaultMiningBalance): OfferChoice[] {
   const canNewWeapon = WEAPON_IDS.filter((w) => levels[w] > 0).length < b.maxWeapons;
   const canNewPassive = PASSIVE_IDS.filter((id) => levels[id] > 0).length < b.maxPassives;
   const pool: ChoiceId[] = [];
-  for (const id of WEAPON_IDS) if (levels[id] > 0 || canNewWeapon) pool.push(id);
+  for (const id of WEAPON_IDS) if (allowed.includes(id) && (levels[id] > 0 || canNewWeapon)) pool.push(id);
   for (const id of PASSIVE_IDS) {
     const def = PASSIVE_DEFS[id];
     if (def.reqWeapon && levels[def.reqWeapon] <= 0) continue; // 武器固有強化は対応武器を持っている時だけ

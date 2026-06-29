@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
-import { defaultMiningBalance, WEAPON_IDS, weaponSkillNodes } from '@domain/mining/balance';
+import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockCost, unlockWeapon, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { defaultMiningBalance, WEAPON_IDS, BASE_WEAPONS, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 // 開始武器はランダムに1つ＝武器レベル合計は「恒久武器Lv合計 + 1」
@@ -41,6 +41,18 @@ describe('mining/prestige', () => {
     expect(s.levels.speed).toBe(3);                       // パッシブも恒久そのまま
     expect(s.meta.appraise).toBe(1);                      // 基礎目利き
     expect(extraWeaponLevels(s.levels, perm.levels)).toBe(1); // 開始武器は1つ(ツルハシ)だけ+1
+  });
+
+  it('序盤は武器2種のみ・★で解放できる（基本武器は不可）', () => {
+    const s = { ...initialMineState(), points: 999 };
+    expect([...allowedWeapons(s.perm)]).toEqual([...BASE_WEAPONS]); // 最初は2種
+    const cost = weaponUnlockCost(s.perm);
+    const r = unlockWeapon(s, 'beam');
+    expect(r.perm.weaponUnlocks).toEqual(['beam']); // 解放された
+    expect(r.points).toBe(999 - cost);              // ★消費
+    expect(allowedWeapons(r.perm)).toContain('beam');
+    expect(weaponUnlockCost(r.perm)).toBeGreaterThan(cost); // 次は高い
+    expect(unlockWeapon(s, 'pick').points).toBe(999); // 基本武器は解放対象外（消費なし）
   });
 
   it('コイン全体強化: コインを消費してLvが上がる／不足は不可', () => {

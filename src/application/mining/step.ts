@@ -5,7 +5,7 @@ import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS, isWeapon } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { type MineState, type Levels, type WeaponStatLevels } from '@application/mining/mineState';
-import { weaponSkillStats, autoEfficiency } from '@application/mining/prestige';
+import { weaponSkillStats, autoEfficiency, allowedWeapons } from '@application/mining/prestige';
 import { xpForNext, makeOffer, autoPick, offerQualityGain, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
@@ -247,11 +247,12 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     applyChoice(autoPick(offer, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
     offer = null; offerAt = null;
   }
+  const allowed = allowedWeapons(state.perm); // 序盤は2種のみ、★で解放
   while (!offer && xp >= xpForNext(level, b)) {
     xp -= xpForNext(level, b);
     level += 1;
     runPoints += b.pointsPerLevel; // 進行で獲得予定★が貯まる（転生でもらえる）
-    const choices = makeOffer(rng, levels, meta.appraise, b);
+    const choices = makeOffer(rng, levels, meta.appraise, allowed, b);
     if (state.autoMode) applyChoice(autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
     else { offer = choices; offerAt = now; } // 手動: 3択を提示して待つ
   }

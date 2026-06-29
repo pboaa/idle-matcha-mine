@@ -1,5 +1,5 @@
 import type { MiningBalance, ChoiceId, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, COIN_UP_DEFS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, COIN_UP_DEFS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
@@ -60,6 +60,23 @@ export function buyCoinUp(state: MineState, id: CoinUpId): MineState {
 }
 
 // ===== 武器ごとの恒久スキルツリー（★ポイントで解放・グラフ） =====
+// ===== 武器の解放（★ポイント・序盤は2種のみ） =====
+/** 3択に出せる武器（基本2種＋解放済み）。 */
+export function allowedWeapons(perm: Perm): readonly WeaponId[] {
+  return [...BASE_WEAPONS, ...perm.weaponUnlocks];
+}
+/** 次の武器解放のコスト（解放数で増える）。 */
+export function weaponUnlockCost(perm: Perm, b: MiningBalance = defaultMiningBalance): number {
+  return Math.floor(b.weaponUnlockBase * Math.pow(b.weaponUnlockGrowth, perm.weaponUnlocks.length));
+}
+/** 武器を1つ解放（★消費）。基本武器/解放済み/ポイント不足なら何もしない。 */
+export function unlockWeapon(state: MineState, w: WeaponId, b: MiningBalance = defaultMiningBalance): MineState {
+  if (BASE_WEAPONS.includes(w) || state.perm.weaponUnlocks.includes(w)) return state;
+  const cost = weaponUnlockCost(state.perm, b);
+  if (state.points < cost) return state;
+  return { ...state, points: state.points - cost, perm: { ...state.perm, weaponUnlocks: [...state.perm.weaponUnlocks, w] } };
+}
+
 /** そのノードが今解放できるか（前提を全て満たし・未解放）。 */
 export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number): boolean {
   const n = weaponSkillNodes(weapon)[nodeIndex];

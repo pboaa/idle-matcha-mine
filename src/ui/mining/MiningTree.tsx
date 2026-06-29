@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMinePrestige, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineUnlockWeapon, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 const COL = 80, ROW = 52, PADX = 30, PADY = 30, R = 16, RBIG = 20;
@@ -50,6 +50,7 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   const buyPerm = useMineBuyPerm();
   const buyWeaponSkill = useMineBuyWeaponSkill();
   const buyIdle = useMineBuyIdle();
+  const unlockWeapon = useMineUnlockWeapon();
   const refine = useMineRefine();
   const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
   const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
@@ -77,6 +78,22 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
             {r.fromEmoji}{r.ratio}→{r.toEmoji}
           </button>
         ))}
+      </div>
+
+      {/* 武器の解放（序盤2種＋★で解放） */}
+      <div className="flex flex-col gap-1 rounded-lg bg-sky-950/40 p-2 ring-1 ring-sky-700/40">
+        <div className="text-[11px] text-sky-100">🔓 武器の解放 <span className="text-[10px] text-sky-300/80">（解放で3択に登場・次の解放 ⭐{formatNumber(p.unlockCost)}）</span></div>
+        <div className="flex flex-wrap gap-1.5">
+          {p.unlocks.map((u) => (
+            <button key={u.id} onClick={() => u.status === 'locked' && unlockWeapon(u.id)} disabled={u.status !== 'locked' || !p.canUnlock}
+              title={u.status === 'base' ? `${u.label}（最初から）` : u.status === 'unlocked' ? `${u.label}（解放済み）` : `${u.label} を ⭐${p.unlockCost} で解放`}
+              className={['flex items-center gap-0.5 rounded-md px-2 py-1 text-[13px] leading-none transition',
+                u.status === 'locked' ? (p.canUnlock ? 'bg-sky-500 text-stone-900 hover:bg-sky-400 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500')
+                  : 'bg-stone-700 text-stone-100 cursor-default'].join(' ')}>
+              {u.status === 'locked' ? '🔒' : u.status === 'base' ? '⭐' : '✅'}{u.emoji}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 放置ツリー（ポイントで自動効率を100%へ） */}

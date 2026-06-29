@@ -37,6 +37,8 @@ export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
   ring: { id: 'ring', label: 'リング', emoji: '🪃', desc: '外周をぐるりと削る', tag: 'field', pattern: 'ring', baseDmg: 0.035, dmgPerLvl: 0.015, rangeBase: 2, rangePerLvls: 3, attackIntervalMs: 600, fxColor: '#bef264' },
 };
 export const WEAPON_IDS = Object.keys(WEAPON_DEFS) as WeaponId[];
+/** 最初から3択に出る武器（2種）。残りは転生ポイントで解放。 */
+export const BASE_WEAPONS: readonly WeaponId[] = ['pick', 'bullet'];
 
 /** 強化（特殊能力）の効果種別。weaponDmg は targetWeapon 指定の固有強化に使う。 */
 export type PassiveEffect = 'power' | 'rate' | 'move' | 'coin' | 'material' | 'xp' | 'range' | 'pierce' | 'crit' | 'meleeDmg' | 'shotDmg' | 'beamDmg' | 'fieldDmg' | 'weaponDmg';
@@ -200,6 +202,7 @@ export interface MiningBalance {
 
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
+  readonly weaponUnlockBase: number; readonly weaponUnlockGrowth: number; // 武器解放のポイントコスト
   readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
 
   // 自動モードの効率（自動は火力が下がる。放置ツリーをポイントで上げると100%へ）
@@ -254,6 +257,7 @@ export const defaultMiningBalance: MiningBalance = {
 
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
+  weaponUnlockBase: 15, weaponUnlockGrowth: 1.5,
 
   autoEffBase: 0.5, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 

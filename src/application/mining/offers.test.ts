@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRng } from '@shared/rng';
 import { initialMineState } from '@application/mining/mineState';
 import { makeOffer, autoPick, applyOfferChoice, appraiseCost, buyAppraise, rareChance, epicChance, boostCost, buyBoost, boostMul } from '@application/mining/upgrades';
-import { defaultMiningBalance, PASSIVE_IDS } from '@domain/mining/balance';
+import { defaultMiningBalance, PASSIVE_IDS, WEAPON_IDS } from '@domain/mining/balance';
 import { emptyPerm } from '@application/mining/mineState';
 
 const B = defaultMiningBalance;
@@ -10,7 +10,7 @@ const lv = () => initialMineState().levels;
 
 describe('mining/offers', () => {
   it('makeOffer は3枠・各枠に rarity', () => {
-    const o = makeOffer(createRng(1), lv(), 0, B);
+    const o = makeOffer(createRng(1), lv(), 0, WEAPON_IDS, B);
     expect(o.length).toBe(3);
     o.forEach((c) => expect(['common', 'rare', 'epic']).toContain(c.rarity));
   });
@@ -20,7 +20,7 @@ describe('mining/offers', () => {
     expect(epicChance(0, B)).toBeLessThan(epicChance(5, B));
     const nonCommon = (appraise: number): number => {
       const rng = createRng(7); let n = 0;
-      for (let i = 0; i < 400; i++) n += makeOffer(rng, lv(), appraise, B).filter((c) => c.rarity !== 'common').length;
+      for (let i = 0; i < 400; i++) n += makeOffer(rng, lv(), appraise, WEAPON_IDS, B).filter((c) => c.rarity !== 'common').length;
       return n;
     };
     expect(nonCommon(10)).toBeGreaterThan(nonCommon(0));
@@ -67,7 +67,7 @@ describe('mining/offers', () => {
     for (const id of generic) levels[id] = 1;
     const rng = createRng(5);
     const seen = new Set<string>();
-    for (let i = 0; i < 400; i++) makeOffer(rng, levels, 0, B).forEach((c) => seen.add(c.id));
+    for (let i = 0; i < 400; i++) makeOffer(rng, levels, 0, WEAPON_IDS, B).forEach((c) => seen.add(c.id));
     // 未所持の新規パッシブは出ない
     const newPassive = PASSIVE_IDS.find((id) => !id.startsWith('u') && levels[id] <= 0)!;
     expect(seen.has(newPassive)).toBe(false);
@@ -94,7 +94,7 @@ describe('mining/offers', () => {
     const levels = lv(); // 初期: pick=1 のみ
     const rng = createRng(3);
     const seen = new Set<string>();
-    for (let i = 0; i < 300; i++) makeOffer(rng, levels, 0, B).forEach((c) => seen.add(c.id));
+    for (let i = 0; i < 300; i++) makeOffer(rng, levels, 0, WEAPON_IDS, B).forEach((c) => seen.add(c.id));
     expect(seen.has('upick')).toBe(true);     // ツルハシ所持 → 固有が出る
     expect(seen.has('ubullet')).toBe(false);  // 弾は未所持 → 固有は出ない
   });
