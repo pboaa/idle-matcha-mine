@@ -95,7 +95,12 @@ export interface MiningBalance {
   readonly distHardness: number;   // 拠点からの距離1マスごとの硬さ+（同じ階でも外側ほど固い）
   readonly valueGrowth: number;    // 階ごとの価値倍率（幾何級数・硬さよりやや緩く）
   readonly kinds: { readonly dirt: MiningKind; readonly stone: MiningKind; readonly ore: MiningKind; readonly gem: MiningKind };
-  readonly kindThresh: { readonly dirtMax: number; readonly stoneMax: number; readonly oreMax: number; readonly boostPerFloor: number; readonly boostMax: number };
+  // 素材のレア度は深さ連動: 浅い階はほぼ土、深いほど石→鉱石→宝石が解禁され出やすくなる（%は0..100のhと比較）。
+  readonly kindThresh: {
+    readonly stoneBase: number; readonly stonePerFloor: number; readonly stoneMax: number;  // 石: 浅くても少し、深いほど増える
+    readonly oreFloor: number; readonly orePerFloor: number; readonly oreMax: number;        // 鉱石(金): この階から解禁
+    readonly gemFloor: number; readonly gemPerFloor: number; readonly gemMax: number;        // 宝石(ダイヤ): さらに深い階から・ごく稀
+  };
 
   readonly critMult: number;     // 会心倍率
   readonly maxWeapons: number;   // 所持できる武器数
@@ -140,7 +145,11 @@ export const defaultMiningBalance: MiningBalance = {
     ore: { id: 'ore', name: '鉱石', emoji: '🟡', color: '#ffd54f', mult: 5 },
     gem: { id: 'gem', name: '宝石', emoji: '💎', color: '#4dd0e1', mult: 12 },
   },
-  kindThresh: { dirtMax: 70, stoneMax: 92, oreMax: 99, boostPerFloor: 2, boostMax: 20 },
+  kindThresh: {
+    stoneBase: 4, stonePerFloor: 2, stoneMax: 40,
+    oreFloor: 3, orePerFloor: 1.5, oreMax: 18,
+    gemFloor: 8, gemPerFloor: 0.5, gemMax: 6,
+  },
 
   critMult: 3,
   maxWeapons: 6,

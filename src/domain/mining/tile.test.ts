@@ -42,6 +42,19 @@ describe('mining/tile', () => {
     expect(dirt(8)).toBeLessThan(dirt(0));
   });
 
+  it('素材レア度は深さ連動: 浅い階は鉱石/宝石が出ず、深い階で出る', () => {
+    const count = (floor: number, kind: typeof B.kinds.ore) => {
+      let n = 0;
+      for (let y = 0; y < 30; y++) for (let x = 0; x < 30; x++) if (kindAt({ x, y }, floor, B) === kind) n++;
+      return n;
+    };
+    expect(count(0, B.kinds.ore)).toBe(0);   // 1階(floor0)では鉱石(金)なし
+    expect(count(0, B.kinds.gem)).toBe(0);   // 宝石(ダイヤ)もなし
+    expect(count(0, B.kinds.dirt)).toBeGreaterThan(800); // ほぼ土（900中）
+    expect(count(B.kindThresh.oreFloor, B.kinds.ore)).toBeGreaterThan(0);   // 解禁階で鉱石が出る
+    expect(count(B.kindThresh.gemFloor + 4, B.kinds.gem)).toBeGreaterThan(0); // 深い階で宝石が出る
+  });
+
   it('base は中心、total は size^2', () => {
     expect(baseOf(B)).toEqual({ x: 15, y: 15 });
     expect(totalTilesOf(B)).toBe(900);
