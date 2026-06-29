@@ -29,17 +29,15 @@ describe('mining/skilltree', () => {
     expect(lr.every((n) => n.stat === 'area' && n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い
   });
 
-  it('ツリーの特殊は射程のみ（範囲/貫通は強すぎたため削除・ツルハシの範囲のみ例外）', () => {
-    for (const w of WEAPON_IDS) {
-      const nodes = weaponSkillNodes(w);
-      expect(nodes.some((n) => n.stat === 'pierce')).toBe(false);            // 貫通ノードは無い
-      if (w !== 'pick') expect(nodes.some((n) => n.stat === 'area')).toBe(false); // 範囲も無い（ツルハシ以外）
-      if (w !== 'pick') {
-        const range = nodes.filter((n) => n.stat === 'range');
-        expect(range.length).toBeGreaterThanOrEqual(4);                      // 射程は残す
-        expect(range.some((n) => n.tier === SKILL_TIERS - 1)).toBe(true);    // 最終階層まで分散＝終盤まで
-      }
-    }
+  it('グリッドに貫通/範囲/射程/固有が織り交ぜられている（武器ごとに有効なもの）', () => {
+    const beam = weaponSkillNodes('beam'); // 直線系＝貫通も範囲も射程も有効
+    for (const stat of ['range', 'area', 'pierce', 'unique'] as const) expect(beam.some((n) => n.stat === stat)).toBe(true);
+    expect(beam.filter((n) => n.stat === 'damage' || n.stat === 'speed').length).toBeGreaterThan(beam.length / 2); // fillerが過半（特殊はまばら）
+    // フィールド系(オーラ)は範囲(area)/貫通(pierce)は無効＝出ない、射程(range)はある。
+    const aura = weaponSkillNodes('aura');
+    expect(aura.some((n) => n.stat === 'area')).toBe(false);
+    expect(aura.some((n) => n.stat === 'pierce')).toBe(false);
+    expect(aura.some((n) => n.stat === 'range')).toBe(true);
   });
 
   it('深い階層ほど高コスト＆「色んな素材」を要求（種類が増える・量も増える）', () => {

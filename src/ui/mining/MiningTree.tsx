@@ -1,4 +1,4 @@
-import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM, type MineTierVM } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM, type MineTierVM } from '@state/miningSelectors';
 import { useState } from 'react';
 import { formatNumber } from '@shared/format';
 
@@ -51,6 +51,7 @@ function TierTabs({ tiers, sel, onSelect }: { tiers: readonly MineTierVM[]; sel:
 export function MiningTree({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
   const buyWeaponSkill = useMineBuyWeaponSkill();
+  const buyWeaponSkillMax = useMineBuyWeaponSkillMax();
   const buyIdle = useMineBuyIdle();
   const refine = useMineRefine();
   const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
@@ -129,8 +130,11 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-md bg-amber-950/30 p-1.5 ring-1 ring-amber-800/30">
           <div className="mb-1 flex items-center justify-between text-[10px] text-amber-300/80">
-            <span>{wt.emoji} 強化済</span>
-            <span>解放 {wt.skillUnlocked}/{wt.skillTotal}{wt.mastery > 0 && <span className="ml-1 text-rose-300">／熟練+{wt.masteryPct}%</span>}</span>
+            <span>{wt.emoji} 強化済 <span className="text-stone-400">解放 {wt.skillUnlocked}/{wt.skillTotal}{wt.mastery > 0 && <span className="ml-1 text-rose-300">熟練+{wt.masteryPct}%</span>}</span></span>
+            <button onClick={() => buyWeaponSkillMax(wt.id)}
+              className="rounded bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-stone-900 shadow transition hover:bg-amber-400 active:scale-95">
+              ⏫ 一気に上げる
+            </button>
           </div>
           {/* 強化された内容（累積） */}
           <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded bg-stone-900/50 px-1.5 py-1 text-[11px]">

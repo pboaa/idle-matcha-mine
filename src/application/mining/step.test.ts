@@ -36,17 +36,19 @@ describe('mining/step', () => {
 
   it('放置(時間経過)で火力＆採掘速度が増え、上限で頭打ち（放置ゲー報酬）', () => {
     const B = defaultMiningBalance;
+    const hard = { ...B, hardnessBase: 1e6 }; // 硬タイル注入＝1撃で壊れず（オーバーキル除外を避けて倍率を純粋比較）。
     // 同じ位置・同じ攻撃を「経過時間だけ違えて」比較（火力＝1ヒットのダメージが時間で増える）。
     const dmgAt = (startMs: number): number => {
-      const init = initialMineState();
+      const init = initialMineState(hard);
       const s = { ...init, time: startMs, autoMode: false, levels: { ...init.levels, pick: 1 }, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } } };
-      return stepMine({ ...s, time: startMs }, 600).dmgByWeapon.pick;
+      return stepMine(s, 600, hard).dmgByWeapon.pick;
     };
-    const d0 = dmgAt(0); const d10 = dmgAt(10 * 60_000); const dCap = dmgAt(60 * 60_000);
-    expect(d10).toBeGreaterThan(d0);                 // 時間経過で火力UP
-    expect(dCap).toBeGreaterThan(d10);
-    // 上限: cap到達後(60分)は1+cap倍まで。0分比で (1+cap) を超えない（±誤差）。
-    expect(dCap / d0).toBeLessThanOrEqual(1 + B.timePowerCap + 0.01);
+    const capMin = B.timePowerCap / B.timePowerPerMin; // 上限到達ぶんの分数（=5時間）
+    const d0 = dmgAt(0); const dHalf = dmgAt((capMin / 2) * 60_000); const dCap = dmgAt(capMin * 60_000); const dOver = dmgAt(capMin * 2 * 60_000);
+    expect(dHalf).toBeGreaterThan(d0);                  // 時間経過で火力UP
+    expect(dCap).toBeGreaterThan(dHalf);
+    expect(dCap / d0).toBeCloseTo(1 + B.timePowerCap, 2);  // 上限到達で 1+cap 倍
+    expect(dOver).toBeCloseTo(dCap, 5);                    // 上限超えは頭打ち
   });
 
   it('全部掘ると次の階へ（小ワールドで検証・balance注入）', () => {

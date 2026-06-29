@@ -63,6 +63,24 @@ export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: nu
   const weaponSkill = { ...state.perm.weaponSkill, [weapon]: [...unlocked, nodeIndex] };
   return { ...state, materials, perm: { ...state.perm, weaponSkill } };
 }
+/** 一気に上げる: 解禁可能＆素材が足りるノードを「安い順」に買えるだけ買う（外へ広げていく）。 */
+export function buyWeaponSkillMax(state: MineState, weapon: WeaponId): MineState {
+  const nodes = weaponSkillNodes(weapon);
+  const totalCost = (i: number): number => nodes[i]!.matCosts.reduce((a, c) => a + c.amount, 0);
+  let s = state;
+  for (let guard = 0; guard < nodes.length; guard++) {
+    const unlocked = s.perm.weaponSkill[weapon];
+    let best = -1, bestCost = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      if (unlocked.includes(i) || !skillNodeUnlockable(weapon, unlocked, i)) continue;
+      if (nodes[i]!.matCosts.some((c) => s.materials[c.matId] < c.amount)) continue;
+      const cost = totalCost(i); if (cost < bestCost) { bestCost = cost; best = i; }
+    }
+    if (best < 0) break;          // もう買えるノードが無い
+    s = buyWeaponSkill(s, weapon, best);
+  }
+  return s;
+}
 /** 解放済みノードの累積ステータス（武器に恒久で乗る）。 */
 export function weaponSkillStats(weapon: WeaponId, unlocked: readonly number[]): WeaponStatLevels {
   const s: WeaponStatLevels = { damage: 0, speed: 0, range: 0, pierce: 0, area: 0, unique: 0 };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, refine, prestige } from '@application/mining/prestige';
+import { buyCoinUp, coinUpCost, buyWeaponSkill, buyWeaponSkillMax, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, refine, prestige } from '@application/mining/prestige';
 import { defaultMiningBalance, WEAPON_IDS, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -88,6 +88,16 @@ describe('mining/prestige', () => {
     expect(lr.length).toBeGreaterThanOrEqual(2);                    // 範囲ノード（左右）
     expect(lr.some((n) => n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い土＝サクサク3方向
     expect(pick.map((n) => `${n.stat}`).join('|')).not.toBe(beam.map((n) => `${n.stat}`).join('|')); // 形が違う
+  });
+
+  it('一気に上げる: 解禁可能＆素材が足りるノードを買えるだけ買う', () => {
+    const rich = { ...emptyMaterials() };
+    for (const id of MATERIAL_IDS) rich[id] = 9_999_999; // 素材たっぷり＝かなり広がる
+    const r = buyWeaponSkillMax({ ...initialMineState(), materials: rich }, 'pick');
+    expect(r.perm.weaponSkill.pick.length).toBeGreaterThan(10);     // 一括で多数解放
+    // 素材ゼロでは何も買えない
+    const poor = buyWeaponSkillMax({ ...initialMineState(), materials: emptyMaterials() }, 'pick');
+    expect(poor.perm.weaponSkill.pick.length).toBe(0);
   });
 
   it('転生: 走行リセット・鉱石/累計★/回数は保持', () => {

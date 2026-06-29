@@ -141,7 +141,7 @@ export const defaultMiningBalance: MiningBalance = {
   fxVisualMs: 220,
 
   hardnessBase: 0.5,
-  hardnessGrowth: 1.40,
+  hardnessGrowth: 1.50,
   distHardness: 0.12,
   valueGrowth: 1.13,
   kinds: KINDS_BY_ID,
@@ -173,7 +173,8 @@ export const defaultMiningBalance: MiningBalance = {
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockStars: [20, 55, 120, 220, 380],
   starDmgPerLvl: 0.20,
-  timePowerPerMin: 0.05, timePowerCap: 0.6,
+  timePowerPerMin: 0.01, timePowerCap: 3.0, // 毎分+1%・最大+300%（5時間で頭打ち＝のんびり放置）
+
   idleMatCostBase: 4, idleMatCostGrowth: 1.6,
   masteryPerLvl: 0.08,
   masteryGateBase: 300, masteryGateGrowth: 1.9,

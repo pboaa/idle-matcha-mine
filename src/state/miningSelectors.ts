@@ -320,6 +320,7 @@ export const useMineBuyBoost = (): (() => void) => useMiningStore((s) => s.buyBo
 export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
 export const useMineBuyCoinUp = (): ((id: CoinUpId) => void) => useMiningStore((s) => s.buyCoinUp);
 export const useMineBuyWeaponSkill = (): ((weapon: WeaponId, nodeIndex: number) => void) => useMiningStore((s) => s.buyWeaponSkill);
+export const useMineBuyWeaponSkillMax = (): ((weapon: WeaponId) => void) => useMiningStore((s) => s.buyWeaponSkillMax);
 export const useMineBuyIdle = (): (() => void) => useMiningStore((s) => s.buyIdle);
 export const useMineSetTarget = (): ((cell: { x: number; y: number }) => void) => useMiningStore((s) => s.setTarget);
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);

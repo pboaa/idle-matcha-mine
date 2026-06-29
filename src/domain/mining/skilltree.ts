@@ -56,20 +56,24 @@ function nodeCost(tier: number, ring: number, special: boolean, pickArea: boolea
   if (pickArea) return [{ matId: MATERIAL_IDS[0]!, amount: 25 }]; // サクサク用：ツルハシ中央左右の範囲は土で安く
   const primary = Math.min(MATERIAL_IDS.length - 1, tier + Math.floor(ring / 2)); // 主素材（階層＋外周。中央は手頃な素材・外周ほど上位）
   const types = Math.min(primary + 1, 1 + tier, 3);                                                  // 種類数（深いほど多い・最大3）
-  const base = Math.round(6 * Math.pow(1.85, tier) * (1 + ring * 0.25));                             // 量の基準（階層・外周で増える）
+  const base = Math.round(12 * Math.pow(2.0, tier) * (1 + ring * 0.3));                              // 量の基準（高め・階層/外周で増える）
   const costs: MatCost[] = [];
   for (let k = 0; k < types; k++) { // 主素材から下位へ。下位ほど多く要る（数が増えていく）。
-    const amount = Math.max(1, Math.round(base * (special ? 3 : 1) * (1 + k * 0.8)));
+    const amount = Math.max(1, Math.round(base * (special ? 4 : 1) * (1 + k * 0.9)));
     costs.push({ matId: MATERIAL_IDS[primary - k]!, amount });
   }
   return costs;
 }
 // 決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
-/** ツリーで取れる特殊強化。範囲(area)/貫通(pierce)は強すぎたためツリーから削除し、射程(range)のみ。
- * ツルハシ(front)は射程概念がないので無し（範囲は中央左右の3方向ぶんだけ別途・安価に置く）。 */
+/** グリッドに織り交ぜる特殊強化（範囲/射程/貫通）。その武器で有効なものだけ。グリッドが巨大＆高コストなので
+ * 多くは取りにくく＝強すぎない（中央付近の安いものだけ序盤に取れる）。 */
 function weaponSpecials(w: WeaponId): WeaponStat[] {
-  return WEAPON_DEFS[w].pattern === 'front' ? [] : ['range'];
+  const out: WeaponStat[] = [];
+  if (weaponStatApplies('area', w)) out.push('area');     // 範囲
+  if (WEAPON_DEFS[w].pattern !== 'front') out.push('range'); // 射程（ツルハシは射程概念なし）
+  if (weaponStatApplies('pierce', w)) out.push('pierce'); // 貫通（直線系）
+  return out;
 }
 interface Cell { grid: number; x: number; y: number; ring: number; stat: WeaponStat; amount: number; special: boolean; pickArea: boolean; root: boolean; statKey: number; sortKey: number }
 /** 1武器ぶんの「5グリッド（5階層）」ツリーを生成。各グリッドは中央起点・隣接で解放。特殊は深い階層へ分散（終盤まで）。 */
@@ -90,24 +94,16 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const cellAt = (tier: number, x: number, y: number): Cell => cells[indexAt(tier, x, y)]!;
   for (const cell of cells) if (cell.root) cell.amount = 0.05; // 中央＝起点（少し大きめ）
   if (isPick) { const cen = skillGridCenter(0); for (const dx of [-1, 1]) { const cell = cellAt(0, cen + dx, cen); cell.stat = 'area'; cell.amount = 1; cell.special = true; cell.pickArea = true; } } // 階層1の中央左右＝安い範囲（3方向・ツルハシのみ）
-  // 特殊(射程のみ)を階層1..4へ分散配置（外へ進むほど増える＝終盤まで）。
-  const queue: WeaponStat[] = [];
-  for (const stat of weaponSpecials(w)) for (let i = 0; i < 4; i++) queue.push(stat);
-  const gridSpan = SKILL_TIERS - 1; // 階層1..(SKILL_TIERS-1)
-  const avail = new Map<number, Cell[]>();
-  for (let t = 1; t < SKILL_TIERS; t++) avail.set(t, cells.filter((c) => c.grid === t && !c.special && !c.root && c.ring >= 1).sort((a, b) => (b.ring - a.ring) || (a.sortKey - b.sortKey))); // 外周優先
-  const ptr = new Map<number, number>();
-  for (let qi = 0; qi < queue.length; qi++) {
-    let t = 1 + (qi % gridSpan);
-    for (let tries = 0; tries < gridSpan; tries++) { if ((ptr.get(t) ?? 0) < (avail.get(t)?.length ?? 0)) break; t = 1 + ((t - 1 + 1) % gridSpan); }
-    const arr = avail.get(t); if (!arr) continue; const pi = ptr.get(t) ?? 0; if (pi >= arr.length) continue;
-    const cell = arr[pi]!; ptr.set(t, pi + 1); cell.stat = queue[qi]!; cell.amount = 1; cell.special = true;
+  // 全セルに「貫通/範囲/射程/固有/火力/速度」を織り交ぜる。特殊はまばら（深いグリッドほど少し多め）に。
+  const specials = weaponSpecials(w);
+  for (const cell of cells) {
+    if (cell.root || cell.pickArea) continue;
+    const pSpecial = 0.12 + cell.grid * 0.03; // 階層1=12% → 階層5=24%（深いほど特殊多め）
+    const pUnique = 0.05 + cell.grid * 0.01;  // 固有も深いほど少し多め
+    if (cell.statKey < pUnique && cell.grid >= 1) { cell.stat = 'unique'; cell.amount = 0.10 + cell.grid * 0.01; cell.special = true; }
+    else if (specials.length > 0 && cell.statKey < pUnique + pSpecial) { cell.stat = specials[Math.floor(cell.sortKey * specials.length)]!; cell.amount = 1; cell.special = true; }
+    else cell.stat = cell.sortKey < 0.4 ? 'speed' : 'damage'; // filler（小さい火力/速度）
   }
-  // 固有を中盤グリッド(2,3)に数個。
-  const uniqueCells = cells.filter((c) => (c.grid === 2 || c.grid === 3) && !c.special && !c.root).sort((a, b) => a.statKey - b.statKey).slice(0, 4);
-  for (const u of uniqueCells) { u.stat = 'unique'; u.amount = 0.10; u.special = true; }
-  // 残りは小さなfiller（damage/speed）。
-  for (const cell of cells) if (!cell.special && !cell.root) cell.stat = cell.statKey < 0.4 ? 'speed' : 'damage';
   // 同グリッド内の上下左右を requires に（中央は最初から解放可）。
   const neighbors = (cell: Cell): number[] => {
     const size = skillGridSize(cell.grid);
