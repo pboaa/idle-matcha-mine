@@ -61,7 +61,8 @@ export interface MineState {
 
   readonly materials: Materials;   // 鉱石（永続保存・転生でも消えない。後で使う想定）
   readonly coinUp: CoinUp;         // コインで買う全体強化（走行限定・転生でリセット）
-  readonly points: number;         // ★恒久ポイント（進行＝レベル/階で貯まる）
+  readonly points: number;         // ★恒久ポイント（転生でもらえる・ツリーで使う）
+  readonly runPoints: number;      // この走行の獲得予定★（進行＝レベル/階で貯まり、転生時に points へ）
   readonly perm: Perm;
   readonly prestiges: number;
 }
@@ -85,7 +86,7 @@ export function freshRun(
     dmgByWeapon: zeroDmg(),
     weaponCd: zeroDmg(),
     weaponQuality: zeroDmg(),
-    materials, coinUp: emptyCoinUp(), points,
+    materials, coinUp: emptyCoinUp(), points, runPoints: 0,
     perm, prestiges,
   };
 }

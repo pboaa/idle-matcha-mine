@@ -210,8 +210,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, quality: state.weaponQuality, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
-  // 階クリアで降下。★ポイントは「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
-  if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials, points: state.points + b.pointsPerFloor * (state.floor + 1) }, b);
+  // 階クリアで降下。獲得予定★(runPoints)は「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
+  if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials, runPoints: state.runPoints + b.pointsPerFloor * (state.floor + 1) }, b);
 
   // 武器の命中演出を追加（武器ごとに当たったマス）。古いものは寿命で消す。
   let fx = state.fx;
@@ -235,7 +235,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   let weaponQuality = state.weaponQuality;
   let offer = state.offer;
   let offerAt = state.offerAt;
-  let points = state.points;
+  let runPoints = state.runPoints;
   const applyChoice = (ch: ReturnType<typeof autoPick>): void => {
     levels = { ...levels, [ch.id]: levels[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
     if (ch.rarity === 'epic' && ch.bonus) levels = { ...levels, [ch.bonus]: levels[ch.bonus] + 1 };
@@ -250,7 +250,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   while (!offer && xp >= xpForNext(level, b)) {
     xp -= xpForNext(level, b);
     level += 1;
-    points += b.pointsPerLevel; // 進行で★が貯まる
+    runPoints += b.pointsPerLevel; // 進行で獲得予定★が貯まる（転生でもらえる）
     const choices = makeOffer(rng, levels, meta.appraise, b);
     if (state.autoMode) applyChoice(autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
     else { offer = choices; offerAt = now; } // 手動: 3択を提示して待つ
@@ -260,7 +260,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     ...state,
     time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
     cat: { pos, gauge, target }, cam: followCam(state.cam, pos, b.camDeadzone),
-    xp, level, levels, weaponQuality, offer, offerAt, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials, points,
+    xp, level, levels, weaponQuality, offer, offerAt, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials, runPoints,
   };
 }
 

@@ -19,7 +19,7 @@ describe('mining/balance', () => {
     const tot = WEAPON_IDS.reduce((a, w) => a + s.dmgByWeapon[w], 0);
     const share = WEAPON_IDS.filter((w) => s.dmgByWeapon[w] > 0).map((w) => `${choiceMeta(w).emoji}${tot > 0 ? Math.round((s.dmgByWeapon[w] / tot) * 100) : 0}%`);
     console.log(`ダメージ内訳: ${share.join(' ')}`);
-    expect(s.points).toBeGreaterThan(0); // 進行で★ポイントが貯まっている
+    expect(s.runPoints).toBeGreaterThan(0); // 進行で獲得予定★が貯まっている
     expect(s.dug.size).toBeGreaterThan(10);
     expect(s.dmgByWeapon.pick).toBeGreaterThan(0);
   });

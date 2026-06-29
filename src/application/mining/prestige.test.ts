@@ -95,9 +95,12 @@ describe('mining/prestige', () => {
     expect(r.coins).toBe(0); // コインはリセット
   });
 
-  it('★ポイントは進行（レベル/階）で貯まる', () => {
+  it('★は走行中に獲得予定が貯まり、転生でもらえる', () => {
     const s = stepMine(initialMineState(), 60_000);
-    expect(s.points).toBeGreaterThan(0); // レベルアップ/降下で★が貯まっている
-    expect(s.points).toBeGreaterThanOrEqual((s.level - 1) * B.pointsPerLevel); // 最低でもレベルぶん
+    expect(s.runPoints).toBeGreaterThan(0); // 走行中は獲得予定★が貯まる
+    expect(s.points).toBe(0);               // ★本体は転生まで増えない
+    const r = prestige(s, B);
+    expect(r.points).toBe(s.points + s.runPoints); // 転生でまとめてもらえる
+    expect(r.runPoints).toBe(0);                    // リセット
   });
 });

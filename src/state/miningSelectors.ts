@@ -150,7 +150,7 @@ export interface MineBoostVM { readonly lv: number; readonly cost: number; reado
 /** コインで買う全体強化（走行限定）。 */
 export interface MineCoinUpVM { readonly id: CoinUpId; readonly emoji: string; readonly label: string; readonly desc: string; readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
 export interface MineHudVM {
-  readonly coins: number; readonly floor: number; readonly progressPct: number;
+  readonly coins: number; readonly floor: number; readonly progressPct: number; readonly runPoints: number;
   readonly level: number; readonly xp: number; readonly xpNext: number; readonly autoMode: boolean;
   readonly offer: readonly MineOfferVM[];
   readonly weapons: readonly MineGearVM[]; readonly passives: readonly MineGearVM[];
@@ -191,7 +191,7 @@ export function buildMineHud(state: MineState): MineHudVM {
   const passives = PASSIVE_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]), quality: 0 }));
   const totalDmg = WEAPON_IDS.reduce((a, w) => a + state.dmgByWeapon[w], 0);
   return {
-    coins: Math.floor(state.coins), floor: state.floor,
+    coins: Math.floor(state.coins), floor: state.floor, runPoints: state.runPoints,
     progressPct: Math.min(100, (state.dug.size / TOTAL_TILES) * 100),
     level: state.level, xp: Math.floor(state.xp), xpNext: xpForNext(state.level), autoMode: state.autoMode,
     offer: (state.offer ?? []).map((ch, index) => ({ index, label: choiceMeta(ch.id).label, emoji: choiceMeta(ch.id).emoji, desc: choiceMeta(ch.id).desc, detail: choiceDetail(ch.id, state.levels[ch.id]), lv: state.levels[ch.id], rarity: ch.rarity, bonusEmoji: ch.bonus ? choiceMeta(ch.bonus).emoji : null, isWeapon: isWeapon(ch.id) })),
@@ -223,7 +223,7 @@ export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: strin
 /** 放置ツリー（自動効率）。 */
 export interface MineIdleVM { readonly lv: number; readonly maxLv: number; readonly autoEffPct: number; readonly cost: number | null; readonly can: boolean; readonly maxed: boolean }
 export interface MinePrestigeVM {
-  readonly prestiges: number; readonly points: number;
+  readonly prestiges: number; readonly points: number; readonly runPoints: number;
   readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[];
   readonly weaponTree: readonly MineWeaponTreeVM[]; readonly idle: MineIdleVM;
 }
@@ -242,6 +242,7 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
   return {
     prestiges: state.prestiges,
     points: state.points,
+    runPoints: state.runPoints,
     materials: MATERIAL_IDS.map((id) => ({ id, emoji: B.kinds[id].emoji, name: B.kinds[id].name, count: state.materials[id] })),
     perms: PERM_IDS.map((id) => {
       const meta = permLabel(id);

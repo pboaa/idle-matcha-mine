@@ -102,7 +102,7 @@ export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalanc
   return { ...state, points: state.points - cost, perm: { ...state.perm, idle: state.perm.idle + 1 } };
 }
 
-/** 転生: 走行をリセット。鉱石・★ポイント・恒久は引き継ぐ（走行限定のみリセット）。 */
+/** 転生: 走行をリセット。獲得予定★(runPoints)をここで★(points)に加算してもらえる。鉱石・恒久は保持。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, state.points);
+  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, state.points + state.runPoints);
 }

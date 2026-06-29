@@ -104,15 +104,18 @@ export interface WeaponSkillNode {
 }
 // 木生成用の小さな決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
-/** 1武器ぶんの分岐ツリーを生成（多数の+5%＋たまに大ノード、列ごとに前提で広がる）。 */
-function genSkillTree(seed: number): WeaponSkillNode[] {
+/** 1武器ぶんの分岐ツリーを生成（多数の+5%＋たまに大ノード/貫通/固有などの特殊強化）。 */
+function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const rnd = treeRand(seed);
+  const canPierce = weaponStatApplies('pierce', w); // 直線系(ビーム/ドリル)だけ貫通が有効
   const nodes: WeaponSkillNode[] = [];
   const add = (x: number, y: number, requires: number[]): number => {
     const r = rnd();
     let stat: WeaponStat = 'damage', amount = 0.05, cost = (x + 1) * 2, big: boolean | undefined;
-    if (x >= 3 && r < 0.10) { stat = 'range'; amount = 1; cost = (x + 1) * 6; big = true; }
-    else if (x >= 2 && r < 0.22) { stat = 'unique'; amount = 0.10; cost = (x + 1) * 8; big = true; }
+    if (x >= 3 && r < 0.12) { // 大ノード: 射程 or 貫通（直線系）
+      if (canPierce && rnd() < 0.5) { stat = 'pierce'; amount = 1; } else { stat = 'range'; amount = 1; }
+      cost = (x + 1) * 6; big = true;
+    } else if (x >= 2 && r < 0.24) { stat = 'unique'; amount = 0.10; cost = (x + 1) * 8; big = true; } // 特殊: 固有
     else if (r < 0.40) { stat = 'speed'; amount = 0.05; }
     nodes.push({ x, y, stat, amount, cost, big, requires });
     return nodes.length - 1;
@@ -135,7 +138,7 @@ function genSkillTree(seed: number): WeaponSkillNode[] {
 }
 /** 武器ごとのスキルツリー（形が様々・起点ノード0は前提なし）。 */
 export const WEAPON_SKILL_TREES: Record<WeaponId, readonly WeaponSkillNode[]> =
-  Object.fromEntries(WEAPON_IDS.map((w, i) => [w, genSkillTree(Math.imul(i + 1, 2654435761))])) as unknown as Record<WeaponId, readonly WeaponSkillNode[]>;
+  Object.fromEntries(WEAPON_IDS.map((w, i) => [w, genSkillTree(Math.imul(i + 1, 2654435761), w)])) as unknown as Record<WeaponId, readonly WeaponSkillNode[]>;
 export const weaponSkillNodes = (w: WeaponId): readonly WeaponSkillNode[] => WEAPON_SKILL_TREES[w];
 
 // ===== コインで買う全体強化（走行限定・転生でリセット）。採掘ブースト(boost)に加えての全体バフ。 =====
