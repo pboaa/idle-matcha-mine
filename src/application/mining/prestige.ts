@@ -37,31 +37,18 @@ export function allowedWeapons(perm: Perm, b: MiningBalance = defaultMiningBalan
   return [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER.filter((w) => perm.starEarned >= weaponUnlockStar(w, b))];
 }
 
-/** その階層を次へ進めるのに必要な解放数（終盤ほど多い＝上げにくい）。 */
-export function skillTierNeed(weapon: WeaponId, tier: number, b: MiningBalance = defaultMiningBalance): number {
-  const inTier = weaponSkillNodes(weapon).filter((n) => n.tier === tier).length;
-  return Math.min(inTier, b.tierUnlockCount + tier); // tier0=3, tier1=4, tier2=5… と段々厳しく
-}
-/** その階層(列)が解禁済みか（下の各階層を skillTierNeed だけ買っていれば次が開く）。 */
-export function skillTierOpen(weapon: WeaponId, unlocked: readonly number[], tier: number, b: MiningBalance = defaultMiningBalance): boolean {
-  if (tier <= 0) return true;
-  const nodes = weaponSkillNodes(weapon);
-  for (let t = 0; t < tier; t++) {
-    const bought = unlocked.filter((i) => nodes[i]?.tier === t).length;
-    if (bought < skillTierNeed(weapon, t, b)) return false; // 下の階層がまだ条件未達
-  }
-  return true;
-}
-/** そのノードが今解放できるか（未解放・階層が解禁済み・素材は別途チェック）。 */
-export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number, b: MiningBalance = defaultMiningBalance): boolean {
+/** そのノードが今解放できるか（未解放・中央 or 隣接が解放済み・素材は別途チェック）。
+ * グリッド型ツリー：中央(root)は最初から可、以降は上下左右どれかが解放済みなら解禁＝外へ広げていく。 */
+export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number): boolean {
   const n = weaponSkillNodes(weapon)[nodeIndex];
-  return !!n && !unlocked.includes(nodeIndex) && skillTierOpen(weapon, unlocked, n.tier, b);
+  if (!n || unlocked.includes(nodeIndex)) return false;
+  return !!n.root || n.requires.some((r) => unlocked.includes(r));
 }
-/** 武器スキルツリーのノードを1つ解放（階層解禁＋素材を満たせば）。 */
-export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number, b: MiningBalance = defaultMiningBalance): MineState {
+/** 武器スキルツリーのノードを1つ解放（隣接解禁＋素材を満たせば）。 */
+export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number): MineState {
   const unlocked = state.perm.weaponSkill[weapon];
   const node = weaponSkillNodes(weapon)[nodeIndex];
-  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex, b) || state.materials[node.matId] < node.matCost) return state;
+  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex) || state.materials[node.matId] < node.matCost) return state;
   const materials = { ...state.materials, [node.matId]: state.materials[node.matId] - node.matCost };
   const weaponSkill = { ...state.perm.weaponSkill, [weapon]: [...unlocked, nodeIndex] };
   return { ...state, materials, perm: { ...state.perm, weaponSkill } };

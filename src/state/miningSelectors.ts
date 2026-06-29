@@ -3,10 +3,10 @@ import { sameCell } from '@domain/grid/position';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '@domain/mining/tile';
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul } from '@application/mining/upgrades';
-import { coinUpCost, skillNodeUnlockable, skillTierOpen, skillTierNeed, weaponSkillStats, autoEfficiency, idleCost, idleMaxLevel, weaponUnlockStar, globalDamageMult, IDLE_MATERIAL } from '@application/mining/prestige';
+import { coinUpCost, skillNodeUnlockable, weaponSkillStats, autoEfficiency, idleCost, idleMaxLevel, weaponUnlockStar, globalDamageMult, IDLE_MATERIAL } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
-  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, WEAPON_STATS, WEAPON_UNLOCK_ORDER, SKILL_TIERS, COIN_UP_IDS, COIN_UP_DEFS, BASE_WEAPONS, defaultMiningBalance, choiceMeta, isWeapon,
+  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, WEAPON_STATS, WEAPON_UNLOCK_ORDER, SKILL_GRID, COIN_UP_IDS, COIN_UP_DEFS, BASE_WEAPONS, defaultMiningBalance, choiceMeta, isWeapon,
   WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STAT_DEFS, weaponSkillNodes,
   type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern, type WeaponStat, type CoinUpId,
 } from '@domain/mining/balance';
@@ -215,17 +215,15 @@ export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: s
 /** 武器ごとの恒久スキルツリー（武器別サブタブ・分岐グラフ）。 */
 export interface MineSkillNodeVM {
   readonly index: number; readonly x: number; readonly y: number; readonly tier: number;
-  readonly emoji: string; readonly label: string; readonly big: boolean;
+  readonly emoji: string; readonly label: string; readonly big: boolean; readonly root: boolean;
   readonly matEmoji: string; readonly matCost: number; // 素材コスト
-  readonly requires: readonly number[]; readonly state: 'unlocked' | 'available' | 'locked'; readonly can: boolean;
+  readonly state: 'unlocked' | 'available' | 'locked'; readonly visible: boolean; readonly can: boolean;
 }
 /** ツリーで強化された累積内容（分かりやすい表示用）。 */
 export interface MineTreeStatVM { readonly emoji: string; readonly label: string; readonly text: string }
-/** 階層タブ1段ぶん（垂直タブ表示用）。 */
-export interface MineTierVM { readonly tier: number; readonly open: boolean; readonly bought: number; readonly total: number; readonly need: number }
 export interface MineWeaponTreeVM {
   readonly id: WeaponId; readonly emoji: string; readonly label: string;
-  readonly skillNodes: readonly MineSkillNodeVM[]; readonly tiers: readonly MineTierVM[]; readonly skillUnlocked: number; readonly skillTotal: number;
+  readonly skillNodes: readonly MineSkillNodeVM[]; readonly grid: number; readonly skillUnlocked: number; readonly skillTotal: number;
   readonly mastery: number; readonly masteryPct: number; readonly stats: readonly MineTreeStatVM[];
 }
 /** 放置ツリー（自動効率・素材=銀）。 */
@@ -280,25 +278,21 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
         emoji: WEAPON_STAT_DEFS[s].emoji, label: WEAPON_STAT_DEFS[s].label,
         text: s === 'range' || s === 'pierce' || s === 'area' ? `+${acc[s]}` : `+${Math.round(acc[s] * 100)}%`,
       }));
-      const tiers: MineTierVM[] = Array.from({ length: SKILL_TIERS }, (_, tier) => {
-        const inTier = nodes.filter((n) => n.tier === tier).length;
-        const bought = unlocked.filter((i) => nodes[i]?.tier === tier).length;
-        return { tier, open: skillTierOpen(w, unlocked, tier), bought, total: inTier, need: skillTierNeed(w, tier) };
+      const skillNodes = nodes.map((n, i) => {
+        const isUnlocked = unlocked.includes(i);
+        const available = skillNodeUnlockable(w, unlocked, i);
+        return {
+          index: i, x: n.x, y: n.y, tier: n.tier, emoji: WEAPON_STAT_DEFS[n.stat].emoji, label: skillNodeLabel(n.stat, n.amount),
+          matEmoji: matEmoji(n.matId), matCost: n.matCost, big: !!n.big, root: !!n.root,
+          state: isUnlocked ? 'unlocked' as const : available ? 'available' as const : 'locked' as const,
+          visible: isUnlocked || available, // 解放済み or 隣接で解禁可＝「見えている」（広げると現れる）
+          can: available && state.materials[n.matId] >= n.matCost,
+        };
       });
       return {
-        id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, tiers,
+        id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, grid: SKILL_GRID,
         skillUnlocked: unlocked.length, skillTotal: nodes.length,
-        mastery, masteryPct: Math.round(mastery * B.masteryPerLvl * 100), stats,
-        skillNodes: nodes.map((n, i) => {
-          const isUnlocked = unlocked.includes(i);
-          const available = skillNodeUnlockable(w, unlocked, i);
-          return {
-            index: i, x: n.x, y: n.y, tier: n.tier, emoji: WEAPON_STAT_DEFS[n.stat].emoji, label: skillNodeLabel(n.stat, n.amount),
-            matEmoji: matEmoji(n.matId), matCost: n.matCost, big: !!n.big, requires: n.requires,
-            state: isUnlocked ? 'unlocked' as const : available ? 'available' as const : 'locked' as const,
-            can: available && state.materials[n.matId] >= n.matCost,
-          };
-        }),
+        mastery, masteryPct: Math.round(mastery * B.masteryPerLvl * 100), stats, skillNodes,
       };
     }),
   };

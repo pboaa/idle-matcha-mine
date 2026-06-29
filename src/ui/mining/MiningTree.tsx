@@ -1,39 +1,22 @@
+import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { useState } from 'react';
-import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM, type MineTierVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
-const nodeCls = (n: MineSkillNodeVM): string =>
-  n.state === 'unlocked' ? 'bg-amber-700 text-amber-50 ring-amber-400'
-    : n.state === 'available' ? (n.can ? 'bg-amber-500 text-stone-900 ring-amber-300 hover:bg-amber-400 active:scale-95 cursor-pointer' : 'bg-stone-700 text-stone-400 ring-stone-600 cursor-not-allowed')
-      : 'bg-stone-800 text-stone-600 ring-stone-700 cursor-not-allowed';
+const cellCls = (n: MineSkillNodeVM): string =>
+  n.state === 'unlocked' ? (n.root ? 'bg-amber-600 text-amber-50 ring-amber-300' : 'bg-amber-700 text-amber-50 ring-amber-500')
+    : n.state === 'available' ? (n.can ? 'bg-amber-500 text-stone-900 ring-amber-300 hover:bg-amber-400 active:scale-95 cursor-pointer' : 'bg-stone-700 text-amber-200/80 ring-stone-500 cursor-not-allowed')
+      : 'bg-stone-900/60 text-transparent ring-stone-800/60 cursor-default'; // 未到達＝ほぼ非表示（広げると現れる）
 
-/** 1階層ぶんのノードを格子（折り返し）で表示。横に伸びず一定幅で収まる。 */
-function TierNodes({ nodes, onBuy }: { nodes: readonly MineSkillNodeVM[]; onBuy: (index: number) => void }) {
+/** グリッド型スキルツリー：中央から外へ。隣接ノードを買うと外側が現れる。横に伸びず正方形で収まる。 */
+function SkillGrid({ grid, nodes, onBuy }: { grid: number; nodes: readonly MineSkillNodeVM[]; onBuy: (index: number) => void }) {
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${grid}, 1.55rem)` }}>
       {nodes.map((n) => (
         <button key={n.index} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.index)}
-          title={`${n.label}${n.big ? '（特殊）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.state === 'available' ? (n.can ? 'クリックで解放' : '素材不足') : '上の階層を埋めると解禁'} ／ ${n.matEmoji}${n.matCost}`}
-          className={['flex flex-col items-center justify-center rounded-md px-1 py-1.5 text-[14px] leading-none ring-1 transition', n.big ? 'ring-2' : '', nodeCls(n)].join(' ')}>
-          <span>{n.state === 'unlocked' ? '✓' : n.emoji}</span>
-          <span className="mt-0.5 text-[8px] leading-none opacity-90">{n.state === 'unlocked' ? '済' : `${n.matEmoji}${formatNumber(n.matCost)}`}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** 階層の垂直タブ（上→下＝階層1→5。未解禁はロック。終盤ほど上げにくい）。 */
-function TierTabs({ tiers, sel, onSelect }: { tiers: readonly MineTierVM[]; sel: number; onSelect: (t: number) => void }) {
-  return (
-    <div className="flex w-16 shrink-0 flex-col gap-1">
-      {tiers.map((t) => (
-        <button key={t.tier} onClick={() => onSelect(t.tier)}
-          title={t.open ? `階層${t.tier + 1}（${t.bought}/${t.total}解放・次へは${t.need}個）` : `階層${t.tier + 1}：上の階層を ${t.need} 個解放で解禁`}
-          className={['flex flex-col items-center rounded-md px-1 py-1.5 text-[10px] leading-tight ring-1 transition',
-            sel === t.tier ? 'bg-amber-500 text-stone-900 ring-amber-300' : t.open ? 'bg-stone-700 text-stone-200 ring-stone-600 hover:bg-stone-600' : 'bg-stone-800 text-stone-500 ring-stone-700'].join(' ')}>
-          <span className="font-bold">{t.open ? `階層${t.tier + 1}` : `🔒${t.tier + 1}`}</span>
-          <span className="text-[8px] opacity-90">{t.bought}/{t.total}</span>
+          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? 'クリックで解放' : '素材不足'} ／ ${n.matEmoji}${n.matCost}`}
+          className={['flex h-[1.55rem] flex-col items-center justify-center rounded-[3px] text-[11px] leading-none ring-1 transition', n.big && n.visible ? 'ring-2' : '', cellCls(n)].join(' ')}>
+          {n.visible && <span>{n.state === 'unlocked' ? (n.root ? '◎' : '✓') : n.emoji}</span>}
+          {n.visible && n.state !== 'unlocked' && <span className="text-[7px] leading-none opacity-90">{n.matEmoji}{n.matCost >= 1000 ? formatNumber(n.matCost) : n.matCost}</span>}
         </button>
       ))}
     </div>
@@ -47,9 +30,7 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   const buyIdle = useMineBuyIdle();
   const refine = useMineRefine();
   const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
-  const [tierSel, setTierSel] = useState(0);
   const wt = p.weaponTree.find((w) => w.id === weaponSel) ?? p.weaponTree[0]!;
-  const tierNodes = wt.skillNodes.filter((n) => n.tier === tierSel);
 
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
@@ -109,10 +90,10 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
 
       {/* 武器ごとの強化（垂直タブで階層・素材で解放） */}
       <div>
-        <div className="mb-1 text-[10px] text-stone-500">武器ごとの強化（素材で解放・階層を一定数解放で次が解禁・終盤ほど上げにくい）</div>
+        <div className="mb-1 text-[10px] text-stone-500">武器ごとの強化（中央から外へ広げる・隣を解放すると外側が現れる・外ほど高コスト＝終盤）</div>
         <div className="mb-1 flex flex-wrap gap-1">
           {p.weaponTree.map((w) => (
-            <button key={w.id} onClick={() => { setWeaponSel(w.id); setTierSel(Math.max(0, ...w.tiers.filter((t) => t.open).map((t) => t.tier))); }} title={`${w.label}｜熟練Lv${w.mastery}（+${w.masteryPct}% 火力・転生で使うと上昇）`}
+            <button key={w.id} onClick={() => setWeaponSel(w.id)} title={`${w.label}｜熟練Lv${w.mastery}（+${w.masteryPct}% 火力・転生で使うと上昇）`}
               className={['relative rounded-md px-2 py-1 text-[14px] leading-none transition', weaponSel === w.id ? 'bg-amber-400 ring-1 ring-amber-200' : 'bg-stone-700 hover:bg-stone-600'].join(' ')}>
               {w.emoji}
               {w.mastery > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1 text-[8px] font-bold leading-tight text-white">{w.mastery}</span>}
@@ -130,16 +111,7 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
               ? <span className="text-[10px] text-stone-600">まだ強化なし</span>
               : wt.stats.map((s) => <span key={s.label} title={s.label} className="text-amber-100">{s.emoji}<b className="text-amber-300">{s.text}</b></span>)}
           </div>
-          {/* 垂直タブ（階層）＋ 選択中の階層のノード格子（横に伸びない） */}
-          <div className="flex gap-2">
-            <TierTabs tiers={wt.tiers} sel={tierSel} onSelect={setTierSel} />
-            <div className="min-w-0 flex-1">
-              {wt.tiers[tierSel] && !wt.tiers[tierSel]!.open && (
-                <div className="mb-1 rounded bg-stone-800/60 px-2 py-1 text-[10px] text-stone-400">🔒 上の階層を {wt.tiers[tierSel]!.need} 個解放すると解禁</div>
-              )}
-              <TierNodes nodes={tierNodes} onBuy={(i) => buyWeaponSkill(wt.id, i)} />
-            </div>
-          </div>
+          <SkillGrid grid={wt.grid} nodes={wt.skillNodes} onBuy={(i) => buyWeaponSkill(wt.id, i)} />
         </div>
       </div>
     </div>

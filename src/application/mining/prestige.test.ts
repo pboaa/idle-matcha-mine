@@ -63,36 +63,32 @@ describe('mining/prestige', () => {
   });
 
 
-  it('武器スキルツリー(階層): 素材で解放・下の階層を埋めると次が解禁', () => {
+  it('武器スキルツリー(グリッド): 中央が起点・隣接を解放すると外側が解禁される', () => {
     const nodes = weaponSkillNodes('pick');
-    const tier0 = nodes.map((_, i) => i).filter((i) => nodes[i]!.tier === 0);
-    const tier1plus = nodes.findIndex((n) => n.tier >= 1); // 上の階層のノード
+    const rootIdx = nodes.findIndex((n) => n.root);
+    const farIdx = nodes.findIndex((n) => n.tier >= 2); // 中央から遠い（隣接していない）マス
     const rich = { ...emptyMaterials() };
-    for (const id of MATERIAL_IDS) rich[id] = 99999; // 素材たっぷり
+    for (const id of MATERIAL_IDS) rich[id] = 999999; // 素材たっぷり
     const s0 = { ...initialMineState(), materials: rich };
-    expect(skillNodeUnlockable('pick', [], tier0[0]!)).toBe(true);       // 起点(tier0)は解禁済み
-    expect(skillNodeUnlockable('pick', [], tier1plus)).toBe(false);      // 下の階層が未達なので不可
-    const n0 = nodes[tier0[0]!]!;
-    const s1 = buyWeaponSkill(s0, 'pick', tier0[0]!);
-    expect(s1.perm.weaponSkill.pick).toEqual([tier0[0]]);               // 起点解放
-    expect(s1.materials[n0.matId]).toBe(99999 - n0.matCost);            // 素材消費
-    // tier0 を tierUnlockCount だけ買うと tier1 が解禁される
-    let s = s0;
-    for (const i of tier0.slice(0, B.tierUnlockCount)) s = buyWeaponSkill(s, 'pick', i);
-    expect(skillNodeUnlockable('pick', s.perm.weaponSkill.pick, tier1plus)).toBe(true);
+    expect(skillNodeUnlockable('pick', [], rootIdx)).toBe(true);       // 中央は最初から解放可
+    expect(skillNodeUnlockable('pick', [], farIdx)).toBe(false);       // 遠いマスは隣接が未解放なので不可
+    const root = nodes[rootIdx]!;
+    const s1 = buyWeaponSkill(s0, 'pick', rootIdx);
+    expect(s1.perm.weaponSkill.pick).toEqual([rootIdx]);              // 中央解放
+    expect(s1.materials[root.matId]).toBe(999999 - root.matCost);     // 素材消費
+    // 中央の隣接マスが解禁される
+    const neighbor = root.requires[0]!;
+    expect(skillNodeUnlockable('pick', s1.perm.weaponSkill.pick, neighbor)).toBe(true);
     const poor = { ...initialMineState(), materials: emptyMaterials() };
-    expect(buyWeaponSkill(poor, 'pick', tier0[0]!).perm.weaponSkill.pick).toEqual([]); // 素材不足で不可
+    expect(buyWeaponSkill(poor, 'pick', rootIdx).perm.weaponSkill.pick).toEqual([]); // 素材不足で不可
   });
 
-  it('武器スキルツリーはノードが多く・序盤に範囲ノード(土)・武器ごとに形が違う', () => {
+  it('ツルハシ: 中央左右の範囲ノードが安い土・武器ごとに形が違う', () => {
     const pick = weaponSkillNodes('pick'); const beam = weaponSkillNodes('beam');
-    expect(pick.length).toBeGreaterThan(8);                         // ノードがいっぱい
-    expect(pick.filter((n) => n.stat === 'damage').length).toBeGreaterThanOrEqual(3); // +ダメージも複数ある
-    // ツルハシ: tier1に範囲(area)ノードが2つ・どちらも土で序盤に取れる（3方向化）
-    const area1 = pick.filter((n) => n.stat === 'area' && n.tier === 1);
-    expect(area1.length).toBe(2);
-    expect(area1.every((n) => n.matId === 'dirt' && n.matCost >= 300 && n.matCost <= 800)).toBe(true);
-    expect(pick.map((n) => `${n.x},${n.y}`).join('|')).not.toBe(beam.map((n) => `${n.x},${n.y}`).join('|')); // 形が違う
+    const lr = pick.filter((n) => n.stat === 'area');
+    expect(lr.length).toBeGreaterThanOrEqual(2);                    // 範囲ノード（左右）
+    expect(lr.some((n) => n.matId === 'dirt' && n.matCost <= 50)).toBe(true); // 安い土＝サクサク3方向
+    expect(pick.map((n) => `${n.stat}`).join('|')).not.toBe(beam.map((n) => `${n.stat}`).join('|')); // 形が違う
   });
 
   it('転生: 走行リセット・鉱石/累計★/回数は保持', () => {

@@ -57,7 +57,7 @@ export const WEAPON_UNLOCK_ORDER: readonly WeaponId[] = ['bomb', 'beam', 'drill'
 
 // ===== 武器ごとの恒久スキルツリー（強化／ツリーのマスターデータは skilltree.ts に分離・ここで再エクスポート） =====
 export type { WeaponStat, WeaponStatDef, WeaponSkillNode } from '@domain/mining/skilltree';
-export { WEAPON_STATS, WEAPON_STAT_DEFS, weaponStatApplies, SKILL_TIERS, weaponSkillNodes } from '@domain/mining/skilltree';
+export { WEAPON_STATS, WEAPON_STAT_DEFS, weaponStatApplies, SKILL_GRID, weaponSkillNodes } from '@domain/mining/skilltree';
 
 // ===== コインで買う全体強化（走行限定・転生でリセット）。採掘ブースト(boost)に加えての全体バフ。 =====
 export type CoinUpId = 'haste' | 'greed' | 'luck';
@@ -116,8 +116,7 @@ export interface MiningBalance {
   readonly weaponUnlockStars: readonly number[]; // 武器を累計★で自動解放する閾値（WEAPON_UNLOCK_ORDER順）
   // ★(累計)は消費せず、貯まるほど全体ダメージが自動で上がる（1+starDmgPerLvl×√累計★＝√で逓減・壊れない）。
   readonly starDmgPerLvl: number;
-  // 武器スキルツリー（素材で買う・階層制）。階層ごとに素材の質と量が上がる（コストはノードに焼き込み）。
-  readonly tierUnlockCount: number;  // 各階層で何ノード買えば次の階層が解禁されるか
+  // 武器スキルツリー（素材で買う・グリッド型・中央から隣接で解禁）。コストはノードに焼き込み。
   readonly idleMatCostBase: number; readonly idleMatCostGrowth: number; // 放置ツリー（素材・銀）
   readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
   readonly masteryGateBase: number; readonly masteryGateGrowth: number; // 熟練+1に必要な「その走行のその武器ダメージ」閾値（Lvが上がるほど高く＝段々取りにくく）
@@ -171,7 +170,6 @@ export const defaultMiningBalance: MiningBalance = {
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockStars: [20, 55, 120, 220, 380],
   starDmgPerLvl: 0.12,
-  tierUnlockCount: 3,
   idleMatCostBase: 4, idleMatCostGrowth: 1.6,
   masteryPerLvl: 0.08,
   masteryGateBase: 300, masteryGateGrowth: 1.9,
