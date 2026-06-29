@@ -103,11 +103,10 @@ function genGrid(cfg: GridConfig): WeaponSkillNode[] {
   return cells.map((cell) => ({ x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined, matCosts: nodeCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell) }));
 }
 
+// 貫通(pierce)・範囲(area)のツリー強化は削除（射程rangeと固有uniqueのみ）。範囲/貫通は武器レベルや走行内で。
 function weaponSpecials(w: WeaponId): WeaponStat[] {
   const out: WeaponStat[] = [];
-  if (weaponStatApplies('area', w)) out.push('area');
-  if (WEAPON_DEFS[w].pattern !== 'front') out.push('range');
-  if (weaponStatApplies('pierce', w)) out.push('pierce');
+  if (WEAPON_DEFS[w].pattern !== 'front') out.push('range'); // 射程（ツルハシは射程概念なし）
   out.push('unique');
   return out;
 }
@@ -117,12 +116,10 @@ const treeCache = new Map<WeaponId, readonly WeaponSkillNode[]>();
 export function weaponSkillNodes(w: WeaponId): readonly WeaponSkillNode[] {
   let t = treeCache.get(w);
   if (!t) {
-    const isPick = WEAPON_DEFS[w].pattern === 'front';
-    const specials = weaponSpecials(w).filter((s) => !(isPick && s === 'area')); // ツルハシの範囲は中央左右ぶん
     t = genGrid({
       seed: Math.imul(WEAPON_IDS.indexOf(w) + 1, 2654435761),
       fillers: [{ stat: 'damage', amount: 0.03, w: 6 }, { stat: 'speed', amount: 0.03, w: 4 }],
-      specials, specialAmount: (s, g) => (s === 'unique' ? 0.10 + g * 0.01 : 1), pickArea: isPick,
+      specials: weaponSpecials(w), specialAmount: (s, g) => (s === 'unique' ? 0.10 + g * 0.01 : 1),
     });
     treeCache.set(w, t);
   }

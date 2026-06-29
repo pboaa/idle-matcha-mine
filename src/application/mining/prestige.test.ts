@@ -82,12 +82,11 @@ describe('mining/prestige', () => {
     expect(buyWeaponSkill(poor, 'pick', rootIdx).perm.weaponSkill.pick).toEqual([]); // 素材不足で不可
   });
 
-  it('ツルハシ: 中央左右の範囲ノードが安い土・武器ごとに形が違う', () => {
+  it('武器ツリーは武器ごとに形が違う（貫通/範囲は無し）', () => {
     const pick = weaponSkillNodes('pick'); const beam = weaponSkillNodes('beam');
-    const lr = pick.filter((n) => n.stat === 'area');
-    expect(lr.length).toBeGreaterThanOrEqual(2);                    // 範囲ノード（左右）
-    expect(lr.some((n) => n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い土＝サクサク3方向
-    expect(pick.map((n) => `${n.stat}`).join('|')).not.toBe(beam.map((n) => `${n.stat}`).join('|')); // 形が違う
+    expect(pick.some((n) => n.stat === 'area' || n.stat === 'pierce')).toBe(false);
+    expect(beam.some((n) => n.stat === 'area' || n.stat === 'pierce')).toBe(false);
+    expect(pick.map((n) => n.stat).join('|')).not.toBe(beam.map((n) => n.stat).join('|')); // 形が違う
   });
 
   it('一気に上げる: 解禁可能＆素材が足りるノードを買えるだけ買う', () => {
