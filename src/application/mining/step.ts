@@ -156,12 +156,12 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     dmgAcc[w] += amt;
     let hc = hits.get(w); if (!hc) { hc = []; hits.set(w, hc); } hc.push(cell); // 命中マスを記録（演出）
     const k = cellKey(cell);
-    const HP = tileHardness(state.floor, tileDist(cell, b), b); // 拠点から離れるほど固い
+    const kind = kindAt(cell, state.floor, b);
+    const HP = tileHardness(state.floor, tileDist(cell, b), kind.hardMult, b); // 距離＋種類で固さが変わる
     const d = (damage.get(k) ?? 0) + amt;
     if (d < HP) { damage.set(k, d); return; }
     damage.delete(k);
     dug.add(k);
-    const kind = kindAt(cell, state.floor, b);
     coins += tileValue(kind, state.floor, coinMult, b);
     materials[kind.id] += 1 + (rng.next() < matChance ? 1 : 0); // 強欲
     xpGain += 1 + t.xp;

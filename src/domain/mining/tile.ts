@@ -31,9 +31,9 @@ export const tileDist = (c: Cell, b: MiningBalance = defaultMiningBalance): numb
   return Math.max(Math.abs(c.x - base.x), Math.abs(c.y - base.y));
 };
 
-/** 採掘1ブロックのHP（階が深いほど硬い[幾何級数]＋拠点から離れるほど硬い[距離]）。乗算火力に追従しつつ、同じ階でも外周は手応えが増す。 */
-export const tileHardness = (floor: number, dist: number, b: MiningBalance = defaultMiningBalance): number =>
-  b.hardnessBase * Math.pow(b.hardnessGrowth, floor) * (1 + dist * b.distHardness);
+/** 採掘1ブロックのHP（階[幾何級数]×拠点距離×種類）。深い階・外周・上位鉱石ほど硬い。 */
+export const tileHardness = (floor: number, dist: number, hardMult = 1, b: MiningBalance = defaultMiningBalance): number =>
+  b.hardnessBase * Math.pow(b.hardnessGrowth, floor) * (1 + dist * b.distHardness) * hardMult;
 
 /** 採掘で得る価値（種類 × 階の深さ[幾何級数] × コイン倍率）。硬さより緩い倍率で「深い＝リッチだが無限インフレしない」。 */
 export const tileValue = (kind: MiningKind, floor: number, coinMult: number, b: MiningBalance = defaultMiningBalance): number =>

@@ -23,7 +23,7 @@ const TOTAL_TILES = totalTilesOf(B);
 const matEmoji = (id: MaterialId): string => B.kinds[id].emoji;
 
 // ===== 盤面ビュー =====
-export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number }
+export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number; readonly tough: number }
 export interface MineDropVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string }
 /** 武器命中エフェクトの見た目種別（パターンから決まる）。 */
 export type MineEffectKind = 'line' | 'burst' | 'field' | 'impact';
@@ -50,11 +50,16 @@ export function buildMineView(state: MineState): MineViewVM {
     for (let rx = 0; rx < VIEW_W; rx++) {
       const c = { x: x0 + rx, y: y0 + ry };
       const isFront = front !== null && sameCell(c, front);
-      if (!inBounds(c, B)) { tiles.push({ rx, ry, kind: 'wall', color: '#1c1917', isBase: false, front: false, crack: 0 }); continue; }
+      if (!inBounds(c, B)) { tiles.push({ rx, ry, kind: 'wall', color: '#1c1917', isBase: false, front: false, crack: 0, tough: 0 }); continue; }
       const k = `${c.x},${c.y}`;
       const dug = state.dug.has(k);
-      const ratio = dug ? 0 : Math.min(1, (state.damage.get(k) ?? 0) / tileHardness(state.floor, tileDist(c, B), B));
-      tiles.push({ rx, ry, kind: dug ? 'dug' : 'solid', color: dug ? '#2e2a26' : kindAt(c, state.floor, B).color, isBase: c.x === BASE.x && c.y === BASE.y, front: isFront, crack: ratio <= 0 ? 0 : Math.min(3, 1 + Math.floor(ratio * 3)) });
+      const kind = kindAt(c, state.floor, B);
+      const dist = tileDist(c, B);
+      const ratio = dug ? 0 : Math.min(1, (state.damage.get(k) ?? 0) / tileHardness(state.floor, dist, kind.hardMult, B));
+      // 硬さの可視化: 拠点距離×種類で「relHard」を出し、硬いほど暗く（遠い/上位鉱石が一目で分かる）。
+      const relHard = (1 + dist * B.distHardness) * kind.hardMult;
+      const tough = dug ? 0 : Math.min(0.55, Math.max(0, (relHard - 1) / 8));
+      tiles.push({ rx, ry, kind: dug ? 'dug' : 'solid', color: dug ? '#2e2a26' : kind.color, isBase: c.x === BASE.x && c.y === BASE.y, front: isFront, crack: ratio <= 0 ? 0 : Math.min(3, 1 + Math.floor(ratio * 3)), tough });
     }
   }
   const drops: MineDropVM[] = [];

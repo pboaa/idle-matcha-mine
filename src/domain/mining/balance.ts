@@ -4,7 +4,7 @@
 
 export type MaterialId = 'dirt' | 'stone' | 'ore' | 'gem';
 export const MATERIAL_IDS: readonly MaterialId[] = ['dirt', 'stone', 'ore', 'gem'];
-export interface MiningKind { readonly id: MaterialId; readonly name: string; readonly emoji: string; readonly color: string; readonly mult: number }
+export interface MiningKind { readonly id: MaterialId; readonly name: string; readonly emoji: string; readonly color: string; readonly mult: number; readonly hardMult: number }
 
 // ===== 武器・強化のカタログ（ヴァンサバ風・データ駆動） =====
 export type WeaponId = 'pick' | 'bullet' | 'bomb' | 'beam' | 'drill' | 'aura' | 'ring';
@@ -180,10 +180,10 @@ export const defaultMiningBalance: MiningBalance = {
   distHardness: 0.15,
   valueGrowth: 1.13,
   kinds: {
-    dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1 },
-    stone: { id: 'stone', name: '石', emoji: '🪨', color: '#78909c', mult: 2 },
-    ore: { id: 'ore', name: '鉱石', emoji: '🟡', color: '#ffd54f', mult: 5 },
-    gem: { id: 'gem', name: '宝石', emoji: '💎', color: '#4dd0e1', mult: 12 },
+    dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1, hardMult: 1 },
+    stone: { id: 'stone', name: '石', emoji: '🪨', color: '#78909c', mult: 2, hardMult: 1.5 },
+    ore: { id: 'ore', name: '鉱石', emoji: '🟡', color: '#ffd54f', mult: 5, hardMult: 2.5 },
+    gem: { id: 'gem', name: '宝石', emoji: '💎', color: '#4dd0e1', mult: 12, hardMult: 4 },
   },
   kindThresh: {
     stoneBase: 4, stonePerFloor: 2, stoneMax: 40,
