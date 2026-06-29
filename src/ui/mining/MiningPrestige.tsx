@@ -82,15 +82,15 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         ) : <div className="text-[10px] text-indigo-400">まだ熟練度なし。転生すると、その走行で使った武器のダメージが恒久で上がる。</div>}
       </div>
 
-      {/* ポイント（恒久）＋鉱石（今のラン）＋精錬 */}
+      {/* ★ポイント（進行で取得）＋鉱石（永続保存）＋精錬 */}
       <div className="flex flex-col gap-1 rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-700/40">
         <div className="flex items-center justify-between text-[12px]">
           <span className="font-bold text-amber-200">⭐ ポイント {formatNumber(p.points)}</span>
-          <span className="text-[10px] text-amber-300/80">転生で残り鉱石 → +{formatNumber(p.pointsPreview)}pt</span>
+          <span className="text-[10px] text-amber-300/80">レベル/階を進めると貯まる</span>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-stone-200">
-          <span className="text-[10px] text-stone-500">鉱石(今のラン)</span>
-          {p.materials.map((m) => <span key={m.id} title={`${m.name}（ラン中の強化に使用。残りは転生でポイントへ）`}>{m.emoji} {formatNumber(m.count)}</span>)}
+          <span className="text-[10px] text-stone-500">鉱石(保存)</span>
+          {p.materials.map((m) => <span key={m.id} title={`${m.name}（永続保存・後で使う）`}>{m.emoji} {formatNumber(m.count)}</span>)}
           <span className="text-stone-600">｜精錬</span>
           {p.refines.map((r) => (
             <button key={r.from} onClick={() => refine(r.from)} disabled={!r.can} title={`${r.fromEmoji}${r.ratio}個 → ${r.toEmoji}1個`}
@@ -163,7 +163,7 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
 
       <button onClick={doPrestige}
         className="rounded-lg bg-fuchsia-600 px-2 py-2 text-sm font-bold text-white shadow ring-2 ring-fuchsia-300 transition hover:bg-fuchsia-500 active:scale-95">
-        🔄 転生する（残り鉱石 → +{formatNumber(p.pointsPreview)}pt ／ 階・Lv・コインはリセット、ポイント・熟練度は保持）
+        🔄 転生する（階・Lv・コインはリセット ／ 鉱石・★・恒久・熟練度は保持）
       </button>
     </div>
   );

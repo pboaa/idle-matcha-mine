@@ -66,7 +66,7 @@ export function applyOfferChoice(state: MineState, choice: OfferChoice): MineSta
   const lv = { ...state.levels };
   lv[choice.id] += choice.rarity === 'rare' ? 2 : 1;
   if (choice.rarity === 'epic' && choice.bonus) lv[choice.bonus] += 1;
-  return { ...state, levels: lv, offer: null };
+  return { ...state, levels: lv, offer: null, offerAt: null };
 }
 
 // ===== コインの使い道: 目利き（レアが出やすく） =====

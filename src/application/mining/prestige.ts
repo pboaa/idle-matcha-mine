@@ -59,11 +59,7 @@ export function buyCoinUp(state: MineState, id: CoinUpId): MineState {
   return { ...state, coins: state.coins - cost, coinUp: { ...state.coinUp, [id]: state.coinUp[id] + 1 } };
 }
 
-// ===== 武器ごとの恒久スキルツリー（ポイントで解放・tier順） =====
-/** 鉱石→ポイント変換量（種類ごとの価値=kind.mult ×変換係数。少しずつ貯まる）。 */
-export function oreToPoints(materials: MineState['materials'], b: MiningBalance = defaultMiningBalance): number {
-  return Math.floor(MATERIAL_IDS.reduce((a, m) => a + materials[m] * b.kinds[m].mult, 0) * b.oreToPointRate);
-}
+// ===== 武器ごとの恒久スキルツリー（★ポイントで解放・グラフ） =====
 /** そのノードが今解放できるか（前提を全て満たし・未解放）。 */
 export function skillNodeUnlockable(unlocked: readonly number[], nodeIndex: number): boolean {
   const n = WEAPON_SKILL_NODES[nodeIndex];
@@ -114,8 +110,7 @@ export function masteryGainOnPrestige(state: MineState, b: MiningBalance = defau
   return next;
 }
 
-/** 転生: 走行をリセット。残った鉱石はポイントへ変換し、ポイント/恒久/熟練度を引き継ぐ。 */
+/** 転生: 走行をリセット。鉱石・★ポイント・恒久・熟練度は引き継ぐ（走行限定のみリセット）。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const points = state.points + oreToPoints(state.materials, b);
-  return freshRun(b, state.perm, state.prestiges + 1, state.rngState, masteryGainOnPrestige(state, b), points);
+  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, masteryGainOnPrestige(state, b), state.points);
 }

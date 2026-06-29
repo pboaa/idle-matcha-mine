@@ -6,7 +6,7 @@ import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS } from '@do
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { type MineState, type Levels, type WeaponMastery, type WeaponStatLevels, totalMastery } from '@application/mining/mineState';
 import { weaponSkillStats, autoEfficiency } from '@application/mining/prestige';
-import { xpForNext, makeOffer, autoPick, appraiseCost, appraiseCapped, boostCost, boostMul } from '@application/mining/upgrades';
+import { xpForNext, makeOffer, autoPick, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
 export const MINE_STEP_MS = 100;
@@ -191,7 +191,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, skillStats, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
-  if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials }, b);
+  // 階クリアで降下。★ポイントは「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
+  if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials, points: state.points + b.pointsPerFloor * (state.floor + 1) }, b);
 
   // 武器の命中演出を追加（武器ごとに当たったマス）。古いものは寿命で消す。
   let fx = state.fx;
@@ -204,43 +205,41 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 演出ドロップは一定時間で消す（回収は済み）。
   if (drops.length > 0) { const keep = drops.filter((d) => now - d.bornAt < b.dropVisualMs); if (keep.length !== drops.length) drops = keep; }
 
-  // コイン自動購入（自動モード）: 目利き／採掘ブーストの安い方を交互に買う。
-  let meta = state.meta;
-  let boost = state.boost;
-  if (state.autoMode) {
-    let guard = 0;
-    while (guard++ < 100) {
-      const aCost = appraiseCost(meta.appraise, b);
-      const canA = !appraiseCapped(meta.appraise, b) && coins >= aCost;
-      const bCost = boostCost(boost, b);
-      const canB = coins >= bCost;
-      if (!canA && !canB) break;
-      if (canA && (!canB || aCost <= bCost)) { coins -= aCost; meta = { appraise: meta.appraise + 1 }; }
-      else { coins -= bCost; boost += 1; }
-    }
-  }
+  // コイン強化(目利き/ブースト)は手動購入のみ（自動購入はしない）。
+  const meta = state.meta;
+  const boost = state.boost;
 
-  // レベルアップ解決（3択・レア度つき）。熟練度は転生時に上がるのでここでは増えない。
+  // レベルアップ解決（3択・レア度つき）。★は1レベルごとに pointsPerLevel。
+  const pickOffer = (ch: ReturnType<typeof autoPick>, lv: Levels): Levels => {
+    let nx = { ...lv, [ch.id]: lv[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
+    if (ch.rarity === 'epic' && ch.bonus) nx = { ...nx, [ch.bonus]: nx[ch.bonus] + 1 };
+    return nx;
+  };
   let xp = state.xp + xpGain;
   let level = state.level;
   let levels = state.levels;
   let offer = state.offer;
+  let offerAt = state.offerAt;
+  let points = state.points;
+  // 保留中の3択を一定時間放置したら自動選択（手動が基本・なにもしなければ自動）。
+  if (offer && offerAt !== null && now - offerAt >= b.offerAutoMs) {
+    levels = pickOffer(autoPick(offer, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }), levels);
+    offer = null; offerAt = null;
+  }
   while (!offer && xp >= xpForNext(level, b)) {
     xp -= xpForNext(level, b);
     level += 1;
+    points += b.pointsPerLevel; // 進行で★が貯まる
     const choices = makeOffer(rng, levels, meta.appraise, b);
-    if (state.autoMode) {
-      const ch = autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill });
-      levels = { ...levels, [ch.id]: levels[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
-      if (ch.rarity === 'epic' && ch.bonus) levels = { ...levels, [ch.bonus]: levels[ch.bonus] + 1 };
-    } else offer = choices;
+    if (state.autoMode) levels = pickOffer(autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }), levels);
+    else { offer = choices; offerAt = now; } // 手動: 3択を提示して待つ
   }
 
   return {
     ...state,
     time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
     cat: { pos, gauge, target }, cam: { ...pos },
-    xp, level, levels, offer, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials,
+    xp, level, levels, offer, offerAt, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials, points,
   };
 }
 

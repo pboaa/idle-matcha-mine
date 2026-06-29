@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initialMineState, freshRun, emptyPerm, emptyMastery } from '@application/mining/mineState';
+import { initialMineState, freshRun, emptyMaterials, emptyPerm, emptyMastery } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
 import { defaultMiningBalance, WEAPON_IDS } from '@domain/mining/balance';
 
@@ -42,18 +42,31 @@ describe('mining/step', () => {
     expect(boosted).toBeCloseTo(noBoost * 1.8, 5);       // +8%/Lv × 10 = ×1.8
   });
 
-  it('自動モードでコインが目利き/ブーストに使われる（消費先がある）', () => {
-    const s = stepMine(initialMineState(), 180_000); // のんびり経済: 数分でブースト等に回り始める
-    expect(s.meta.appraise + s.boost).toBeGreaterThan(0); // どちらかにコインが回る
+  it('コインは貯まり、強化購入は手動（自動購入はしない）', () => {
+    const s = stepMine(initialMineState(), 60_000);
+    expect(s.coins).toBeGreaterThan(0);   // コインは貯まる（使い道は手動）
+    expect(s.meta.appraise).toBe(0);      // 自動では目利きを買わない
+    expect(s.boost).toBe(0);              // 自動ではブーストも買わない
   });
 
   it('熟練度(永続)は周回で序盤を速くする（合計熟練の移動/射程スループット）', () => {
     const masteryAll = (n: number) => { const m = emptyMastery(); for (const w of WEAPON_IDS) m[w] = n; return m; };
-    const fresh = (n: number) => freshRun(defaultMiningBalance, emptyPerm(), 0, 123456, masteryAll(n));
+    const fresh = (n: number) => freshRun(defaultMiningBalance, emptyMaterials(), emptyPerm(), 0, 123456, masteryAll(n));
     const low = stepMine(fresh(0), 120_000);
     const high = stepMine(fresh(20), 120_000); // 周回を重ねた状態（各武器+20）
     // 累計採掘量（階×総タイル + その階の採掘）で比較＝より多く掘れている＝サクサク
     expect(high.dug.size + high.floor * 900).toBeGreaterThan(low.dug.size + low.floor * 900);
+  });
+
+  it('手動の3択は一定時間(offerAutoMs)放置で自動選択される', () => {
+    const B = defaultMiningBalance;
+    const ch = { id: 'power', rarity: 'common', bonus: null } as const;
+    const base = initialMineState();
+    // 既に3択が出てから offerAutoMs 経過した状態（xpは低くして新規offerが出ないように）
+    const s0 = { ...base, autoMode: false, offer: [ch, ch, ch], offerAt: 0, time: B.offerAutoMs + 100, xp: 0 };
+    const s1 = stepMine(s0, 100);
+    expect(s1.offer).toBeNull();                                  // 放置で自動選択
+    expect(s1.levels.power).toBeGreaterThan(base.levels.power);   // 何か取得された
   });
 
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {

@@ -178,7 +178,9 @@ export interface MiningBalance {
   readonly masteryRangePerLvl: number;   // 合計熟練ごとに武器の射程/範囲+1（永続・浅い階を一掃＝サクサク）
   readonly masteryMinTiles: number;      // この走行で最低これだけ掘らないと熟練度を獲得できない（転生連打の抑止）
 
-  readonly oreToPointRate: number; // 鉱石(価値=kind.mult)→ポイント変換係数。少しずつ貯めて大ノードを解放する想定。
+  readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
+  readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
+  readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
 
   // 自動モードの効率（自動は火力が下がる。放置ツリーをポイントで上げると100%へ）
   readonly autoEffBase: number;    // 放置ツリーLv0での自動効率（火力倍率）
@@ -199,9 +201,9 @@ export const defaultMiningBalance: MiningBalance = {
   dropVisualMs: 900,
   fxVisualMs: 220,
 
-  hardnessBase: 2,
+  hardnessBase: 1.2,
   hardnessGrowth: 1.34,
-  distHardness: 0.15,
+  distHardness: 0.1,
   valueGrowth: 1.13,
   kinds: {
     dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1, hardMult: 1 },
@@ -230,7 +232,7 @@ export const defaultMiningBalance: MiningBalance = {
 
   masteryPerLvl: 0.10, masteryMovePerLvl: 0.02, masteryRangePerLvl: 0.05, masteryMinTiles: 40,
 
-  oreToPointRate: 0.03,
+  pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
 
   autoEffBase: 0.5, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 

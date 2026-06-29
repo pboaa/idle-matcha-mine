@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, oreToPoints, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
 import { defaultMiningBalance, WEAPON_IDS, WEAPON_SKILL_NODES } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -35,7 +35,7 @@ describe('mining/prestige', () => {
 
   it('恒久強化は次走の開始レベルに乗る＋開始は必ずツルハシ（freshRun）', () => {
     const perm: Perm = { ...emptyPerm(), levels: { ...emptyPerm().levels, pick: 2, bullet: 1, speed: 3 }, appraise: 1 };
-    const s = freshRun(B, perm, 0);
+    const s = freshRun(B, emptyMaterials(), perm, 0);
     expect(s.levels.pick).toBe(2 + 1);                    // 恒久2 + 開始ツルハシ1
     expect(s.levels.bullet).toBe(1);                      // 恒久そのまま（開始は乗らない）
     expect(s.levels.speed).toBe(3);                       // パッシブも恒久そのまま
@@ -71,9 +71,10 @@ describe('mining/prestige', () => {
 
   it('コイン全体強化(強欲)で素材獲得が増える', () => {
     const dug = (s: ReturnType<typeof stepMine>): number => s.materials.dirt + s.materials.stone;
-    const base = initialMineState(); // 自動モード（移動あり）。greedは火力に依らず素材取得を増やす。
-    const plain = dug(stepMine(base, 20_000));
-    const greedy = dug(stepMine({ ...base, coinUp: { ...base.coinUp, greed: 30 } }, 20_000));
+    // 独立した新規state（stepMineはdugを破壊的更新するので使い回さない）。手動＋目標で同じ採掘量。
+    const make = (greed: number) => ({ ...initialMineState(), autoMode: false, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 0, y: 0 } }, coinUp: { haste: 0, greed, luck: 0 } });
+    const plain = dug(stepMine(make(0), 20_000));
+    const greedy = dug(stepMine(make(30), 20_000));
     expect(greedy).toBeGreaterThan(plain); // 強欲で素材が増えやすい
   });
 
@@ -97,15 +98,20 @@ describe('mining/prestige', () => {
     expect(buyWeaponSkill(poor, 'pick', 0).perm.weaponSkill.pick).toEqual([]); // ポイント不足で不可
   });
 
-  it('転生: 走行リセット・残り鉱石はポイントへ変換・恒久/回数は保持', () => {
+  it('転生: 走行リセット・鉱石/★/恒久/回数は保持', () => {
     const s = stepMine(initialMineState(), 30_000);
-    const expectPoints = s.points + oreToPoints(s.materials, B);
     const r = prestige(s, B);
     expect(r.floor).toBe(0);
     expect(r.level).toBe(1);
-    expect(r.materials).toEqual(emptyMaterials()); // 鉱石はリセット（変換済み）
-    expect(r.points).toBe(expectPoints);           // 残り鉱石→ポイント
+    expect(r.materials).toEqual(s.materials); // 鉱石は永続保存（変換しない）
+    expect(r.points).toBe(s.points);          // ★ポイントも保持
     expect(r.prestiges).toBe(s.prestiges + 1);
     expect(r.coins).toBe(0); // コインはリセット
+  });
+
+  it('★ポイントは進行（レベル/階）で貯まる', () => {
+    const s = stepMine(initialMineState(), 60_000);
+    expect(s.points).toBeGreaterThan(0); // レベルアップ/降下で★が貯まっている
+    expect(s.points).toBeGreaterThanOrEqual((s.level - 1) * B.pointsPerLevel); // 最低でもレベルぶん
   });
 });

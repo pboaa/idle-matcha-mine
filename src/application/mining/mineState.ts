@@ -55,22 +55,23 @@ export interface MineState {
   readonly levels: Levels;
   readonly autoMode: boolean;
   readonly offer: readonly OfferChoice[] | null;
+  readonly offerAt: number | null; // 3択が出たゲーム内時刻（放置自動選択の起点）
   readonly meta: MineMeta;
   readonly boost: number; // 走行限定の採掘ブースト（コインで購入・転生でリセット）
   readonly dmgByWeapon: Record<WeaponId, number>;
   readonly weaponCd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
 
-  readonly materials: Materials;   // 鉱石（ラン中に集め、転生でポイントへ変換）
+  readonly materials: Materials;   // 鉱石（永続保存・転生でも消えない。後で使う想定）
   readonly coinUp: CoinUp;         // コインで買う全体強化（走行限定・転生でリセット）
-  readonly points: number;         // 恒久ポイント（転生時に残り鉱石を変換して貯まる）
+  readonly points: number;         // ★恒久ポイント（進行＝レベル/階で貯まる）
   readonly perm: Perm;
   readonly prestiges: number;
   readonly mastery: WeaponMastery; // 武器ごとの熟練度（永続・転生時に上がる）。武器ダメージ＋合計でスループット。
 }
 
-/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。鉱石/ラン強化はリセット、恒久(perm)/熟練度/ポイントは引き継ぐ。 */
+/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。鉱石/恒久(perm)/熟練度/ポイントは引き継ぐ（走行限定のみリセット）。 */
 export function freshRun(
-  b: MiningBalance, perm: Perm, prestiges: number,
+  b: MiningBalance, materials: Materials, perm: Perm, prestiges: number,
   seed = 123456, mastery: WeaponMastery = emptyMastery(), points = 0,
 ): MineState {
   const base = baseOf(b);
@@ -81,18 +82,18 @@ export function freshRun(
     time: 0, coins: 0, rev: 0, seq: 0, floor: 0, rngState: seed,
     dug: new Set([cellKey(base)]), damage: new Map(), drops: [], fx: [],
     cat: { pos: { ...base }, gauge: 0, target: null }, cam: { ...base },
-    xp: 0, level: 1, levels, autoMode: true, offer: null,
+    xp: 0, level: 1, levels, autoMode: true, offer: null, offerAt: null,
     meta: { appraise: perm.appraise },
     boost: 0, // 採掘ブーストはコインで毎走購入（転生でリセット）
     dmgByWeapon: zeroDmg(),
     weaponCd: zeroDmg(),
-    materials: emptyMaterials(), coinUp: emptyCoinUp(), points,
+    materials, coinUp: emptyCoinUp(), points,
     perm, prestiges, mastery,
   };
 }
 
 export function initialMineState(b: MiningBalance = defaultMiningBalance, seed = 123456): MineState {
-  return freshRun(b, emptyPerm(), 0, seed, emptyMastery(), 0);
+  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed, emptyMastery(), 0);
 }
 
 export { MATERIAL_IDS };

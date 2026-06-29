@@ -4,7 +4,7 @@ import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
 import { totalMastery } from '@application/mining/mineState';
-import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, oreToPoints, autoEfficiency, idleCost, idleMaxLevel, type PermId } from '@application/mining/prestige';
+import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, autoEfficiency, idleCost, idleMaxLevel, type PermId } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
   WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, COIN_UP_IDS, COIN_UP_DEFS, defaultMiningBalance, choiceMeta, isWeapon,
@@ -242,7 +242,7 @@ export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: strin
 /** 放置ツリー（自動効率）。 */
 export interface MineIdleVM { readonly lv: number; readonly maxLv: number; readonly autoEffPct: number; readonly cost: number | null; readonly can: boolean; readonly maxed: boolean }
 export interface MinePrestigeVM {
-  readonly prestiges: number; readonly points: number; readonly pointsPreview: number;
+  readonly prestiges: number; readonly points: number;
   readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[];
   readonly mastery: MineMasteryVM; readonly weaponTree: readonly MineWeaponTreeVM[]; readonly idle: MineIdleVM;
 }
@@ -261,7 +261,6 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
   return {
     prestiges: state.prestiges,
     points: state.points,
-    pointsPreview: oreToPoints(state.materials, B), // 今転生したら得られるポイント
     materials: MATERIAL_IDS.map((id) => ({ id, emoji: B.kinds[id].emoji, name: B.kinds[id].name, count: state.materials[id] })),
     perms: PERM_IDS.map((id) => {
       const meta = permLabel(id);
