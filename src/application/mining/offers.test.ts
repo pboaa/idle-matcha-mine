@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createRng } from '@shared/rng';
 import { initialMineState } from '@application/mining/mineState';
-import { makeOffer, applyOfferChoice, appraiseCost, buyAppraise, rareChance, epicChance, boostCost, buyBoost, boostMul } from '@application/mining/upgrades';
-import { defaultMiningBalance } from '@domain/mining/balance';
+import { makeOffer, autoPick, applyOfferChoice, appraiseCost, buyAppraise, rareChance, epicChance, boostCost, buyBoost, boostMul } from '@application/mining/upgrades';
+import { defaultMiningBalance, PASSIVE_IDS } from '@domain/mining/balance';
+import { emptyPerm } from '@application/mining/mineState';
 
 const B = defaultMiningBalance;
 const lv = () => initialMineState().levels;
@@ -57,6 +58,36 @@ describe('mining/offers', () => {
   it('採掘ブーストはコイン不足だと買えない', () => {
     const s = { ...initialMineState(), coins: 0 };
     expect(buyBoost(s, B).boost).toBe(0);
+  });
+
+  it('強化(パッシブ)は最大 maxPassives 個まで（上限後は新規が出ない／既存はLv上げで出る）', () => {
+    // 汎用パッシブを上限個だけ所持させる（reqWeapon無しのものを使う）
+    const generic = PASSIVE_IDS.filter((id) => !id.startsWith('u')).slice(0, B.maxPassives);
+    const levels = lv();
+    for (const id of generic) levels[id] = 1;
+    const rng = createRng(5);
+    const seen = new Set<string>();
+    for (let i = 0; i < 400; i++) makeOffer(rng, levels, 0, B).forEach((c) => seen.add(c.id));
+    // 未所持の新規パッシブは出ない
+    const newPassive = PASSIVE_IDS.find((id) => !id.startsWith('u') && levels[id] <= 0)!;
+    expect(seen.has(newPassive)).toBe(false);
+    // 所持済みパッシブはLv上げのため出る
+    expect(seen.has(generic[0]!)).toBe(true);
+  });
+
+  it('autoPick は恒久強化(perm)済みのものを優先で取る', () => {
+    const offer = [
+      { id: 'speed', rarity: 'common', bonus: null },
+      { id: 'luck', rarity: 'common', bonus: null },
+      { id: 'power', rarity: 'common', bonus: null },
+    ] as const;
+    const perm = { ...emptyPerm(), levels: { ...emptyPerm().levels, luck: 3 } }; // luck を恒久強化済み
+    const rng = createRng(11);
+    for (let i = 0; i < 20; i++) expect(autoPick(offer, rng, perm).id).toBe('luck'); // 常に優先
+    // perm 無しなら従来通りランダム（必ずしも luck ではない）
+    const ids = new Set<string>();
+    for (let i = 0; i < 50; i++) ids.add(autoPick(offer, rng).id);
+    expect(ids.size).toBeGreaterThan(1);
   });
 
   it('武器固有ユニークは対応武器を持っていないと3択に出ない', () => {

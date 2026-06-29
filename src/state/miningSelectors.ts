@@ -193,7 +193,7 @@ export function buildMineHud(state: MineState): MineHudVM {
     level: state.level, xp: Math.floor(state.xp), xpNext: xpForNext(state.level), autoMode: state.autoMode,
     offer: (state.offer ?? []).map((ch, index) => ({ index, label: choiceMeta(ch.id).label, emoji: choiceMeta(ch.id).emoji, desc: choiceMeta(ch.id).desc, detail: choiceDetail(ch.id, state.levels[ch.id]), lv: state.levels[ch.id], rarity: ch.rarity, bonusEmoji: ch.bonus ? choiceMeta(ch.bonus).emoji : null, isWeapon: isWeapon(ch.id) })),
     weapons, passives,
-    weaponSlots: `${weapons.length}/${B.maxWeapons}`, passiveSlots: `${passives.length}`,
+    weaponSlots: `${weapons.length}/${B.maxWeapons}`, passiveSlots: `${passives.length}/${B.maxPassives}`,
     damageShare: WEAPON_IDS.filter((w) => state.dmgByWeapon[w] > 0).map((w) => ({ emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, pct: totalDmg > 0 ? (state.dmgByWeapon[w] / totalDmg) * 100 : 0 })).sort((a, b) => b.pct - a.pct),
     damageMods: damageMods(state),
     meta: { appraiseLv: state.meta.appraise, appraiseCost: appraiseCost(state.meta.appraise), canAppraise: !appraiseCapped(state.meta.appraise) && state.coins >= appraiseCost(state.meta.appraise), appraiseMaxed: appraiseCapped(state.meta.appraise), rarePct: Math.round(rareChance(state.meta.appraise) * 100), epicPct: Math.round(epicChance(state.meta.appraise) * 100) },

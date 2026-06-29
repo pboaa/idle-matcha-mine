@@ -211,7 +211,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     level += 1;
     const choices = makeOffer(rng, levels, meta.appraise, b);
     if (state.autoMode) {
-      const ch = autoPick(choices, rng);
+      const ch = autoPick(choices, rng, state.perm);
       levels = { ...levels, [ch.id]: levels[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
       if (ch.rarity === 'epic' && ch.bonus) levels = { ...levels, [ch.bonus]: levels[ch.bonus] + 1 };
     } else offer = choices;

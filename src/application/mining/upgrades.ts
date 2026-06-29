@@ -17,15 +17,17 @@ function rollRarity(rng: Rng, rare: number, epic: number): OfferRarity {
 
 const owned = (levels: Levels): ChoiceId[] => ([...WEAPON_IDS, ...PASSIVE_IDS] as ChoiceId[]).filter((id) => levels[id] > 0);
 
-/** 3択。武器は所持数制限(maxWeapons)あり。強化(特殊能力)は無制限に積める。武器固有強化はその武器所持が条件。 */
+/** 3択。武器は所持数制限(maxWeapons)・強化(特殊能力)も所持数制限(maxPassives)あり。武器固有強化はその武器所持が条件。 */
 export function makeOffer(rng: Rng, levels: Levels, appraise: number, b: MiningBalance = defaultMiningBalance): OfferChoice[] {
   const canNewWeapon = WEAPON_IDS.filter((w) => levels[w] > 0).length < b.maxWeapons;
+  const canNewPassive = PASSIVE_IDS.filter((id) => levels[id] > 0).length < b.maxPassives;
   const pool: ChoiceId[] = [];
   for (const id of WEAPON_IDS) if (levels[id] > 0 || canNewWeapon) pool.push(id);
   for (const id of PASSIVE_IDS) {
     const def = PASSIVE_DEFS[id];
     if (def.reqWeapon && levels[def.reqWeapon] <= 0) continue; // 武器固有強化は対応武器を持っている時だけ
-    pool.push(id); // 強化は無制限
+    if (levels[id] <= 0 && !canNewPassive) continue;           // 強化は最大 maxPassives 個（既存はLv上げのため出る）
+    pool.push(id);
   }
 
   const p = [...pool];
@@ -42,7 +44,18 @@ export function makeOffer(rng: Rng, levels: Levels, appraise: number, b: MiningB
   });
 }
 
-export const autoPick = (offer: readonly OfferChoice[], rng: Rng): OfferChoice => offer[Math.floor(rng.next() * offer.length)]!;
+/** 自動モードの取得選択。3択(=持ち込み)はランダムだが、恒久強化(perm)済みのものを優先で取る。 */
+export function autoPick(offer: readonly OfferChoice[], rng: Rng, perm?: { readonly levels: Levels }): OfferChoice {
+  const priority = (c: OfferChoice): number => (perm ? perm.levels[c.id] : 0);
+  let best = -1;
+  const top: OfferChoice[] = [];
+  for (const c of offer) {
+    const p = priority(c);
+    if (p > best) { best = p; top.length = 0; top.push(c); }
+    else if (p === best) top.push(c);
+  }
+  return top[Math.floor(rng.next() * top.length)]!;
+}
 
 export function applyOfferChoice(state: MineState, choice: OfferChoice): MineState {
   const lv = { ...state.levels };
