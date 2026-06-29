@@ -28,11 +28,11 @@ describe('mining/patterns', () => {
     expect(patternHits('nearest', base({ targets: 3, isSolid: () => false }))).toEqual([]); // 固いマスが無ければ0
   });
 
-  it('cross(ビーム): spreadで2→4→8方向・総威力(係数和)は方向数に依らず一定=2×lineRange', () => {
-    const t2 = totalFactor(patternHits('cross', base({ spread: 0, lineRange: 3 }))); // 2方向
-    const t4 = totalFactor(patternHits('cross', base({ spread: 1, lineRange: 3 }))); // 4方向
-    const t8 = totalFactor(patternHits('cross', base({ spread: 2, lineRange: 3 }))); // 8方向
-    expect(t2).toBeCloseTo(6); expect(t4).toBeCloseTo(6); expect(t8).toBeCloseTo(6); // 化け防止＝総DPS一定
+  it('cross(ビーム): 方向は1本ずつ増える（基本2本→spread6で8本）・総威力は本数に依らず一定=2×lineRange', () => {
+    const dirCount = (spread: number): number => new Set(patternHits('cross', base({ spread, lineRange: 3 })).map((h) => `${Math.sign(h.cell.x)},${Math.sign(h.cell.y)}`)).size;
+    expect(dirCount(0)).toBe(2); expect(dirCount(1)).toBe(3); expect(dirCount(2)).toBe(4); // 1本ずつ
+    expect(dirCount(6)).toBe(8); expect(dirCount(10)).toBe(8);                              // 最大8本（終盤）
+    for (const sp of [0, 1, 3, 6]) expect(totalFactor(patternHits('cross', base({ spread: sp, lineRange: 3 })))).toBeCloseTo(6); // 化け防止＝総DPS一定
   });
 
   it('forward(ドリル): 横幅が増えても総威力一定', () => {

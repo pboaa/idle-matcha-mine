@@ -58,30 +58,42 @@ function weaponSpecials(w: WeaponId): WeaponStat[] {
   if (weaponStatApplies('pierce', w)) out.push('pierce'); // 貫通: 直線系のみ
   return out;
 }
-/** 1武器ぶんの階層ツリーを生成。ツルハシは範囲を tier1 に（序盤3方向化）。その他の範囲/射程/貫通は終盤(tier3-4)。 */
+/** その武器の特殊強化(範囲/射程/貫通)を「少しずつ終盤まで」上げる配置スケジュール（tier,stat,amount[]）。
+ * ビームの範囲は8本(=spread6)まで届くよう多めに。各+1で、tierが深いほど多く配る＝徐々に伸びる。 */
+function specialSchedule(w: WeaponId): { tier: number; stat: WeaponStat; amount: number }[] {
+  const out: { tier: number; stat: WeaponStat; amount: number }[] = [];
+  const add = (tier: number, stat: WeaponStat): void => { out.push({ tier, stat, amount: 1 }); };
+  const isPick = WEAPON_DEFS[w].pattern === 'front';
+  if (isPick) { // ツルハシ: 序盤に3方向（tier1×2）、その後ゆっくり横に広がる
+    add(1, 'area'); add(1, 'area'); add(2, 'area'); add(3, 'area'); add(4, 'area');
+    return out;
+  }
+  for (const stat of weaponSpecials(w)) {
+    // ビーム/ドリルの範囲は spread6(=8本/最大横幅) まで届くよう 6 ノード。その他は 4 ノード。射程/貫通は 4 ノード。
+    const isLineArea = stat === 'area' && (WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward');
+    const count = isLineArea ? 6 : 4;
+    const startTier = stat === 'pierce' ? 3 : 2; // 貫通は少し遅め、範囲/射程は中盤から
+    for (let i = 0; i < count; i++) add(Math.min(SKILL_TIERS - 1, startTier + Math.floor((i * (SKILL_TIERS - startTier)) / count)), stat);
+  }
+  return out;
+}
+/** 1武器ぶんの階層ツリーを生成。範囲/射程/貫通は「少しずつ終盤まで」上がる（多数の+1ノードを後段に厚く）。固有は中盤と最終段。 */
 function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const rnd = treeRand(seed);
-  const isPick = WEAPON_DEFS[w].pattern === 'front';
+  // 階層ごとに置く特殊ノードを集計。
+  const byTier = new Map<number, { stat: WeaponStat; amount: number }[]>();
+  for (const sp of specialSchedule(w)) { const a = byTier.get(sp.tier) ?? []; a.push(sp); byTier.set(sp.tier, a); }
+  byTier.set(2, [...(byTier.get(2) ?? []), { stat: 'unique', amount: 0.10 }]);             // 固有: 中盤
+  byTier.set(SKILL_TIERS - 1, [...(byTier.get(SKILL_TIERS - 1) ?? []), { stat: 'unique', amount: 0.12 }]); // 固有: 最終段
   const tiers: WeaponSkillNode[][] = [];
   for (let tier = 0; tier < SKILL_TIERS; tier++) {
-    const count = 4 + Math.floor(rnd() * 3); // 4〜6ノード/階層（数値小さめが一杯）
+    const specials = byTier.get(tier) ?? [];
+    const fillers = 4 + Math.floor(rnd() * 2);  // 4〜5個の小ノード（一杯）
     const row: WeaponSkillNode[] = [];
-    for (let col = 0; col < count; col++) {
-      const stat: WeaponStat = rnd() < 0.6 ? 'damage' : 'speed';
-      row.push({ x: col, y: tier, tier, stat, amount: 0.03, ...skillNodeCost(tier, false), requires: [] });
-    }
+    for (const sp of specials) row.push({ x: row.length, y: tier, tier, stat: sp.stat, amount: sp.amount, big: true, ...skillNodeCost(tier, true), requires: [] });
+    for (let i = 0; i < fillers; i++) { const stat: WeaponStat = rnd() < 0.6 ? 'damage' : 'speed'; row.push({ x: row.length, y: tier, tier, stat, amount: 0.03, ...skillNodeCost(tier, false), requires: [] }); }
     tiers.push(row);
   }
-  // 特殊ノードを所定の階層へ配置（fillerを差し替え）。ツルハシ範囲=tier1×2、その他=tier3とtier4。固有=tier2,4。
-  const place = (tier: number, stat: WeaponStat, amount: number): void => {
-    const row = tiers[tier]; if (!row) return;
-    const di = row.findIndex((n) => n.stat === 'damage');
-    const i = di >= 0 ? di : 0;
-    row[i] = { ...row[i]!, stat, amount, big: true, ...skillNodeCost(tier, true) };
-  };
-  if (isPick) { place(1, 'area', 1); place(1, 'area', 1); } // 序盤に右+1/左+1で3方向
-  else for (const s of weaponSpecials(w)) { place(3, s, 1); place(4, s, 1); } // 範囲/射程/貫通は終盤
-  place(2, 'unique', 0.10); place(SKILL_TIERS - 1, 'unique', 0.12); // 固有は中盤と最終段
   // 平坦化＋描画用に前段の1ノードへ線を引く（解禁は階層制）。
   const flat: WeaponSkillNode[] = [];
   const startOf: number[] = [];

@@ -58,7 +58,7 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-stone-100">🌳 転生ツリー</h2>
+        <h2 className="text-base font-bold text-stone-100">🌳 強化ツリー<span className="ml-2 text-[10px] font-normal text-stone-400">いつでも素材で強化</span></h2>
         <button onClick={onClose} className="rounded-md bg-stone-700 px-2 py-0.5 text-xs text-stone-200 hover:bg-stone-600">✕ 閉じる</button>
       </div>
 

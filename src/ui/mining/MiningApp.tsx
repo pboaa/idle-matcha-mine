@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useMiningTick } from '@state/useMiningTick';
-import { useMiningStore } from '@state/miningStore';
 import { MiningGrid } from '@ui/mining/MiningGrid';
 import { MiningOverlay } from '@ui/mining/MiningOverlay';
 import { MiningHud } from '@ui/mining/MiningHud';
@@ -11,7 +10,6 @@ import { MiningHelp } from '@ui/mining/MiningHelp';
 /** 採掘モックのルート。1匹の猫が自動でグリッドを掘り、転生＝★獲得→転生ツリーで成長する。 */
 export function MiningApp() {
   useMiningTick();
-  const prestiges = useMiningStore((s) => s.state.prestiges);
   const [modal, setModal] = useState<null | 'prestige' | 'tree' | 'help'>(null);
   const close = (): void => setModal(null);
   return (
@@ -22,12 +20,10 @@ export function MiningApp() {
           className="rounded-md bg-fuchsia-800 px-2.5 py-1 text-[11px] font-bold text-fuchsia-100 shadow ring-1 ring-fuchsia-600 transition hover:bg-fuchsia-700">
           🔄 転生
         </button>
-        {prestiges > 0 && (
-          <button onClick={() => setModal('tree')}
-            className="rounded-md bg-emerald-800 px-2.5 py-1 text-[11px] font-bold text-emerald-100 shadow ring-1 ring-emerald-600 transition hover:bg-emerald-700">
-            🌳 転生ツリー
-          </button>
-        )}
+        <button onClick={() => setModal('tree')}
+          className="rounded-md bg-emerald-800 px-2.5 py-1 text-[11px] font-bold text-emerald-100 shadow ring-1 ring-emerald-600 transition hover:bg-emerald-700">
+          🌳 強化ツリー
+        </button>
         <button onClick={() => setModal('help')}
           className="rounded-md bg-stone-700 px-2.5 py-1 text-[11px] font-bold text-stone-200 shadow ring-1 ring-stone-600 transition hover:bg-stone-600">
           ❓ 遊び方

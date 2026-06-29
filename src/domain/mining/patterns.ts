@@ -12,9 +12,11 @@ import type { Cell } from '@domain/grid/position';
 import { sameCell } from '@domain/grid/position';
 import type { WeaponPattern } from '@domain/mining/balance';
 
-export const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;        // 4方向（十字）
-export const DIRS_H = [[1, 0], [-1, 0]] as const;                       // 2方向（横）
-export const DIRS_8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const; // 8方向
+// ビームの方向は「1本ずつ」増える順番（spread1ごとに+1方向、最大8方向は終盤）。
+// 横2本→上下→斜め4本、の順に追加（基本2本＝横）。
+export const BEAM_DIR_ORDER = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]] as const;
+/** ビームの方向数（基本2本＋spread。spread6で最大8本）。 */
+export const beamDirCount = (spread: number): number => Math.min(BEAM_DIR_ORDER.length, 2 + Math.max(0, spread));
 
 /** target へ向かう隣接1マス（縦横どちらか・大きい差を優先）。 */
 export function stepToward(from: Cell, target: Cell): Cell {
@@ -78,8 +80,8 @@ export function patternHits(pattern: WeaponPattern, p: PatternInput): PatternHit
       for (let dy = -br; dy <= br; dy++) for (let dx = -br; dx <= br; dx++) hits.push({ cell: { x: c.x + dx, y: c.y + dy }, factor: 1 });
       return hits;
     }
-    case 'cross': { // ビーム: spreadで 2→4→8方向。方向が増えるほど1方向は弱く＝総DPS一定。
-      const dirs = p.spread <= 0 ? DIRS_H : p.spread === 1 ? DIRS : DIRS_8;
+    case 'cross': { // ビーム: spreadで方向が1本ずつ増える（基本2本→終盤8本）。本数が増えるほど1本は弱く＝総DPS一定。
+      const dirs = BEAM_DIR_ORDER.slice(0, beamDirCount(p.spread));
       const factor = 2 / dirs.length; const hits: PatternHit[] = [];
       for (const [dx, dy] of dirs) for (let r = 1; r <= p.lineRange; r++) hits.push({ cell: { x: p.pos.x + dx * r, y: p.pos.y + dy * r }, factor });
       return hits;

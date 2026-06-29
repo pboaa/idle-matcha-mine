@@ -15,20 +15,27 @@ describe('mining/skilltree', () => {
     }
   });
 
-  it('ツルハシ: 範囲(area)は tier1×2・土で序盤に取れる（3方向化）', () => {
+  it('ツルハシ: 範囲(area)は tier1に2つ・土で序盤に取れる（3方向化）＋以降ゆっくり', () => {
     const area = weaponSkillNodes('pick').filter((n) => n.stat === 'area');
-    expect(area.length).toBe(2);
-    expect(area.every((n) => n.tier === 1 && n.matId === 'dirt')).toBe(true);
-    expect(area.every((n) => n.matCost >= 300 && n.matCost <= 800)).toBe(true);
+    const tier1 = area.filter((n) => n.tier === 1);
+    expect(tier1.length).toBe(2);                                           // 序盤の3方向ぶん
+    expect(tier1.every((n) => n.matId === 'dirt' && n.matCost >= 300 && n.matCost <= 800)).toBe(true);
+    expect(area.length).toBeGreaterThan(2);                                 // その後も少しずつ増える
   });
 
-  it('その他の武器: 範囲/射程/貫通は終盤(tier3-4)に出る', () => {
+  it('その他の武器: 範囲/射程/貫通は「少しずつ終盤まで」増える（複数ノードを中盤以降に厚く）', () => {
     for (const w of WEAPON_IDS) {
       if (w === 'pick') continue;
       const specials = weaponSkillNodes(w).filter((n) => n.stat === 'range' || n.stat === 'area' || n.stat === 'pierce');
-      expect(specials.length).toBeGreaterThan(0);
-      expect(specials.every((n) => n.tier >= 3)).toBe(true); // 終盤のみ
+      expect(specials.length).toBeGreaterThanOrEqual(4);              // 多数の+1ノード＝少しずつ
+      expect(specials.every((n) => n.tier >= 2)).toBe(true);         // 中盤以降のみ（序盤は無し）
+      expect(specials.some((n) => n.tier === SKILL_TIERS - 1)).toBe(true); // 最終段にもある＝終盤まで上がる
     }
+  });
+
+  it('ビーム: 範囲(area)は最大方向数(8本=spread6)に届く数だけある', () => {
+    const beamArea = weaponSkillNodes('beam').filter((n) => n.stat === 'area').length;
+    expect(beamArea).toBeGreaterThanOrEqual(6); // spread6 で 8方向
   });
 
   it('素材は階層が深いほど上位＆高コスト（質と量が上がる）', () => {

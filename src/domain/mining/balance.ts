@@ -139,8 +139,8 @@ export const defaultMiningBalance: MiningBalance = {
   fxVisualMs: 220,
 
   hardnessBase: 0.5,
-  hardnessGrowth: 1.34,
-  distHardness: 0.05,
+  hardnessGrowth: 1.40,
+  distHardness: 0.12,
   valueGrowth: 1.13,
   kinds: KINDS_BY_ID,
   matTiers: [
