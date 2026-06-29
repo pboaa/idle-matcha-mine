@@ -19,6 +19,16 @@ describe('mining/step', () => {
     expect(s.coins).toBeGreaterThan(0);
   });
 
+  it('壁で詰まって溜めた移動ゲージで大量ワープしない', () => {
+    const base = initialMineState();
+    const dug = new Set(base.dug);
+    for (let x = 16; x <= 25; x++) dug.add(`${x},15`); // 右へ一直線の空洞（進める道）
+    // gauge を極端に溜めた状態（壁の手前で詰まっていた想定）で前方が開いている
+    const s = { ...base, autoMode: false, dug, cat: { pos: { x: 15, y: 15 }, gauge: 999, target: { x: 25, y: 15 } } };
+    const moved = Math.abs(stepMine(s, 100).cat.pos.x - 15);
+    expect(moved).toBeLessThanOrEqual(2); // 1tickで一気に飛ばない（溜め込み無効化）
+  });
+
   it('カメラはデッドゾーン内で猫を追従（猫が中央付近を滑らかに動く）', () => {
     const B = defaultMiningBalance;
     const s = stepMine(initialMineState(), 10_000);

@@ -149,7 +149,10 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const L = state.levels;
   const t = passiveTotals(L);
   let pos = state.cat.pos;
-  let gauge = state.cat.gauge + b.baseRate * (1 + t.rate) * dt;
+  const cu = state.coinUp; // コインで買う全体強化（走行限定）: 移動/素材/コイン。
+  const moveCost = b.moveCost / (1 + t.move + cu.haste * COIN_UP_DEFS.haste.perLvl);
+  // 繰り越す移動ゲージは1マスぶんに制限。壁の手前で詰まっている間に溜め込み、壊れた瞬間に大量ワープするのを防ぐ。
+  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * dt;
   let target = state.cat.target;
   let coins = state.coins;
   let xpGain = 0;
@@ -160,9 +163,6 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const dmgAcc = { ...state.dmgByWeapon };
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
-  // コインで買う全体強化（走行限定）: 移動/素材/コイン。
-  const cu = state.coinUp;
-  const moveCost = b.moveCost / (1 + t.move + cu.haste * COIN_UP_DEFS.haste.perLvl);
   const coinMult = 1 + t.coin + cu.luck * COIN_UP_DEFS.luck.perLvl;
   const matChance = t.material + cu.greed * COIN_UP_DEFS.greed.perLvl;
   const rangeBonus = Math.floor(t.range);
