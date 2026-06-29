@@ -117,6 +117,20 @@ export const WEAPON_SKILL_NODES: readonly WeaponSkillNode[] = [
   { x: 5, y: 1.5, stat: 'unique', amount: 1.0, cost: 70, big: true, requires: [9] }, // 10 最終大
 ];
 
+// ===== コインで買う全体強化（走行限定・転生でリセット）。採掘ブースト(boost)に加えての全体バフ。 =====
+export type CoinUpId = 'haste' | 'greed' | 'luck';
+export const COIN_UP_IDS: readonly CoinUpId[] = ['haste', 'greed', 'luck'];
+export type CoinUpEffect = 'move' | 'material' | 'coin';
+export interface CoinUpDef {
+  readonly id: CoinUpId; readonly label: string; readonly emoji: string; readonly desc: string;
+  readonly effect: CoinUpEffect; readonly perLvl: number; readonly costBase: number; readonly costGrowth: number;
+}
+export const COIN_UP_DEFS: Record<CoinUpId, CoinUpDef> = {
+  haste: { id: 'haste', label: '俊足', emoji: '👟', desc: '移動が速くなる', effect: 'move', perLvl: 0.08, costBase: 50, costGrowth: 1.4 },
+  greed: { id: 'greed', label: '強欲', emoji: '🧲', desc: '鉱石が増えやすい', effect: 'material', perLvl: 0.12, costBase: 70, costGrowth: 1.45 },
+  luck: { id: 'luck', label: '幸運', emoji: '🍀', desc: 'コインが増えやすい', effect: 'coin', perLvl: 0.10, costBase: 70, costGrowth: 1.45 },
+};
+
 export const isWeapon = (id: ChoiceId): id is WeaponId => id in WEAPON_DEFS;
 export const choiceMeta = (id: ChoiceId): { label: string; emoji: string; desc: string } =>
   isWeapon(id) ? WEAPON_DEFS[id] : PASSIVE_DEFS[id as PassiveId];

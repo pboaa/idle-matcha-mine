@@ -4,12 +4,12 @@ import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
 import { totalMastery } from '@application/mining/mineState';
-import { permCost, permMaterial, runUpCost, skillNodeUnlockable, oreToPoints, type PermId } from '@application/mining/prestige';
+import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, oreToPoints, type PermId } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
-  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, defaultMiningBalance, choiceMeta, isWeapon,
-  WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STATS, WEAPON_STAT_DEFS, WEAPON_SKILL_NODES, weaponStatApplies,
-  type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern, type WeaponStat,
+  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, COIN_UP_IDS, COIN_UP_DEFS, defaultMiningBalance, choiceMeta, isWeapon,
+  WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STAT_DEFS, WEAPON_SKILL_NODES,
+  type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern, type WeaponStat, type CoinUpId,
 } from '@domain/mining/balance';
 import { useMiningStore } from '@state/miningStore';
 
@@ -138,6 +138,8 @@ export interface MineDmgShareVM { readonly emoji: string; readonly label: string
 export interface MineDmgModVM { readonly emoji: string; readonly label: string; readonly scope: string; readonly mult: number }
 export interface MineMetaVM { readonly appraiseLv: number; readonly appraiseCost: number; readonly canAppraise: boolean; readonly appraiseMaxed: boolean; readonly rarePct: number; readonly epicPct: number }
 export interface MineBoostVM { readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
+/** コインで買う全体強化（走行限定）。 */
+export interface MineCoinUpVM { readonly id: CoinUpId; readonly emoji: string; readonly label: string; readonly desc: string; readonly lv: number; readonly cost: number; readonly can: boolean; readonly pct: number }
 export interface MineWeaponMasteryVM { readonly emoji: string; readonly label: string; readonly lv: number; readonly pct: number }
 export interface MineMasteryVM { readonly total: number; readonly gainPct: number; readonly movePct: number; readonly rangeBonus: number; readonly perWeapon: readonly MineWeaponMasteryVM[] }
 export interface MineHudVM {
@@ -150,6 +152,7 @@ export interface MineHudVM {
   readonly damageMods: readonly MineDmgModVM[];
   readonly meta: MineMetaVM;
   readonly boost: MineBoostVM;
+  readonly coinUps: readonly MineCoinUpVM[];
   readonly mastery: MineMasteryVM;
 }
 
@@ -205,6 +208,10 @@ export function buildMineHud(state: MineState): MineHudVM {
     damageMods: damageMods(state),
     meta: { appraiseLv: state.meta.appraise, appraiseCost: appraiseCost(state.meta.appraise), canAppraise: !appraiseCapped(state.meta.appraise) && state.coins >= appraiseCost(state.meta.appraise), appraiseMaxed: appraiseCapped(state.meta.appraise), rarePct: Math.round(rareChance(state.meta.appraise) * 100), epicPct: Math.round(epicChance(state.meta.appraise) * 100) },
     boost: { lv: state.boost, cost: boostCost(state.boost), can: state.coins >= boostCost(state.boost), pct: Math.round((boostMul(state.boost) - 1) * 100) },
+    coinUps: COIN_UP_IDS.map((id) => {
+      const def = COIN_UP_DEFS[id]; const cost = coinUpCost(id, state.coinUp);
+      return { id, emoji: def.emoji, label: def.label, desc: def.desc, lv: state.coinUp[id], cost, can: state.coins >= cost, pct: Math.round(state.coinUp[id] * def.perLvl * 100) };
+    }),
     mastery: buildMasteryVM(state),
   };
 }
@@ -213,14 +220,13 @@ export function buildMineHud(state: MineState): MineHudVM {
 export interface MineMatVM { readonly id: MaterialId; readonly emoji: string; readonly name: string; readonly count: number }
 export interface MinePermVM { readonly id: PermId; readonly kind: 'weapon' | 'passive'; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
 export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: string; readonly toEmoji: string; readonly ratio: number; readonly can: boolean }
-/** 武器ごとの強化（武器別サブタブ）: ラン中の鉱石強化(runUp)＋恒久スキルツリー(points)。 */
-export interface MineWeaponStatVM { readonly stat: WeaponStat; readonly emoji: string; readonly label: string; readonly desc: string; readonly lv: number; readonly matEmoji: string; readonly matName: string; readonly cost: number; readonly can: boolean }
+/** 武器ごとの恒久スキルツリー（武器別サブタブ・分岐グラフ）。 */
 export interface MineSkillNodeVM {
   readonly index: number; readonly x: number; readonly y: number;
   readonly emoji: string; readonly label: string; readonly cost: number; readonly big: boolean;
   readonly requires: readonly number[]; readonly state: 'unlocked' | 'available' | 'locked'; readonly can: boolean;
 }
-export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly masteryLv: number; readonly runStats: readonly MineWeaponStatVM[]; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number }
+export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly masteryLv: number; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number }
 export interface MinePrestigeVM {
   readonly prestiges: number; readonly points: number; readonly pointsPreview: number;
   readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[];
@@ -258,11 +264,6 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
       return {
         id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, masteryLv: state.mastery[w],
         skillUnlocked: unlocked.length, skillTotal: WEAPON_SKILL_NODES.length,
-        runStats: WEAPON_STATS.filter((s) => weaponStatApplies(s, w)).map((s) => {
-          const def = WEAPON_STAT_DEFS[s];
-          const cost = runUpCost(w, s, state.runUp);
-          return { stat: s, emoji: def.emoji, label: def.label, desc: def.desc, lv: state.runUp[w][s], matEmoji: matEmoji(def.material), matName: B.kinds[def.material].name, cost, can: state.materials[def.material] >= cost };
-        }),
         skillNodes: WEAPON_SKILL_NODES.map((n, i) => {
           const isUnlocked = unlocked.includes(i);
           const available = skillNodeUnlockable(unlocked, i);
@@ -287,6 +288,6 @@ export const useMineBuyAppraise = (): (() => void) => useMiningStore((s) => s.bu
 export const useMineBuyBoost = (): (() => void) => useMiningStore((s) => s.buyBoost);
 export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
 export const useMineBuyPerm = (): ((id: PermId) => void) => useMiningStore((s) => s.buyPerm);
-export const useMineBuyRunUp = (): ((weapon: WeaponId, stat: WeaponStat) => void) => useMiningStore((s) => s.buyRunUp);
+export const useMineBuyCoinUp = (): ((id: CoinUpId) => void) => useMiningStore((s) => s.buyCoinUp);
 export const useMineBuyWeaponSkill = (): ((weapon: WeaponId, nodeIndex: number) => void) => useMiningStore((s) => s.buyWeaponSkill);
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);

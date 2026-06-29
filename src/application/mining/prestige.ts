@@ -1,6 +1,6 @@
-import type { MiningBalance, ChoiceId, MaterialId, WeaponId, WeaponStat } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, WEAPON_STAT_DEFS, WEAPON_SKILL_NODES, weaponStatApplies, isWeapon } from '@domain/mining/balance';
-import { freshRun, type MineState, type Perm, type WeaponMastery, type WeaponStatLevels, type WeaponUpgrades } from '@application/mining/mineState';
+import type { MiningBalance, ChoiceId, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, COIN_UP_DEFS, WEAPON_SKILL_NODES, isWeapon } from '@domain/mining/balance';
+import { freshRun, type MineState, type Perm, type WeaponMastery, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
 export type PermId = ChoiceId | 'appraise';
@@ -46,20 +46,17 @@ export function refine(state: MineState, from: MaterialId, b: MiningBalance = de
   return { ...state, materials: { ...state.materials, [from]: state.materials[from] - ratio, [to]: state.materials[to] + 1 } };
 }
 
-// ===== ラン中の武器強化（鉱石で買う・転生でリセット） =====
-/** ラン強化の次の1段のコスト（鉱石数）。 */
-export function runUpCost(weapon: WeaponId, stat: WeaponStat, runUp: WeaponUpgrades): number {
-  const def = WEAPON_STAT_DEFS[stat];
-  return Math.floor(def.costBase * Math.pow(def.costGrowth, runUp[weapon][stat]));
+// ===== コインで買う全体強化（走行限定・転生でリセット） =====
+/** 全体強化の次の1段のコスト（コイン）。 */
+export function coinUpCost(id: CoinUpId, coinUp: MineState['coinUp']): number {
+  const def = COIN_UP_DEFS[id];
+  return Math.floor(def.costBase * Math.pow(def.costGrowth, coinUp[id]));
 }
-/** ラン中の武器強化を1段（対応鉱石を消費）。適用外/鉱石不足なら何もしない。 */
-export function buyRunUp(state: MineState, weapon: WeaponId, stat: WeaponStat): MineState {
-  if (!weaponStatApplies(stat, weapon)) return state;
-  const mat = WEAPON_STAT_DEFS[stat].material;
-  const cost = runUpCost(weapon, stat, state.runUp);
-  if (state.materials[mat] < cost) return state;
-  const runUp = { ...state.runUp, [weapon]: { ...state.runUp[weapon], [stat]: state.runUp[weapon][stat] + 1 } };
-  return { ...state, materials: { ...state.materials, [mat]: state.materials[mat] - cost }, runUp };
+/** 全体強化を1段（コインを消費）。不足なら何もしない。 */
+export function buyCoinUp(state: MineState, id: CoinUpId): MineState {
+  const cost = coinUpCost(id, state.coinUp);
+  if (state.coins < cost) return state;
+  return { ...state, coins: state.coins - cost, coinUp: { ...state.coinUp, [id]: state.coinUp[id] + 1 } };
 }
 
 // ===== 武器ごとの恒久スキルツリー（ポイントで解放・tier順） =====

@@ -1,4 +1,4 @@
-import { useMineHud, useMineBuyAppraise, useMineBuyBoost } from '@state/miningSelectors';
+import { useMineHud, useMineBuyAppraise, useMineBuyBoost, useMineBuyCoinUp } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 /** 採掘ダッシュボード（脇）: 熟練度／所持武器・強化／ダメージ内訳／コインの使い道。ステータスと3択は画面内オーバーレイ側。 */
@@ -6,6 +6,7 @@ export function MiningHud() {
   const hud = useMineHud();
   const buyAppraise = useMineBuyAppraise();
   const buyBoost = useMineBuyBoost();
+  const buyCoinUp = useMineBuyCoinUp();
 
   return (
     <div className="flex w-64 flex-col items-stretch gap-2">
@@ -84,6 +85,19 @@ export function MiningHud() {
             🪙{formatNumber(hud.boost.cost)}
           </button>
         </div>
+        {/* コインで買う全体強化（走行限定） */}
+        {hud.coinUps.map((c) => (
+          <div key={c.id} className="flex items-center justify-between rounded-md bg-stone-800/60 p-1.5">
+            <div className="text-[11px] text-stone-300">
+              {c.emoji} {c.label} Lv{c.lv}
+              <span className="ml-1 text-[10px] text-stone-500">{c.desc} +{c.pct}%</span>
+            </div>
+            <button onClick={() => buyCoinUp(c.id)} disabled={!c.can}
+              className={['rounded-md px-2 py-0.5 text-[11px] font-bold shadow transition', c.can ? 'bg-lime-400 text-stone-900 hover:bg-lime-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
+              🪙{formatNumber(c.cost)}
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

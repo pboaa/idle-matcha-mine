@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyRunUp, useMineBuyWeaponSkill, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyWeaponSkill, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 const COL = 80, ROW = 52, PADX = 30, PADY = 30, R = 16, RBIG = 20;
@@ -51,7 +51,6 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
   const doPrestige = useMinePrestigeAct();
   const buyPerm = useMineBuyPerm();
-  const buyRunUp = useMineBuyRunUp();
   const buyWeaponSkill = useMineBuyWeaponSkill();
   const refine = useMineRefine();
   const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
@@ -125,20 +124,6 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
                   {w.emoji}{w.masteryLv > 0 && <span className="ml-0.5 align-middle text-[9px] text-indigo-200">🎓{w.masteryLv}</span>}
                 </button>
               ))}
-            </div>
-
-            {/* ラン強化（鉱石・この潜りだけ） */}
-            <div className="rounded-md bg-stone-800/60 p-1.5">
-              <div className="mb-1 text-[10px] text-stone-400"><span className="font-bold text-stone-200">{wt.emoji} {wt.label}</span> ／ ラン強化（鉱石・この潜りだけ）</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {wt.runStats.map((s) => (
-                  <button key={s.stat} onClick={() => buyRunUp(wt.id, s.stat)} disabled={!s.can} title={`${s.desc}（${s.matName}で購入・このランのみ）`}
-                    className={['flex items-center justify-between rounded-md px-2 py-1 text-[11px] shadow transition', s.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
-                    <span className="truncate">{s.emoji}{s.label}<b className="ml-1 text-amber-300">{s.lv}</b></span>
-                    <span className="ml-1 whitespace-nowrap text-[10px]">{s.matEmoji}{formatNumber(s.cost)}</span>
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* スキルツリー（ポイント・恒久・分岐グラフ） */}

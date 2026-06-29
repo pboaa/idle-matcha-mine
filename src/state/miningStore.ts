@@ -3,8 +3,8 @@ import { initialMineState, type MineState } from '@application/mining/mineState'
 import { defaultMiningBalance } from '@domain/mining/balance';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
-import { prestige, buyPerm, buyRunUp, buyWeaponSkill, refine, type PermId } from '@application/mining/prestige';
-import type { MaterialId, WeaponId, WeaponStat } from '@domain/mining/balance';
+import { prestige, buyPerm, buyCoinUp, buyWeaponSkill, refine, type PermId } from '@application/mining/prestige';
+import type { MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
 
 interface MiningStore {
   readonly state: MineState;
@@ -15,7 +15,7 @@ interface MiningStore {
   buyBoost: () => void;
   prestige: () => void;
   buyPerm: (id: PermId) => void;
-  buyRunUp: (weapon: WeaponId, stat: WeaponStat) => void;
+  buyCoinUp: (id: CoinUpId) => void;
   buyWeaponSkill: (weapon: WeaponId, nodeIndex: number) => void;
   refine: (from: MaterialId) => void;
 }
@@ -43,7 +43,7 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   buyPerm: (id) => set((st) => ({ state: buyPerm(st.state, id) })),
-  buyRunUp: (weapon, stat) => set((st) => ({ state: buyRunUp(st.state, weapon, stat) })),
+  buyCoinUp: (id) => set((st) => ({ state: buyCoinUp(st.state, id) })),
   buyWeaponSkill: (weapon, nodeIndex) => set((st) => ({ state: buyWeaponSkill(st.state, weapon, nodeIndex) })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),
 }));
