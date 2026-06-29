@@ -108,7 +108,7 @@ function miningFrontCell(state: MineState): { x: number; y: number } | null {
 // ===== アイテム詳細説明（数値つき） =====
 const TAG_LABEL: Record<WeaponTag, string> = { melee: '近接', shot: '射撃', beam: 'ビーム', field: '範囲' };
 const PATTERN_DESC: Record<WeaponPattern, string> = {
-  front: '前方を横振り3マス', nearest: '最寄り1マス', burst: '着弾点3x3', cross: '十字方向', forward: '進行方向へ貫通', around: '周囲全体', ring: '外周リング',
+  front: '前方1マス→横に拡大', nearest: '最寄り1マス→拡大', burst: '着弾点3x3→拡大', cross: '2→4→8方向ビーム', forward: '進行方向へ貫通→幅増', around: '周囲全体', ring: '外周リング',
 };
 const SYNERGY_BY_TAG: Record<WeaponTag, PassiveId> = { melee: 'whet', shot: 'powder', beam: 'lens', field: 'echo' };
 

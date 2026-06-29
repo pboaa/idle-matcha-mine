@@ -28,10 +28,10 @@ export interface WeaponDef {
 
 // baseDmg は「毎秒の素ダメージ」。1ヒットはこれに attackIntervalMs/1000 を掛けた塊で出る（＝DPSは間隔に依らず一定）。
 export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
-  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方を横振り（3マス）', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.28, rangeBase: 1, rangePerLvls: 99, attackIntervalMs: 500, fxColor: '#fbbf24' },
+  pick: { id: 'pick', label: 'ツルハシ', emoji: '⛏️', desc: '前方1マス→レベル/射程で横に広がる', tag: 'melee', pattern: 'front', baseDmg: 0.6, dmgPerLvl: 0.28, rangeBase: 1, rangePerLvls: 99, attackIntervalMs: 500, fxColor: '#fbbf24' },
   bullet: { id: 'bullet', label: '弾', emoji: '🔫', desc: '近くの1マスを撃つ', tag: 'shot', pattern: 'nearest', baseDmg: 0.35, dmgPerLvl: 0.18, rangeBase: 5, rangePerLvls: 99, attackIntervalMs: 300, fxColor: '#f87171' },
   bomb: { id: 'bomb', label: '爆弾', emoji: '💣', desc: '近くで小爆発（3x3）', tag: 'shot', pattern: 'burst', baseDmg: 0.12, dmgPerLvl: 0.055, rangeBase: 6, rangePerLvls: 99, attackIntervalMs: 800, fxColor: '#fb923c' },
-  beam: { id: 'beam', label: 'ビーム', emoji: '⚡', desc: '十字に削る', tag: 'beam', pattern: 'cross', baseDmg: 0.07, dmgPerLvl: 0.03, rangeBase: 1, rangePerLvls: 3, attackIntervalMs: 250, fxColor: '#67e8f9' },
+  beam: { id: 'beam', label: 'ビーム', emoji: '⚡', desc: '直線ビーム（2→4→8方向に増える）', tag: 'beam', pattern: 'cross', baseDmg: 0.07, dmgPerLvl: 0.03, rangeBase: 1, rangePerLvls: 3, attackIntervalMs: 250, fxColor: '#67e8f9' },
   drill: { id: 'drill', label: 'ドリル', emoji: '🌀', desc: '進行方向へ貫く', tag: 'beam', pattern: 'forward', baseDmg: 0.18, dmgPerLvl: 0.07, rangeBase: 2, rangePerLvls: 2, attackIntervalMs: 400, fxColor: '#a78bfa' },
   aura: { id: 'aura', label: 'オーラ', emoji: '💥', desc: '周囲をじわっと削る', tag: 'field', pattern: 'around', baseDmg: 0.045, dmgPerLvl: 0.02, rangeBase: 1, rangePerLvls: 4, attackIntervalMs: 700, fxColor: '#f472b6' },
   ring: { id: 'ring', label: 'リング', emoji: '🪃', desc: '外周をぐるりと削る', tag: 'field', pattern: 'ring', baseDmg: 0.035, dmgPerLvl: 0.015, rangeBase: 2, rangePerLvls: 3, attackIntervalMs: 600, fxColor: '#bef264' },
@@ -179,6 +179,7 @@ export interface MiningBalance {
     readonly gemFloor: number; readonly gemPerFloor: number; readonly gemMax: number;        // 宝石(ダイヤ): さらに深い階から・ごく稀
   };
 
+  readonly areaPerLvls: number;  // 武器レベル何段ごとに範囲段階(spread)が+1（射程投資でも増える）
   readonly critMult: number;     // 会心倍率
   readonly maxWeapons: number;   // 所持できる武器数
   readonly maxPassives: number;  // 所持できる強化数
@@ -238,6 +239,7 @@ export const defaultMiningBalance: MiningBalance = {
     gemFloor: 8, gemPerFloor: 0.5, gemMax: 6,
   },
 
+  areaPerLvls: 3,
   critMult: 3,
   maxWeapons: 6,
   maxPassives: 6,

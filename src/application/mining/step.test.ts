@@ -69,6 +69,27 @@ describe('mining/step', () => {
     expect(s1.levels.power).toBeGreaterThan(base.levels.power);   // 何か取得された
   });
 
+  it('武器の範囲はレベル/射程で広がる（ツルハシ1マス→拡大、ビーム2→4→8方向）', () => {
+    // 命中マス数で範囲を測る。手動＋前方の壁を固定してツルハシ。
+    const fire = (lvl: number) => {
+      const s = { ...initialMineState(), autoMode: false, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } }, levels: { ...initialMineState().levels, pick: lvl } };
+      const r = stepMine(s, 600); // ツルハシが1回攻撃
+      return new Set(r.fx.filter((f) => f.weapon === 'pick').flatMap((f) => f.cells.map((c) => `${c.x},${c.y}`))).size;
+    };
+    expect(fire(1)).toBe(1);              // Lv1: 前方1マス
+    expect(fire(10)).toBeGreaterThan(1);  // 高Lv: 横に広がる
+    // ビームの方向数: Lv1=2方向、高Lvで増える
+    const beamDirs = (lvl: number) => {
+      const s = { ...initialMineState(), autoMode: false, levels: { ...initialMineState().levels, pick: 0, beam: lvl } };
+      const r = stepMine(s, 600);
+      const cells = r.fx.filter((f) => f.weapon === 'beam').flatMap((f) => f.cells);
+      // 中心(cat)から見た方向の種類数
+      return new Set(cells.map((c) => `${Math.sign(c.x - 15)},${Math.sign(c.y - 15)}`)).size;
+    };
+    expect(beamDirs(1)).toBe(2);            // Lv1: 2方向
+    expect(beamDirs(10)).toBeGreaterThan(2); // 高Lv: 4/8方向
+  });
+
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {
     const s = stepMine(initialMineState(), 3000);
     expect(s.fx.length).toBeGreaterThan(0);                       // 演出が出る

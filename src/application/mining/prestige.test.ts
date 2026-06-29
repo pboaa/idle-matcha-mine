@@ -44,7 +44,7 @@ describe('mining/prestige', () => {
   });
 
   it('熟練度は武器ごと・転生時に上がる（使った武器が+1）／消えない', () => {
-    let s = stepMine(initialMineState(), 240_000); // 自動は火力半減ぶん長めに掘る（seq>=masteryMinTiles）
+    let s = stepMine(initialMineState(), 360_000); // 自動は火力半減＆序盤の武器が弱いぶん長めに掘る（seq>=masteryMinTiles）
     const usedPick = s.levels.pick > 0;
     expect(usedPick).toBe(true);
     const pickBefore = s.mastery.pick; // 初回は0

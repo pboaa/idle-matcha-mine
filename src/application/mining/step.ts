@@ -11,6 +11,8 @@ import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } 
 
 export const MINE_STEP_MS = 100;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+const DIRS_H = [[1, 0], [-1, 0]] as const;                 // 2方向（横）
+const DIRS_8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const; // 8方向
 
 const isDug = (dug: ReadonlySet<string>, c: Cell): boolean => dug.has(cellKey(c));
 const isSolid = (dug: ReadonlySet<string>, c: Cell, b: MiningBalance): boolean => inBounds(c, b) && !dug.has(cellKey(c));
@@ -95,18 +97,23 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * masteryMul * upDmg * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
     const range = weaponRange(def, lvl, rangeBonus + rangeAdd);
     const lineRange = range + pierceBonus + pierceAdd; // 直線系は貫通で奥まで
+    // 範囲段階: レベル(areaPerLvls段ごと)＋射程投資で増える。武器ごとに「広がり方」が変わる。
+    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + rangeBonus + rangeAdd;
     switch (def.pattern) {
-      case 'front': { // ツルハシの横振り: 前方＋進行方向に垂直の2マス（3マスのスイング）。単体武器が深い階で埋もれない。
+      case 'front': { // ツルハシ: 最初は前方1マス、spreadで横に広がる（横振り）。
         if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) {
           const d = dirToward(pos, target); const perp = { x: d.y, y: d.x };
           deal(f, dmg, id);
-          deal({ x: f.x + perp.x, y: f.y + perp.y }, dmg, id);
-          deal({ x: f.x - perp.x, y: f.y - perp.y }, dmg, id);
+          for (let k = 1; k <= spread; k++) { deal({ x: f.x + perp.x * k, y: f.y + perp.y * k }, dmg, id); deal({ x: f.x - perp.x * k, y: f.y - perp.y * k }, dmg, id); }
         } } break; }
-      case 'nearest': { const c = nearestSolid(dug, pos, range, b); if (c) deal(c, dmg, id); break; }
-      case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); break; }
-      case 'cross': { for (const [dx, dy] of DIRS) for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + dx * r, y: pos.y + dy * r }, dmg, id); break; }
-      case 'forward': { const d = target ? dirToward(pos, target) : { x: 1, y: 0 }; for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmg, id); break; }
+      case 'nearest': { const c = nearestSolid(dug, pos, range, b); if (c) { deal(c, dmg, id); if (spread >= 2) for (const [dx, dy] of DIRS) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); } break; }
+      case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) { const br = 1 + Math.floor(spread / 2); for (let dy = -br; dy <= br; dy++) for (let dx = -br; dx <= br; dx++) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); } break; }
+      case 'cross': { // ビーム: spreadで 2方向→4方向→8方向。
+        const dirs = spread <= 0 ? DIRS_H : spread === 1 ? DIRS : DIRS_8;
+        for (const [dx, dy] of dirs) for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + dx * r, y: pos.y + dy * r }, dmg, id); break; }
+      case 'forward': { // ドリル: 直線、spreadで横幅が増える。
+        const d = target ? dirToward(pos, target) : { x: 1, y: 0 }; const perp = { x: d.y, y: d.x }; const hw = Math.floor(spread / 2);
+        for (let r = 1; r <= lineRange; r++) { deal({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmg, id); for (let k = 1; k <= hw; k++) { deal({ x: pos.x + d.x * r + perp.x * k, y: pos.y + d.y * r + perp.y * k }, dmg, id); deal({ x: pos.x + d.x * r - perp.x * k, y: pos.y + d.y * r - perp.y * k }, dmg, id); } } break; }
       case 'around': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
       case 'ring': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === range) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
     }
