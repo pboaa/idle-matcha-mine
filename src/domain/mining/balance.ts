@@ -225,9 +225,9 @@ export const defaultMiningBalance: MiningBalance = {
   dropVisualMs: 900,
   fxVisualMs: 220,
 
-  hardnessBase: 0.8,
+  hardnessBase: 0.5,
   hardnessGrowth: 1.34,
-  distHardness: 0.07,
+  distHardness: 0.05,
   valueGrowth: 1.13,
   kinds: {
     dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1, hardMult: 1 },
@@ -259,7 +259,7 @@ export const defaultMiningBalance: MiningBalance = {
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockBase: 15, weaponUnlockGrowth: 1.5,
 
-  autoEffBase: 0.5, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
+  autoEffBase: 0.7, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 
   permStatBase: 25, permStatGrowth: 1.6,
   permPickBase: 18, permPickGrowth: 1.7,

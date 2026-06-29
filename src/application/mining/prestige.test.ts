@@ -102,7 +102,7 @@ describe('mining/prestige', () => {
     expect(r.floor).toBe(0);
     expect(r.level).toBe(1);
     expect(r.materials).toEqual(s.materials); // 鉱石は永続保存（変換しない）
-    expect(r.points).toBe(s.points);          // ★ポイントも保持
+    expect(r.points).toBe(s.points + s.runPoints); // ★は保持＋走行中の獲得予定をまとめて付与
     expect(r.prestiges).toBe(s.prestiges + 1);
     expect(r.coins).toBe(0); // コインはリセット
   });

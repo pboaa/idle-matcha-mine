@@ -134,8 +134,12 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
         const d = target ? dirToward(pos, target) : { x: 1, y: 0 }; const perp = { x: d.y, y: d.x }; const hw = Math.floor(spread / 2);
         const dmgW = dmg / (1 + 2 * hw);
         for (let r = 1; r <= lineRange; r++) { deal({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmgW, id); for (let k = 1; k <= hw; k++) { deal({ x: pos.x + d.x * r + perp.x * k, y: pos.y + d.y * r + perp.y * k }, dmgW, id); deal({ x: pos.x + d.x * r - perp.x * k, y: pos.y + d.y * r - perp.y * k }, dmgW, id); } } break; }
-      case 'around': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
-      case 'ring': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === range) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
+      case 'around': { // オーラ: 半径が増えても総DPSは一定（範囲は被覆用・射程投資で爆発しない）。
+        const baseTiles = (2 * def.rangeBase + 1) ** 2, tiles = (2 * range + 1) ** 2; const dmgA = dmg * baseTiles / tiles;
+        for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) deal({ x: pos.x + dx, y: pos.y + dy }, dmgA, id); break; }
+      case 'ring': { // リング: 外周。半径が増えても総DPSは一定。
+        const dmgR = dmg * def.rangeBase / Math.max(1, range);
+        for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === range) deal({ x: pos.x + dx, y: pos.y + dy }, dmgR, id); break; }
     }
   }
 }
