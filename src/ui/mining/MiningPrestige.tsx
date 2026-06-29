@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineRefine } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyWeaponUp, useMineRefine, type WeaponId } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 /** 工房/転生モーダル: 熟練度(永続)／素材・精錬／恒久強化／転生。周回後に開いて整える。 */
@@ -7,9 +7,12 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
   const doPrestige = useMinePrestigeAct();
   const buyPerm = useMineBuyPerm();
+  const buyWeaponUp = useMineBuyWeaponUp();
   const refine = useMineRefine();
   const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
-  const shownPerms = p.perms.filter((u) => u.kind === permTab);
+  const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
+  const shownPerms = p.perms.filter((u) => u.kind === 'passive');
+  const wt = p.weaponTree.find((w) => w.id === weaponSel) ?? p.weaponTree[0]!;
 
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
@@ -47,10 +50,10 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      {/* 恒久強化（素材で買う・次走から有効）— 武器/強化の個別タブ */}
+      {/* 恒久強化（素材=鉱石で買う・次走から有効）— 武器/強化の個別タブ */}
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <div className="text-[10px] text-stone-500">恒久強化（次の潜りから・素材で購入）</div>
+          <div className="text-[10px] text-stone-500">恒久強化（次の潜りから・鉱石で購入）</div>
           <div className="flex gap-1">
             {([['weapon', '⚔️ 武器'], ['passive', '✨ 強化']] as const).map(([k, label]) => (
               <button key={k} onClick={() => setPermTab(k)}
@@ -60,15 +63,43 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {shownPerms.map((u) => (
-            <button key={u.id} onClick={() => buyPerm(u.id)} disabled={!u.can} title={`${u.label}（恒久Lv${u.lv}）／ ${u.matEmoji}${u.cost}`}
-              className={['flex items-center justify-between rounded-md px-2 py-1 text-[11px] shadow transition', u.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
-              <span className="truncate">{u.emoji}<b className="text-amber-300">{u.lv}</b></span>
-              <span className="ml-1 whitespace-nowrap text-[10px]">{u.matEmoji}{formatNumber(u.cost)}</span>
-            </button>
-          ))}
-        </div>
+
+        {permTab === 'weapon' ? (
+          <div className="flex flex-col gap-1.5">
+            {/* 武器サブタブ（武器ごと） */}
+            <div className="flex flex-wrap gap-1">
+              {p.weaponTree.map((w) => (
+                <button key={w.id} onClick={() => setWeaponSel(w.id)} title={w.label}
+                  className={['rounded-md px-2 py-1 text-[14px] leading-none transition', weaponSel === w.id ? 'bg-amber-400 ring-1 ring-amber-200' : 'bg-stone-700 hover:bg-stone-600'].join(' ')}>
+                  {w.emoji}{w.masteryLv > 0 && <span className="ml-0.5 align-middle text-[9px] text-indigo-200">🎓{w.masteryLv}</span>}
+                </button>
+              ))}
+            </div>
+            {/* 選択中の武器のステータス強化 */}
+            <div className="rounded-md bg-stone-800/60 p-1.5">
+              <div className="mb-1 text-[11px] font-bold text-stone-200">{wt.emoji} {wt.label} の強化</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {wt.stats.map((s) => (
+                  <button key={s.stat} onClick={() => buyWeaponUp(wt.id, s.stat)} disabled={!s.can} title={`${s.desc}（${s.matName}で購入）`}
+                    className={['flex items-center justify-between rounded-md px-2 py-1 text-[11px] shadow transition', s.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
+                    <span className="truncate">{s.emoji}{s.label}<b className="ml-1 text-amber-300">{s.lv}</b></span>
+                    <span className="ml-1 whitespace-nowrap text-[10px]">{s.matEmoji}{formatNumber(s.cost)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1.5">
+            {shownPerms.map((u) => (
+              <button key={u.id} onClick={() => buyPerm(u.id)} disabled={!u.can} title={`${u.label}（恒久Lv${u.lv}）／ ${u.matEmoji}${u.cost}`}
+                className={['flex items-center justify-between rounded-md px-2 py-1 text-[11px] shadow transition', u.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
+                <span className="truncate">{u.emoji}<b className="text-amber-300">{u.lv}</b></span>
+                <span className="ml-1 whitespace-nowrap text-[10px]">{u.matEmoji}{formatNumber(u.cost)}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <button onClick={doPrestige}

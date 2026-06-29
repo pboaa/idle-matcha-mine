@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { buyPerm, buyWeaponUp, weaponUpCost, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
 import { defaultMiningBalance, WEAPON_IDS } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -57,6 +57,24 @@ describe('mining/prestige', () => {
     const before = s.mastery.pick;
     const s2 = prestige(stepMine(s, 5_000), B);
     expect(s2.mastery.pick).toBeGreaterThanOrEqual(before); // 永続保持＆さらに加算
+  });
+
+  it('武器強化ツリー: 素材(鉱石)を消費してLvが上がる／適用外(貫通×非直線)は不可', () => {
+    const s0 = { ...initialMineState(), materials: { ...emptyMaterials(), dirt: 9999, ore: 9999 } };
+    const cost = weaponUpCost('pick', 'damage', s0.perm);
+    const s1 = buyWeaponUp(s0, 'pick', 'damage');
+    expect(s1.perm.weaponUp.pick.damage).toBe(1);
+    expect(s1.materials.dirt).toBe(9999 - cost); // ダメージは土を消費
+    expect(buyWeaponUp(s0, 'pick', 'pierce').perm.weaponUp.pick.pierce).toBe(0); // ツルハシは直線でない＝貫通不可
+    expect(buyWeaponUp(s0, 'beam', 'pierce').perm.weaponUp.beam.pierce).toBe(1);  // ビームは直線＝貫通可
+  });
+
+  it('武器強化ツリー: ダメージ強化で対象武器の威力が上がる', () => {
+    const base = { ...initialMineState(), autoMode: false };
+    const pickDmg = (s: ReturnType<typeof stepMine>): number => s.dmgByWeapon.pick;
+    const noUp = pickDmg(stepMine(base, 500));
+    const upped = { ...base, perm: { ...base.perm, weaponUp: { ...base.perm.weaponUp, pick: { ...base.perm.weaponUp.pick, damage: 5 } } } };
+    expect(pickDmg(stepMine(upped, 500))).toBeGreaterThan(noUp); // +8%/Lv × 5
   });
 
   it('転生: 走行はリセット、素材/恒久/回数は保持', () => {

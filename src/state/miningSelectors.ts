@@ -4,14 +4,16 @@ import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul, weaponMasteryMul } from '@application/mining/upgrades';
 import { totalMastery } from '@application/mining/mineState';
-import { permCost, permMaterial, type PermId } from '@application/mining/prestige';
+import { permCost, permMaterial, weaponUpCost, type PermId } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
   WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, defaultMiningBalance, choiceMeta, isWeapon,
-  WEAPON_DEFS, PASSIVE_DEFS,
-  type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern,
+  WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STATS, WEAPON_STAT_DEFS, weaponStatApplies,
+  type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern, type WeaponStat,
 } from '@domain/mining/balance';
 import { useMiningStore } from '@state/miningStore';
+
+export type { WeaponId, WeaponStat } from '@domain/mining/balance';
 
 export const VIEW_W = 19;
 export const VIEW_H = 15;
@@ -206,9 +208,12 @@ export function buildMineHud(state: MineState): MineHudVM {
 export interface MineMatVM { readonly id: MaterialId; readonly emoji: string; readonly name: string; readonly count: number }
 export interface MinePermVM { readonly id: PermId; readonly kind: 'weapon' | 'passive'; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
 export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: string; readonly toEmoji: string; readonly ratio: number; readonly can: boolean }
-export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryVM }
+/** 武器ごとの強化ツリー（武器別サブタブ）。 */
+export interface MineWeaponStatVM { readonly stat: WeaponStat; readonly emoji: string; readonly label: string; readonly desc: string; readonly lv: number; readonly matEmoji: string; readonly matName: string; readonly cost: number; readonly can: boolean }
+export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly masteryLv: number; readonly stats: readonly MineWeaponStatVM[] }
+export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryVM; readonly weaponTree: readonly MineWeaponTreeVM[] }
 
-const PERM_IDS: readonly PermId[] = [...WEAPON_IDS, ...PASSIVE_IDS, 'appraise'];
+const PERM_IDS: readonly PermId[] = [...PASSIVE_IDS, 'appraise']; // 武器は強化ツリー(weaponTree)へ移行。ここは強化(パッシブ)＋目利き。
 const permLabel = (id: PermId): { emoji: string; label: string } => id === 'appraise' ? { emoji: '🔎', label: '目利き' } : { emoji: choiceMeta(id as ChoiceId).emoji, label: choiceMeta(id as ChoiceId).label };
 
 export function buildPrestige(state: MineState): MinePrestigeVM {
@@ -225,6 +230,14 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
     }),
     refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
     mastery: buildMasteryVM(state),
+    weaponTree: WEAPON_IDS.map((w) => ({
+      id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, masteryLv: state.mastery[w],
+      stats: WEAPON_STATS.filter((s) => weaponStatApplies(s, w)).map((s) => {
+        const def = WEAPON_STAT_DEFS[s];
+        const cost = weaponUpCost(w, s, state.perm);
+        return { stat: s, emoji: def.emoji, label: def.label, desc: def.desc, lv: state.perm.weaponUp[w][s], matEmoji: matEmoji(def.material), matName: B.kinds[def.material].name, cost, can: state.materials[def.material] >= cost };
+      }),
+    })),
   };
 }
 
@@ -238,4 +251,5 @@ export const useMineBuyAppraise = (): (() => void) => useMiningStore((s) => s.bu
 export const useMineBuyBoost = (): (() => void) => useMiningStore((s) => s.buyBoost);
 export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
 export const useMineBuyPerm = (): ((id: PermId) => void) => useMiningStore((s) => s.buyPerm);
+export const useMineBuyWeaponUp = (): ((weapon: WeaponId, stat: WeaponStat) => void) => useMiningStore((s) => s.buyWeaponUp);
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);

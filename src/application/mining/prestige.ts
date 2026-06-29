@@ -1,5 +1,5 @@
-import type { MiningBalance, ChoiceId, MaterialId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, isWeapon } from '@domain/mining/balance';
+import type { MiningBalance, ChoiceId, MaterialId, WeaponId, WeaponStat } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, WEAPON_STAT_DEFS, weaponStatApplies, isWeapon } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponMastery } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
@@ -44,6 +44,23 @@ export function refine(state: MineState, from: MaterialId, b: MiningBalance = de
   const ratio = b.refineRatio;
   if (state.materials[from] < ratio) return state;
   return { ...state, materials: { ...state.materials, [from]: state.materials[from] - ratio, [to]: state.materials[to] + 1 } };
+}
+
+// ===== 武器ごとの恒久強化ツリー（素材=鉱石で買う） =====
+/** 武器ステータス強化の次の1段のコスト（素材数）。 */
+export function weaponUpCost(weapon: WeaponId, stat: WeaponStat, perm: Perm): number {
+  const def = WEAPON_STAT_DEFS[stat];
+  const lvl = perm.weaponUp[weapon][stat];
+  return Math.floor(def.costBase * Math.pow(def.costGrowth, lvl));
+}
+/** 武器ステータスを1段強化（対応素材を消費）。適用外/素材不足なら何もしない。 */
+export function buyWeaponUp(state: MineState, weapon: WeaponId, stat: WeaponStat): MineState {
+  if (!weaponStatApplies(stat, weapon)) return state;
+  const mat = WEAPON_STAT_DEFS[stat].material;
+  const cost = weaponUpCost(weapon, stat, state.perm);
+  if (state.materials[mat] < cost) return state;
+  const wu = { ...state.perm.weaponUp, [weapon]: { ...state.perm.weaponUp[weapon], [stat]: state.perm.weaponUp[weapon][stat] + 1 } };
+  return { ...state, materials: { ...state.materials, [mat]: state.materials[mat] - cost }, perm: { ...state.perm, weaponUp: wu } };
 }
 
 /** 転生時の熟練度獲得: その走行で使った（Lv1以上の）武器ごとに +1（≒ダメージ+masteryPerLvl）。 */

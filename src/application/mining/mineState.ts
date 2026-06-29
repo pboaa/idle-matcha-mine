@@ -1,7 +1,7 @@
 import type { Cell } from '@domain/grid/position';
 import { cellKey } from '@domain/grid/position';
-import type { MiningBalance, ChoiceId, WeaponId, OfferRarity, MaterialId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, PASSIVE_IDS } from '@domain/mining/balance';
+import type { MiningBalance, ChoiceId, WeaponId, OfferRarity, MaterialId, WeaponStat } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, PASSIVE_IDS, WEAPON_STATS } from '@domain/mining/balance';
 import { baseOf } from '@domain/mining/tile';
 
 export type { ChoiceId } from '@domain/mining/balance';
@@ -16,8 +16,11 @@ export interface OfferChoice { readonly id: ChoiceId; readonly rarity: OfferRari
 export interface MineMeta { readonly appraise: number }
 export type Materials = Record<MaterialId, number>;
 export type WeaponMastery = Record<WeaponId, number>;
-/** 恒久(転生で保持): 開始レベル＋基礎目利き。 */
-export interface Perm { readonly levels: Levels; readonly appraise: number }
+/** 武器ごとの恒久ステータス強化Lv（ダメージ/攻撃速度/射程/貫通/固有）。 */
+export type WeaponStatLevels = Record<WeaponStat, number>;
+export type WeaponUpgrades = Record<WeaponId, WeaponStatLevels>;
+/** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器ごとの強化ツリー。 */
+export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponUp: WeaponUpgrades }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
@@ -25,7 +28,9 @@ const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.ma
 
 export const emptyMaterials = (): Materials => ({ dirt: 0, stone: 0, ore: 0, gem: 0 });
 export const emptyMastery = (): WeaponMastery => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as WeaponMastery;
-export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0 });
+const zeroStats = (): WeaponStatLevels => Object.fromEntries(WEAPON_STATS.map((s) => [s, 0])) as WeaponStatLevels;
+export const emptyWeaponUp = (): WeaponUpgrades => Object.fromEntries(WEAPON_IDS.map((w) => [w, zeroStats()])) as WeaponUpgrades;
+export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponUp: emptyWeaponUp() });
 export const totalMastery = (m: WeaponMastery): number => WEAPON_IDS.reduce((a, w) => a + m[w], 0);
 
 export interface MineState {

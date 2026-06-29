@@ -3,8 +3,8 @@ import { initialMineState, type MineState } from '@application/mining/mineState'
 import { defaultMiningBalance } from '@domain/mining/balance';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
-import { prestige, buyPerm, refine, type PermId } from '@application/mining/prestige';
-import type { MaterialId } from '@domain/mining/balance';
+import { prestige, buyPerm, buyWeaponUp, refine, type PermId } from '@application/mining/prestige';
+import type { MaterialId, WeaponId, WeaponStat } from '@domain/mining/balance';
 
 interface MiningStore {
   readonly state: MineState;
@@ -15,6 +15,7 @@ interface MiningStore {
   buyBoost: () => void;
   prestige: () => void;
   buyPerm: (id: PermId) => void;
+  buyWeaponUp: (weapon: WeaponId, stat: WeaponStat) => void;
   refine: (from: MaterialId) => void;
 }
 
@@ -41,5 +42,6 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
   prestige: () => set((st) => ({ state: prestige(st.state) })),
   buyPerm: (id) => set((st) => ({ state: buyPerm(st.state, id) })),
+  buyWeaponUp: (weapon, stat) => set((st) => ({ state: buyWeaponUp(st.state, weapon, stat) })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),
 }));

@@ -2,9 +2,9 @@ import type { Cell } from '@domain/grid/position';
 import { cellKey, sameCell } from '@domain/grid/position';
 import { createRng, type Rng } from '@shared/rng';
 import type { MiningBalance, WeaponId } from '@domain/mining/balance';
-import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/balance';
+import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, WEAPON_STAT_DEFS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
-import { type MineState, type Levels, type WeaponMastery, totalMastery } from '@application/mining/mineState';
+import { type MineState, type Levels, type WeaponMastery, type WeaponUpgrades, totalMastery } from '@application/mining/mineState';
 import { xpForNext, makeOffer, autoPick, appraiseCost, appraiseCapped, boostCost, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
@@ -61,6 +61,7 @@ interface FireCtx {
   readonly totals: EffectTotals;
   readonly mastery: WeaponMastery;   // 武器ごとの熟練度（永続ダメージ）
   readonly masteryPerLvl: number;
+  readonly weaponUp: WeaponUpgrades; // 武器ごとの恒久強化ツリー（ダメージ/攻撃速度/射程/貫通/固有）
   readonly globalMul: number; // 採掘ブースト（走行限定・全武器共通）
   readonly dtMs: number;
   readonly cd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積（この場で加算・消費）
@@ -71,18 +72,23 @@ interface FireCtx {
 
 /** 所持する全武器を「攻撃間隔ごと」に発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
 function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
-  const { dug, pos, target, levels: L, totals: t, mastery, masteryPerLvl, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
+  const { dug, pos, target, levels: L, totals: t, mastery, masteryPerLvl, weaponUp, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
+  const SD = WEAPON_STAT_DEFS;
   for (const id of WEAPON_IDS) {
     const lvl = L[id];
     if (lvl <= 0) continue;
     const def = WEAPON_DEFS[id];
+    const up = weaponUp[id];
+    // 攻撃速度強化: 実効間隔を縮める（1ヒットの威力は基準間隔のままなので手数=DPSが増える）。
+    const interval = def.attackIntervalMs / (1 + up.speed * SD.speed.perLvl);
     cd[id] += dtMs;
-    if (cd[id] < def.attackIntervalMs) continue; // まだクールダウン中
-    cd[id] -= def.attackIntervalMs;              // 1回攻撃（位相を保つ）
-    const masteryMul = 1 + mastery[id] * masteryPerLvl; // 武器ごとの永続熟練度
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * masteryMul * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=間隔ぶんの塊
-    const range = weaponRange(def, lvl, rangeBonus);
-    const lineRange = range + pierceBonus; // 直線系は貫通で奥まで
+    if (cd[id] < interval) continue; // まだクールダウン中
+    cd[id] -= interval;              // 1回攻撃（位相を保つ）
+    const masteryMul = 1 + mastery[id] * masteryPerLvl;                 // 武器ごとの永続熟練度
+    const upDmg = (1 + up.damage * SD.damage.perLvl) * (1 + up.unique * SD.unique.perLvl); // 恒久ツリー(ダメージ/固有)
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * masteryMul * upDmg * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
+    const range = weaponRange(def, lvl, rangeBonus + up.range);
+    const lineRange = range + pierceBonus + up.pierce; // 直線系は貫通で奥まで（恒久貫通も加算）
     switch (def.pattern) {
       case 'front': { // ツルハシの横振り: 前方＋進行方向に垂直の2マス（3マスのスイング）。単体武器が深い階で埋もれない。
         if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) {
@@ -170,7 +176,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)は全武器共通、熟練度(永続)は武器ごとに乗る。
   const globalMul = boostMul(state.boost, b);
   const weaponCd = { ...state.weaponCd };
-  fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
+  fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, weaponUp: state.perm.weaponUp, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials }, b);
 

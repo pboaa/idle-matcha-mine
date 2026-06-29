@@ -75,6 +75,26 @@ export const PASSIVE_DEFS: Record<PassiveId, PassiveDef> = {
 };
 export const PASSIVE_IDS = Object.keys(PASSIVE_DEFS) as PassiveId[];
 
+// ===== 武器ごとの恒久強化ツリー（Stage2: 素材=鉱石で買う武器別ステータス・データ駆動で拡張可） =====
+export type WeaponStat = 'damage' | 'speed' | 'range' | 'pierce' | 'unique';
+export const WEAPON_STATS: readonly WeaponStat[] = ['damage', 'speed', 'range', 'pierce', 'unique'];
+export interface WeaponStatDef {
+  readonly id: WeaponStat; readonly label: string; readonly emoji: string; readonly desc: string;
+  readonly material: MaterialId;   // 消費する鉱石(=素材)。土/石=基本、鉱石/宝石=上位。
+  readonly costBase: number; readonly costGrowth: number; readonly perLvl: number;
+  readonly lineOnly?: boolean;     // 貫通は直線(ビーム/ドリル)系だけ有効
+}
+export const WEAPON_STAT_DEFS: Record<WeaponStat, WeaponStatDef> = {
+  damage: { id: 'damage', label: 'ダメージ', emoji: '⚔️', desc: 'この武器のダメージ +8%/Lv', material: 'dirt', costBase: 6, costGrowth: 1.45, perLvl: 0.08 },
+  speed: { id: 'speed', label: '攻撃速度', emoji: '⏱️', desc: 'この武器の攻撃が速くなる +8%/Lv', material: 'stone', costBase: 6, costGrowth: 1.5, perLvl: 0.08 },
+  range: { id: 'range', label: '射程', emoji: '📏', desc: 'この武器の射程/範囲 +1/Lv', material: 'ore', costBase: 3, costGrowth: 1.7, perLvl: 1 },
+  pierce: { id: 'pierce', label: '貫通', emoji: '➡️', desc: '直線がさらに奥へ +1/Lv', material: 'ore', costBase: 3, costGrowth: 1.7, perLvl: 1, lineOnly: true },
+  unique: { id: 'unique', label: '固有', emoji: '✨', desc: 'この武器だけの強力な底上げ +15%/Lv', material: 'gem', costBase: 2, costGrowth: 1.9, perLvl: 0.15 },
+};
+/** その武器にそのステータス強化が有効か（貫通は直線系のみ）。 */
+export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean =>
+  !WEAPON_STAT_DEFS[stat].lineOnly || WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward';
+
 export const isWeapon = (id: ChoiceId): id is WeaponId => id in WEAPON_DEFS;
 export const choiceMeta = (id: ChoiceId): { label: string; emoji: string; desc: string } =>
   isWeapon(id) ? WEAPON_DEFS[id] : PASSIVE_DEFS[id as PassiveId];

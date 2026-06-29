@@ -1,7 +1,7 @@
 import { type Rng } from '@shared/rng';
 import type { MiningBalance, ChoiceId, OfferRarity } from '@domain/mining/balance';
-import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, defaultMiningBalance } from '@domain/mining/balance';
-import type { MineState, OfferChoice, Levels } from '@application/mining/mineState';
+import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, WEAPON_STATS, defaultMiningBalance, isWeapon } from '@domain/mining/balance';
+import type { MineState, OfferChoice, Levels, WeaponUpgrades } from '@application/mining/mineState';
 
 export const xpForNext = (level: number, b: MiningBalance = defaultMiningBalance): number => b.xpBase + level * b.xpPerLevel;
 
@@ -44,9 +44,14 @@ export function makeOffer(rng: Rng, levels: Levels, appraise: number, b: MiningB
   });
 }
 
-/** 自動モードの取得選択。3択(=持ち込み)はランダムだが、恒久強化(perm)済みのものを優先で取る。 */
-export function autoPick(offer: readonly OfferChoice[], rng: Rng, perm?: { readonly levels: Levels }): OfferChoice {
-  const priority = (c: OfferChoice): number => (perm ? perm.levels[c.id] : 0);
+/** 自動モードの取得選択。3択(=持ち込み)はランダムだが、恒久強化(開始Lv＋武器ツリー)済みのものを優先で取る。 */
+export function autoPick(offer: readonly OfferChoice[], rng: Rng, perm?: { readonly levels: Levels; readonly weaponUp?: WeaponUpgrades }): OfferChoice {
+  const priority = (c: OfferChoice): number => {
+    if (!perm) return 0;
+    let p = perm.levels[c.id];
+    if (perm.weaponUp && isWeapon(c.id)) for (const s of WEAPON_STATS) p += perm.weaponUp[c.id][s]; // 武器ツリーへの投資も優先
+    return p;
+  };
   let best = -1;
   const top: OfferChoice[] = [];
   for (const c of offer) {
