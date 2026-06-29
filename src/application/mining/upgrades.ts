@@ -1,6 +1,6 @@
 import { type Rng } from '@shared/rng';
 import type { MiningBalance, ChoiceId, OfferRarity, WeaponId } from '@domain/mining/balance';
-import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, defaultMiningBalance } from '@domain/mining/balance';
+import { WEAPON_IDS, PASSIVE_IDS, PASSIVE_DEFS, defaultMiningBalance, isWeapon } from '@domain/mining/balance';
 import type { MineState, OfferChoice, Levels } from '@application/mining/mineState';
 
 export const xpForNext = (level: number, b: MiningBalance = defaultMiningBalance): number => b.xpBase + level * b.xpPerLevel;
@@ -17,16 +17,21 @@ function rollRarity(rng: Rng, rare: number, epic: number): OfferRarity {
 
 const owned = (levels: Levels): ChoiceId[] => ([...WEAPON_IDS, ...PASSIVE_IDS] as ChoiceId[]).filter((id) => levels[id] > 0);
 
-/** 3択。武器は解放済み(allowed)のみ＋所持数制限(maxWeapons)、強化も所持数制限(maxPassives)。武器固有強化はその武器所持が条件。 */
+/** 3択でそのIDを上げられる上限Lv（武器/強化で別）。到達したら3択に出ない＝走行内の青天井を防ぐ。 */
+export const offerLevelCap = (id: ChoiceId, b: MiningBalance = defaultMiningBalance): number =>
+  isWeapon(id) ? b.maxWeaponLevel : b.maxPassiveLevel;
+
+/** 3択。武器は解放済み(allowed)のみ＋所持数制限(maxWeapons)＋上限Lv、強化も所持数(maxPassives)＋上限Lv。 */
 export function makeOffer(rng: Rng, levels: Levels, appraise: number, allowed: readonly WeaponId[], b: MiningBalance = defaultMiningBalance): OfferChoice[] {
   const canNewWeapon = WEAPON_IDS.filter((w) => levels[w] > 0).length < b.maxWeapons;
   const canNewPassive = PASSIVE_IDS.filter((id) => levels[id] > 0).length < b.maxPassives;
   const pool: ChoiceId[] = [];
-  for (const id of WEAPON_IDS) if (allowed.includes(id) && (levels[id] > 0 || canNewWeapon)) pool.push(id);
+  for (const id of WEAPON_IDS) if (allowed.includes(id) && (levels[id] > 0 || canNewWeapon) && levels[id] < b.maxWeaponLevel) pool.push(id);
   for (const id of PASSIVE_IDS) {
     const def = PASSIVE_DEFS[id];
     if (def.reqWeapon && levels[def.reqWeapon] <= 0) continue; // 武器固有強化は対応武器を持っている時だけ
     if (levels[id] <= 0 && !canNewPassive) continue;           // 強化は最大 maxPassives 個（既存はLv上げのため出る）
+    if (levels[id] >= b.maxPassiveLevel) continue;             // 上限Lv到達は出さない
     pool.push(id);
   }
 
@@ -54,10 +59,11 @@ export function autoPick(offer: readonly OfferChoice[], rng: Rng): OfferChoice {
 
 // 三択は放置で自動選択されるので「特殊な強化要素(貫通/範囲/多点)」は持たせない。
 // レア/エピックは取得レベルが増えるだけ（特殊効果は全て転生スキルツリー側へ）。
-export function applyOfferChoice(state: MineState, choice: OfferChoice): MineState {
+export function applyOfferChoice(state: MineState, choice: OfferChoice, b: MiningBalance = defaultMiningBalance): MineState {
   const lv = { ...state.levels };
-  lv[choice.id] += choice.rarity === 'rare' ? 2 : 1;
-  if (choice.rarity === 'epic' && choice.bonus) lv[choice.bonus] += 1;
+  const cap = (id: ChoiceId): number => offerLevelCap(id, b);
+  lv[choice.id] = Math.min(cap(choice.id), lv[choice.id] + (choice.rarity === 'rare' ? 2 : 1)); // 上限Lvで頭打ち
+  if (choice.rarity === 'epic' && choice.bonus) lv[choice.bonus] = Math.min(cap(choice.bonus), lv[choice.bonus] + 1);
   return { ...state, levels: lv, offer: null, offerAt: null };
 }
 

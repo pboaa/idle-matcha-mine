@@ -104,6 +104,8 @@ export interface MiningBalance {
   readonly critMult: number;     // 会心倍率
   readonly maxWeapons: number;   // 所持できる武器数
   readonly maxPassives: number;  // 所持できる強化数
+  readonly maxWeaponLevel: number;  // 3択で武器を上げられる上限Lv（到達したら3択に出ない）
+  readonly maxPassiveLevel: number; // 3択で強化を上げられる上限Lv（同上）
 
   readonly xpBase: number; readonly xpPerLevel: number;
 
@@ -163,6 +165,8 @@ export const defaultMiningBalance: MiningBalance = {
   critMult: 3,
   maxWeapons: 6,
   maxPassives: 6,
+  maxWeaponLevel: 25,
+  maxPassiveLevel: 15,
 
   xpBase: 5, xpPerLevel: 3,
 

@@ -1,13 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import { createRng } from '@shared/rng';
 import { initialMineState } from '@application/mining/mineState';
-import { makeOffer, autoPick, applyOfferChoice, appraiseCost, buyAppraise, rareChance, epicChance, boostCost, buyBoost, boostMul } from '@application/mining/upgrades';
+import { makeOffer, autoPick, applyOfferChoice, offerLevelCap, appraiseCost, buyAppraise, rareChance, epicChance, boostCost, buyBoost, boostMul } from '@application/mining/upgrades';
+import { stepMine } from '@application/mining/step';
 import { defaultMiningBalance, PASSIVE_IDS, WEAPON_IDS } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 const lv = () => initialMineState().levels;
 
 describe('mining/offers', () => {
+  it('三択の武器/強化には上限Lv: 到達したら3択に出ない＆超えて上がらない', () => {
+    // 武器pickを上限に。makeOfferのpoolにpickが出ない。
+    const maxed = { ...lv(), pick: B.maxWeaponLevel };
+    for (let i = 0; i < 30; i++) expect(makeOffer(createRng(i), maxed, 0, WEAPON_IDS, B).some((c) => c.id === 'pick')).toBe(false);
+    // applyOfferChoice は上限で頭打ち（rare=+2でも超えない）。
+    const near = { ...initialMineState(), levels: { ...lv(), pick: B.maxWeaponLevel - 1 } };
+    const r = applyOfferChoice(near, { id: 'pick', rarity: 'rare', bonus: null }, B);
+    expect(r.levels.pick).toBe(B.maxWeaponLevel);
+    // 長時間走行しても上限を超えない。
+    const s = stepMine(initialMineState(), 60 * 60_000); // 1時間
+    for (const w of WEAPON_IDS) expect(s.levels[w]).toBeLessThanOrEqual(B.maxWeaponLevel);
+    for (const p of PASSIVE_IDS) expect(s.levels[p]).toBeLessThanOrEqual(B.maxPassiveLevel);
+    expect(offerLevelCap('pick')).toBe(B.maxWeaponLevel);
+    expect(offerLevelCap('power')).toBe(B.maxPassiveLevel);
+  });
+
   it('makeOffer は3枠・各枠に rarity', () => {
     const o = makeOffer(createRng(1), lv(), 0, WEAPON_IDS, B);
     expect(o.length).toBe(3);

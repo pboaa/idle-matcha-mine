@@ -7,7 +7,7 @@ import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileVal
 import { stepToward, patternHits } from '@domain/mining/patterns';
 import { type MineState, type Levels, type WeaponStatLevels } from '@application/mining/mineState';
 import { weaponSkillStats, mainSkillStats, autoEfficiency, allowedWeapons, globalDamageMult } from '@application/mining/prestige';
-import { xpForNext, makeOffer, autoPick, boostMul } from '@application/mining/upgrades';
+import { xpForNext, makeOffer, autoPick, boostMul, offerLevelCap } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
 export const MINE_STEP_MS = 100;
@@ -190,13 +190,13 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   let offer = state.offer;
   let offerAt = state.offerAt;
   let runPoints = state.runPoints;
-  // 三択は特殊効果を持たない（レア=+2Lv / エピック=+1Lv＋既存1つ+1）。特殊強化は転生ツリーへ。
+  // 三択は特殊効果を持たない（レア=+2Lv / エピック=+1Lv＋既存1つ+1）。上限Lvで頭打ち。
   const applyChoice = (ch: ReturnType<typeof autoPick>): void => {
-    levels = { ...levels, [ch.id]: levels[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
-    if (ch.rarity === 'epic' && ch.bonus) levels = { ...levels, [ch.bonus]: levels[ch.bonus] + 1 };
+    levels = { ...levels, [ch.id]: Math.min(offerLevelCap(ch.id, b), levels[ch.id] + (ch.rarity === 'rare' ? 2 : 1)) };
+    if (ch.rarity === 'epic' && ch.bonus) levels = { ...levels, [ch.bonus]: Math.min(offerLevelCap(ch.bonus, b), levels[ch.bonus] + 1) };
   };
   // 保留中の3択を一定時間放置したら自動選択（手動が基本・なにもしなければ自動）。
-  if (offer && offerAt !== null && now - offerAt >= b.offerAutoMs) {
+  if (offer && offer.length > 0 && offerAt !== null && now - offerAt >= b.offerAutoMs) {
     applyChoice(autoPick(offer, rng));
     offer = null; offerAt = null;
   }
@@ -206,6 +206,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     level += 1;
     runPoints += b.pointsPerLevel; // 進行で獲得予定★が貯まる（転生でもらえる）
     const choices = makeOffer(rng, levels, meta.appraise, allowed, b);
+    if (choices.length === 0) continue;                  // 全て上限到達＝3択なし（レベルだけ上がる）
     if (state.autoMode) applyChoice(autoPick(choices, rng));
     else { offer = choices; offerAt = now; } // 手動: 3択を提示して待つ
   }

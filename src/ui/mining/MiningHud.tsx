@@ -14,11 +14,11 @@ export function MiningHud() {
       <div className="flex flex-col gap-1 text-[12px]">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] text-stone-500">武器 {hud.weaponSlots}</span>
-          {hud.weapons.map((w) => <span key={w.label} title={w.detail} className="cursor-help text-stone-100">{w.emoji}<b className="text-amber-300">{w.lv}</b></span>)}
+          {hud.weapons.map((w) => <span key={w.label} title={`${w.detail}（上限Lv${w.max}）`} className="cursor-help text-stone-100">{w.emoji}<b className={w.maxed ? 'text-emerald-300' : 'text-amber-300'}>{w.lv}{w.maxed ? 'MAX' : ''}</b></span>)}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] text-stone-500">強化 {hud.passiveSlots}</span>
-          {hud.passives.map((w) => <span key={w.label} title={w.detail} className="cursor-help text-stone-300">{w.emoji}{w.lv}</span>)}
+          {hud.passives.map((w) => <span key={w.label} title={`${w.detail}（上限Lv${w.max}）`} className="cursor-help text-stone-300">{w.emoji}<span className={w.maxed ? 'text-emerald-300' : ''}>{w.lv}{w.maxed ? 'MAX' : ''}</span></span>)}
         </div>
       </div>
 
