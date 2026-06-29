@@ -203,6 +203,7 @@ export interface MiningBalance {
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
   readonly weaponUnlockBase: number; readonly weaponUnlockGrowth: number; // 武器解放のポイントコスト
+  readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
   readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
 
   // 自動モードの効率（自動は火力が下がる。放置ツリーをポイントで上げると100%へ）
@@ -258,6 +259,7 @@ export const defaultMiningBalance: MiningBalance = {
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockBase: 15, weaponUnlockGrowth: 1.5,
+  masteryPerLvl: 0.08,
 
   autoEffBase: 0.7, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 

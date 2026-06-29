@@ -1,5 +1,5 @@
 import type { MiningBalance, ChoiceId, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, COIN_UP_DEFS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
@@ -119,7 +119,20 @@ export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalanc
   return { ...state, points: state.points - cost, perm: { ...state.perm, idle: state.perm.idle + 1 } };
 }
 
-/** 転生: 走行をリセット。獲得予定★(runPoints)をここで★(points)に加算してもらえる。鉱石・恒久は保持。 */
+// ===== 熟練度（転生で使った武器が少しずつ恒久強化・幾何の硬さに追従させる線形） =====
+/** 武器の熟練度ダメージ倍率（1 + 熟練Lv × masteryPerLvl）。 */
+export function masteryMult(level: number, b: MiningBalance = defaultMiningBalance): number {
+  return 1 + level * b.masteryPerLvl;
+}
+/** この走行で実際にダメージを出した武器を +1 熟練（使った武器ほど伸びる）。 */
+export function gainMastery(state: MineState): MineState['perm']['mastery'] {
+  const next = { ...state.perm.mastery };
+  for (const w of WEAPON_IDS) if (state.dmgByWeapon[w] > 0) next[w] = (next[w] ?? 0) + 1;
+  return next;
+}
+
+/** 転生: 走行をリセット。獲得予定★(runPoints)をここで★(points)に加算してもらえる。鉱石・恒久は保持。使った武器は+1熟練。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  return freshRun(b, state.materials, state.perm, state.prestiges + 1, state.rngState, state.points + state.runPoints);
+  const perm = { ...state.perm, mastery: gainMastery(state) };
+  return freshRun(b, state.materials, perm, state.prestiges + 1, state.rngState, state.points + state.runPoints);
 }

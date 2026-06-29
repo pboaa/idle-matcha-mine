@@ -107,6 +107,14 @@ describe('mining/prestige', () => {
     expect(r.coins).toBe(0); // コインはリセット
   });
 
+  it('転生: 使った武器の熟練度が+1上がる（使わない武器は据え置き）', () => {
+    const s = stepMine(initialMineState(), 30_000); // ツルハシで掘ってダメージが出る
+    expect(s.dmgByWeapon.pick).toBeGreaterThan(0);
+    const r = prestige(s, B);
+    expect(r.perm.mastery.pick).toBe((s.perm.mastery.pick ?? 0) + 1); // 使った武器は+1
+    expect(r.perm.mastery.beam).toBe(0);                               // 使っていない武器は0のまま
+  });
+
   it('★は走行中に獲得予定が貯まり、転生でもらえる', () => {
     const s = stepMine(initialMineState(), 60_000);
     expect(s.runPoints).toBeGreaterThan(0); // 走行中は獲得予定★が貯まる

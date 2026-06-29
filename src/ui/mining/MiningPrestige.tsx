@@ -24,6 +24,14 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
         <span className="text-[10px] text-stone-400">所持 ★{formatNumber(p.points)} → ★{formatNumber(p.points + p.runPoints)}</span>
       </div>
 
+      {/* 使った武器の熟練度が+1（恒久・転生を重ねるほど強くなる） */}
+      {p.masteryGains.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-rose-950/30 p-2 text-[11px] text-rose-100 ring-1 ring-rose-800/40">
+          <span className="text-[10px] text-rose-300/80">🗡️ 熟練度 +1（使った武器）</span>
+          {p.masteryGains.map((m) => <span key={m.id}>{m.emoji}<b className="text-rose-300">{m.from}→{m.to}</b></span>)}
+        </div>
+      )}
+
       <button onClick={doPrestige} disabled={p.runPoints <= 0}
         className={['rounded-lg px-2 py-2 text-sm font-bold text-white shadow ring-2 transition active:scale-95', p.runPoints > 0 ? 'bg-fuchsia-600 ring-fuchsia-300 hover:bg-fuchsia-500' : 'cursor-not-allowed bg-stone-700 ring-stone-600'].join(' ')}>
         🔄 転生する（★獲得 ／ 階・Lv・コインはリセット、鉱石・恒久は保持）

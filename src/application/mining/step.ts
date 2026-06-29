@@ -70,6 +70,7 @@ interface FireCtx {
   readonly totals: EffectTotals;
   readonly skillStats: Record<WeaponId, WeaponStatLevels>; // 恒久スキルツリーの累積ステータス（amount）
   readonly quality: Record<WeaponId, number>; // レア/エピックの固有特性量（弾=多点/直線=貫通/他=範囲）
+  readonly mastery: Record<WeaponId, number>; // 武器ごとの熟練度（恒久・転生で使った武器が伸びる）
   readonly globalMul: number; // 採掘ブースト（走行限定・全武器共通）
   readonly dtMs: number;
   readonly cd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積（この場で加算・消費）
@@ -80,7 +81,7 @@ interface FireCtx {
 
 /** 所持する全武器を「攻撃間隔ごと」に発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
 function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
-  const { dug, pos, target, levels: L, totals: t, skillStats, quality, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
+  const { dug, pos, target, levels: L, totals: t, skillStats, quality, mastery, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
   for (const id of WEAPON_IDS) {
     const lvl = L[id];
     if (lvl <= 0) continue;
@@ -104,7 +105,8 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     const qHalf = Math.ceil(q / 2);
     const qMul = 1 + (isField ? q * 0.3 : 0);
     const upDmg = (1 + damageBonus) * (1 + uniqueBonus);                 // スキルツリー(ダメージ/固有)
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * upDmg * qMul * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
+    const masteryUp = 1 + (mastery[id] ?? 0) * b.masteryPerLvl;          // 熟練度(恒久・線形)
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * upDmg * masteryUp * qMul * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
     const range = weaponRange(def, lvl, rangeBonus + rangeAdd);
     const lineRange = range + pierceBonus + pierceAdd + (isLine ? q : 0);              // 直線系は固有特性で貫通+（長さ）
     // 範囲段階(方向/横幅): レベル(areaPerLvls段ごと)で緩やかに。射程投資は「長さ」専用で広がり方には影響させない。
@@ -217,7 +219,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const globalMul = boostMul(state.boost, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
-  fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, quality: state.weaponQuality, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
+  fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, quality: state.weaponQuality, mastery: state.perm.mastery, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
   // 階クリアで降下。獲得予定★(runPoints)は「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials, runPoints: state.runPoints + b.pointsPerFloor * (state.floor + 1) }, b);

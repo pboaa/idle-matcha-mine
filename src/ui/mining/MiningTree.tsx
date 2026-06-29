@@ -126,16 +126,17 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap gap-1">
               {p.weaponTree.map((w) => (
-                <button key={w.id} onClick={() => setWeaponSel(w.id)} title={w.label}
-                  className={['rounded-md px-2 py-1 text-[14px] leading-none transition', weaponSel === w.id ? 'bg-amber-400 ring-1 ring-amber-200' : 'bg-stone-700 hover:bg-stone-600'].join(' ')}>
+                <button key={w.id} onClick={() => setWeaponSel(w.id)} title={`${w.label}｜熟練Lv${w.mastery}（+${w.masteryPct}% 火力・転生で使うと上昇）`}
+                  className={['relative rounded-md px-2 py-1 text-[14px] leading-none transition', weaponSel === w.id ? 'bg-amber-400 ring-1 ring-amber-200' : 'bg-stone-700 hover:bg-stone-600'].join(' ')}>
                   {w.emoji}
+                  {w.mastery > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1 text-[8px] font-bold leading-tight text-white">{w.mastery}</span>}
                 </button>
               ))}
             </div>
             <div className="rounded-md bg-amber-950/30 p-1.5 ring-1 ring-amber-800/30">
               <div className="mb-1 flex items-center justify-between text-[10px] text-amber-300/80">
                 <span>{wt.emoji} スキルツリー（前提を満たすと広がる）</span>
-                <span>解放 {wt.skillUnlocked}/{wt.skillTotal}</span>
+                <span>熟練Lv{wt.mastery}<span className="text-rose-300">(+{wt.masteryPct}%)</span> ／ 解放 {wt.skillUnlocked}/{wt.skillTotal}</span>
               </div>
               <SkillGraph nodes={wt.skillNodes} onBuy={(i) => buyWeaponSkill(wt.id, i)} />
             </div>

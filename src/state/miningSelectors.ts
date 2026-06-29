@@ -219,7 +219,7 @@ export interface MineSkillNodeVM {
   readonly emoji: string; readonly label: string; readonly cost: number; readonly big: boolean;
   readonly requires: readonly number[]; readonly state: 'unlocked' | 'available' | 'locked'; readonly can: boolean;
 }
-export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number }
+export interface MineWeaponTreeVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly skillNodes: readonly MineSkillNodeVM[]; readonly skillUnlocked: number; readonly skillTotal: number; readonly mastery: number; readonly masteryPct: number }
 /** 放置ツリー（自動効率）。 */
 export interface MineIdleVM { readonly lv: number; readonly maxLv: number; readonly autoEffPct: number; readonly cost: number | null; readonly can: boolean; readonly maxed: boolean }
 /** 武器の解放状態（序盤2種＋★で解放）。 */
@@ -229,6 +229,7 @@ export interface MinePrestigeVM {
   readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[];
   readonly weaponTree: readonly MineWeaponTreeVM[]; readonly idle: MineIdleVM;
   readonly unlocks: readonly MineWeaponUnlockVM[]; readonly unlockCost: number; readonly canUnlock: boolean;
+  readonly masteryGains: readonly { readonly id: WeaponId; readonly emoji: string; readonly from: number; readonly to: number }[];
 }
 
 /** スキルノードの表示文（amount を stat に応じて整形）。 */
@@ -249,6 +250,7 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
     unlocks: WEAPON_IDS.map((w) => ({ id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, status: BASE_WEAPONS.includes(w) ? 'base' as const : state.perm.weaponUnlocks.includes(w) ? 'unlocked' as const : 'locked' as const })),
     unlockCost: weaponUnlockCost(state.perm),
     canUnlock: state.points >= weaponUnlockCost(state.perm) && WEAPON_IDS.some((w) => !BASE_WEAPONS.includes(w) && !state.perm.weaponUnlocks.includes(w)),
+    masteryGains: WEAPON_IDS.filter((w) => state.dmgByWeapon[w] > 0).map((w) => ({ id: w, emoji: choiceMeta(w).emoji, from: state.perm.mastery[w] ?? 0, to: (state.perm.mastery[w] ?? 0) + 1 })),
     materials: MATERIAL_IDS.map((id) => ({ id, emoji: B.kinds[id].emoji, name: B.kinds[id].name, count: state.materials[id] })),
     perms: PERM_IDS.map((id) => {
       const meta = permLabel(id);
@@ -266,9 +268,11 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
     weaponTree: WEAPON_IDS.map((w) => {
       const unlocked = state.perm.weaponSkill[w];
       const nodes = weaponSkillNodes(w);
+      const mastery = state.perm.mastery[w] ?? 0;
       return {
         id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label,
         skillUnlocked: unlocked.length, skillTotal: nodes.length,
+        mastery, masteryPct: Math.round(mastery * B.masteryPerLvl * 100),
         skillNodes: nodes.map((n, i) => {
           const isUnlocked = unlocked.includes(i);
           const available = skillNodeUnlockable(w, unlocked, i);

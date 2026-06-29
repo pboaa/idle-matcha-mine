@@ -21,8 +21,10 @@ export type WeaponStatLevels = Record<WeaponStat, number>;
 export type WeaponSkill = Record<WeaponId, number[]>;
 /** コインで買う全体強化のLv（走行限定）。 */
 export type CoinUp = Record<CoinUpId, number>;
-/** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器スキルツリー＋放置ツリー＋解放済み武器(★で解放)。 */
-export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponSkill: WeaponSkill; readonly idle: number; readonly weaponUnlocks: WeaponId[] }
+/** 武器ごとの熟練度（転生で使った武器が少しずつ上がる恒久ボーナス）。 */
+export type Mastery = Record<WeaponId, number>;
+/** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器スキルツリー＋放置ツリー＋解放済み武器(★で解放)＋熟練度。 */
+export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponSkill: WeaponSkill; readonly idle: number; readonly weaponUnlocks: WeaponId[]; readonly mastery: Mastery }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
@@ -31,7 +33,8 @@ const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.ma
 export const emptyMaterials = (): Materials => ({ dirt: 0, stone: 0, ore: 0, gem: 0 });
 export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
 export const emptyCoinUp = (): CoinUp => Object.fromEntries(COIN_UP_IDS.map((id) => [id, 0])) as CoinUp;
-export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponSkill: emptyWeaponSkill(), idle: 0, weaponUnlocks: [] });
+export const emptyMastery = (): Mastery => zeroDmg();
+export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponSkill: emptyWeaponSkill(), idle: 0, weaponUnlocks: [], mastery: emptyMastery() });
 
 export interface MineState {
   readonly time: number;

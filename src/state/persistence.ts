@@ -1,4 +1,4 @@
-import { initialMineState, type MineState } from '@application/mining/mineState';
+import { initialMineState, emptyPerm, type MineState, type Perm } from '@application/mining/mineState';
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
@@ -24,8 +24,17 @@ export function loadState(): MineState | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as { v?: number; s?: Record<string, unknown> };
     if (data.v !== VERSION || !data.s) return null;
-    const s = data.s as { dug: string[]; damage: [string, number][] } & Record<string, unknown>;
-    return { ...freshState(), ...s, dug: new Set<string>(s.dug), damage: new Map<string, number>(s.damage) } as unknown as MineState;
+    const s = data.s as { dug: string[]; damage: [string, number][]; perm?: Partial<Perm> } & Record<string, unknown>;
+    // perm は入れ子なので深めに補完（旧セーブが weaponUnlocks/mastery 等を欠いても落ちないように）。
+    const base = emptyPerm();
+    const perm: Perm = {
+      ...base, ...(s.perm ?? {}),
+      levels: { ...base.levels, ...(s.perm?.levels ?? {}) },
+      weaponSkill: { ...base.weaponSkill, ...(s.perm?.weaponSkill ?? {}) },
+      mastery: { ...base.mastery, ...(s.perm?.mastery ?? {}) },
+      weaponUnlocks: Array.isArray(s.perm?.weaponUnlocks) ? s.perm!.weaponUnlocks! : [],
+    };
+    return { ...freshState(), ...s, perm, dug: new Set<string>(s.dug), damage: new Map<string, number>(s.damage) } as unknown as MineState;
   } catch { return null; }
 }
 
