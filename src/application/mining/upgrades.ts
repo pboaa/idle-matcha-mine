@@ -62,11 +62,17 @@ export function autoPick(offer: readonly OfferChoice[], rng: Rng, opts?: { reado
   return top[Math.floor(rng.next() * top.length)]!;
 }
 
+/** レア/エピックで武器を取った時の固有特性ゲイン（common=0, rare=1, epic=2）。 */
+export const offerQualityGain = (choice: OfferChoice): number =>
+  isWeapon(choice.id) ? (choice.rarity === 'epic' ? 2 : choice.rarity === 'rare' ? 1 : 0) : 0;
+
 export function applyOfferChoice(state: MineState, choice: OfferChoice): MineState {
   const lv = { ...state.levels };
   lv[choice.id] += choice.rarity === 'rare' ? 2 : 1;
   if (choice.rarity === 'epic' && choice.bonus) lv[choice.bonus] += 1;
-  return { ...state, levels: lv, offer: null, offerAt: null };
+  const q = offerQualityGain(choice); // レア/エピック武器は固有特性を持つ（重ねると強化）
+  const weaponQuality = q > 0 && isWeapon(choice.id) ? { ...state.weaponQuality, [choice.id]: state.weaponQuality[choice.id] + q } : state.weaponQuality;
+  return { ...state, levels: lv, offer: null, offerAt: null, weaponQuality };
 }
 
 // ===== コインの使い道: 目利き（レアが出やすく） =====

@@ -56,7 +56,8 @@ export interface MineState {
   readonly meta: MineMeta;
   readonly boost: number; // 走行限定の採掘ブースト（コインで購入・転生でリセット）
   readonly dmgByWeapon: Record<WeaponId, number>;
-  readonly weaponCd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
+  readonly weaponCd: Record<WeaponId, number>;       // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
+  readonly weaponQuality: Record<WeaponId, number>;  // レア/エピックで取った時の固有特性量（走行限定・弾=多点/直線=貫通/他=範囲）
 
   readonly materials: Materials;   // 鉱石（永続保存・転生でも消えない。後で使う想定）
   readonly coinUp: CoinUp;         // コインで買う全体強化（走行限定・転生でリセット）
@@ -83,6 +84,7 @@ export function freshRun(
     boost: 0, // 採掘ブーストはコインで毎走購入（転生でリセット）
     dmgByWeapon: zeroDmg(),
     weaponCd: zeroDmg(),
+    weaponQuality: zeroDmg(),
     materials, coinUp: emptyCoinUp(), points,
     perm, prestiges,
   };

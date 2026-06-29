@@ -2,11 +2,11 @@ import type { Cell } from '@domain/grid/position';
 import { cellKey, sameCell } from '@domain/grid/position';
 import { createRng, type Rng } from '@shared/rng';
 import type { MiningBalance, WeaponId } from '@domain/mining/balance';
-import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS } from '@domain/mining/balance';
+import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS, COIN_UP_DEFS, isWeapon } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { type MineState, type Levels, type WeaponStatLevels } from '@application/mining/mineState';
 import { weaponSkillStats, autoEfficiency } from '@application/mining/prestige';
-import { xpForNext, makeOffer, autoPick, boostMul } from '@application/mining/upgrades';
+import { xpForNext, makeOffer, autoPick, offerQualityGain, boostMul } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
 export const MINE_STEP_MS = 100;
@@ -63,6 +63,7 @@ interface FireCtx {
   readonly levels: Levels;
   readonly totals: EffectTotals;
   readonly skillStats: Record<WeaponId, WeaponStatLevels>; // 恒久スキルツリーの累積ステータス（amount）
+  readonly quality: Record<WeaponId, number>; // レア/エピックの固有特性量（弾=多点/直線=貫通/他=範囲）
   readonly globalMul: number; // 採掘ブースト（走行限定・全武器共通）
   readonly dtMs: number;
   readonly cd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積（この場で加算・消費）
@@ -73,12 +74,13 @@ interface FireCtx {
 
 /** 所持する全武器を「攻撃間隔ごと」に発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
 function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
-  const { dug, pos, target, levels: L, totals: t, skillStats, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
+  const { dug, pos, target, levels: L, totals: t, skillStats, quality, globalMul, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
   for (const id of WEAPON_IDS) {
     const lvl = L[id];
     if (lvl <= 0) continue;
     const def = WEAPON_DEFS[id];
     const sk = skillStats[id];
+    const q = quality[id]; // レア/エピックの固有特性（弾=多点/直線=貫通/前方・爆発=範囲/オーラ・リング=半径）
     // 強化は恒久スキルツリー(skill amount)から。
     const damageBonus = sk.damage;
     const speedBonus = sk.speed;
@@ -92,10 +94,13 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     cd[id] -= interval;              // 1回攻撃（位相を保つ）
     const upDmg = (1 + damageBonus) * (1 + uniqueBonus);                 // スキルツリー(ダメージ/固有)
     const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * upDmg * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
-    const range = weaponRange(def, lvl, rangeBonus + rangeAdd);
-    const lineRange = range + pierceBonus + pierceAdd; // 直線系は貫通で奥まで
-    // 範囲段階: レベル(areaPerLvls段ごと)＋射程投資で増える。武器ごとに「広がり方」が変わる。
-    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + rangeBonus + rangeAdd;
+    const isLine = def.pattern === 'cross' || def.pattern === 'forward';
+    const isField = def.pattern === 'around' || def.pattern === 'ring';
+    const range = weaponRange(def, lvl, rangeBonus + rangeAdd + (isField ? q : 0)); // オーラ/リングは固有特性で半径+
+    const lineRange = range + pierceBonus + pierceAdd + (isLine ? q : 0);           // 直線系は固有特性で貫通+
+    // 範囲段階: レベル(areaPerLvls段ごと)＋射程投資で増える。前方/爆発は固有特性で範囲+。
+    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + rangeBonus + rangeAdd + (def.pattern === 'front' || def.pattern === 'burst' ? q : 0);
+    const targets = 1 + (def.pattern === 'nearest' ? q : 0); // 弾は固有特性で多点同時
     switch (def.pattern) {
       case 'front': { // ツルハシ: 最初は前方1マス、spreadで横に広がる（横振り）。
         if (target) { const f = stepToward(pos, target); if (!sameCell(f, pos)) {
@@ -103,7 +108,14 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
           deal(f, dmg, id);
           for (let k = 1; k <= spread; k++) { deal({ x: f.x + perp.x * k, y: f.y + perp.y * k }, dmg, id); deal({ x: f.x - perp.x * k, y: f.y - perp.y * k }, dmg, id); }
         } } break; }
-      case 'nearest': { const c = nearestSolid(dug, pos, range, b); if (c) { deal(c, dmg, id); if (spread >= 2) for (const [dx, dy] of DIRS) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); } break; }
+      case 'nearest': { // 弾: 固有特性で「targets」点を同時に撃つ（最寄りから順に）。
+        let hit = 0;
+        for (let r = 1; r <= range && hit < targets; r++) for (let dy = -r; dy <= r && hit < targets; dy++) for (let dx = -r; dx <= r && hit < targets; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const c = { x: pos.x + dx, y: pos.y + dy };
+          if (isSolid(dug, c, b)) { deal(c, dmg, id); hit++; }
+        }
+        break; }
       case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) { const br = 1 + Math.floor(spread / 2); for (let dy = -br; dy <= br; dy++) for (let dx = -br; dx <= br; dx++) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); } break; }
       case 'cross': { // ビーム: spreadで 2方向→4方向→8方向。
         const dirs = spread <= 0 ? DIRS_H : spread === 1 ? DIRS : DIRS_8;
@@ -190,7 +202,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const globalMul = boostMul(state.boost, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
-  fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
+  fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, quality: state.weaponQuality, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
   // 階クリアで降下。★ポイントは「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
   if (cleared) return descend({ ...state, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, materials, points: state.points + b.pointsPerFloor * (state.floor + 1) }, b);
@@ -211,20 +223,22 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const boost = state.boost;
 
   // レベルアップ解決（3択・レア度つき）。★は1レベルごとに pointsPerLevel。
-  const pickOffer = (ch: ReturnType<typeof autoPick>, lv: Levels): Levels => {
-    let nx = { ...lv, [ch.id]: lv[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
-    if (ch.rarity === 'epic' && ch.bonus) nx = { ...nx, [ch.bonus]: nx[ch.bonus] + 1 };
-    return nx;
-  };
   let xp = state.xp + xpGain;
   let level = state.level;
   let levels = state.levels;
+  let weaponQuality = state.weaponQuality;
   let offer = state.offer;
   let offerAt = state.offerAt;
   let points = state.points;
+  const applyChoice = (ch: ReturnType<typeof autoPick>): void => {
+    levels = { ...levels, [ch.id]: levels[ch.id] + (ch.rarity === 'rare' ? 2 : 1) };
+    if (ch.rarity === 'epic' && ch.bonus) levels = { ...levels, [ch.bonus]: levels[ch.bonus] + 1 };
+    const q = offerQualityGain(ch); // レア/エピック武器は固有特性
+    if (q > 0 && isWeapon(ch.id)) weaponQuality = { ...weaponQuality, [ch.id]: weaponQuality[ch.id] + q };
+  };
   // 保留中の3択を一定時間放置したら自動選択（手動が基本・なにもしなければ自動）。
   if (offer && offerAt !== null && now - offerAt >= b.offerAutoMs) {
-    levels = pickOffer(autoPick(offer, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }), levels);
+    applyChoice(autoPick(offer, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
     offer = null; offerAt = null;
   }
   while (!offer && xp >= xpForNext(level, b)) {
@@ -232,7 +246,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     level += 1;
     points += b.pointsPerLevel; // 進行で★が貯まる
     const choices = makeOffer(rng, levels, meta.appraise, b);
-    if (state.autoMode) levels = pickOffer(autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }), levels);
+    if (state.autoMode) applyChoice(autoPick(choices, rng, { levels: state.perm.levels, weaponSkill: state.perm.weaponSkill }));
     else { offer = choices; offerAt = now; } // 手動: 3択を提示して待つ
   }
 
@@ -240,7 +254,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     ...state,
     time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
     cat: { pos, gauge, target }, cam: { ...pos },
-    xp, level, levels, offer, offerAt, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials, points,
+    xp, level, levels, weaponQuality, offer, offerAt, meta, boost, dmgByWeapon: dmgAcc, weaponCd, materials, points,
   };
 }
 

@@ -141,7 +141,7 @@ export const choiceDetail = (id: ChoiceId, lv: number): string =>
 
 // ===== HUD =====
 export interface MineOfferVM { readonly index: number; readonly label: string; readonly emoji: string; readonly desc: string; readonly detail: string; readonly lv: number; readonly rarity: OfferRarity; readonly bonusEmoji: string | null; readonly isWeapon: boolean }
-export interface MineGearVM { readonly emoji: string; readonly label: string; readonly lv: number; readonly detail: string }
+export interface MineGearVM { readonly emoji: string; readonly label: string; readonly lv: number; readonly detail: string; readonly quality: number }
 export interface MineDmgShareVM { readonly emoji: string; readonly label: string; readonly pct: number }
 /** 強化（パッシブ/ブースト）の威力への倍率影響。 */
 export interface MineDmgModVM { readonly emoji: string; readonly label: string; readonly scope: string; readonly mult: number }
@@ -187,8 +187,8 @@ function damageMods(state: MineState): MineDmgModVM[] {
 }
 
 export function buildMineHud(state: MineState): MineHudVM {
-  const weapons = WEAPON_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]) }));
-  const passives = PASSIVE_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]) }));
+  const weapons = WEAPON_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]), quality: state.weaponQuality[id] }));
+  const passives = PASSIVE_IDS.filter((id) => state.levels[id] > 0).map((id) => ({ emoji: choiceMeta(id).emoji, label: choiceMeta(id).label, lv: state.levels[id], detail: choiceDetail(id, state.levels[id]), quality: 0 }));
   const totalDmg = WEAPON_IDS.reduce((a, w) => a + state.dmgByWeapon[w], 0);
   return {
     coins: Math.floor(state.coins), floor: state.floor,

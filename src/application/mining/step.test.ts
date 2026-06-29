@@ -81,6 +81,18 @@ describe('mining/step', () => {
     expect(beamDirs(10)).toBeGreaterThan(2); // 高Lv: 4/8方向
   });
 
+  it('レア/エピックの固有特性: 弾は多点同時／直線は貫通が伸びる', () => {
+    const cells = (weapon: 'bullet' | 'beam', q: number) => {
+      const init = initialMineState();
+      const s = { ...init, autoMode: false, levels: { ...init.levels, pick: 0, [weapon]: 1 }, weaponQuality: { ...init.weaponQuality, [weapon]: q } };
+      const r = stepMine(s, 350); // 弾/ビームが1回攻撃
+      return new Set(r.fx.filter((f) => f.weapon === weapon).flatMap((f) => f.cells.map((c) => `${c.x},${c.y}`))).size;
+    };
+    expect(cells('bullet', 0)).toBe(1);                       // 固有なし: 1点
+    expect(cells('bullet', 2)).toBeGreaterThan(1);            // 固有あり: 多点同時
+    expect(cells('beam', 2)).toBeGreaterThan(cells('beam', 0)); // 直線は貫通で長くなる
+  });
+
   it('武器の命中エフェクト(fx)が生成され寿命内に保たれる', () => {
     const s = stepMine(initialMineState(), 3000);
     expect(s.fx.length).toBeGreaterThan(0);                       // 演出が出る
