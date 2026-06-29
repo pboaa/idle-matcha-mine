@@ -63,22 +63,21 @@ describe('mining/prestige', () => {
   });
 
 
-  it('武器スキルツリー(グリッド): 中央が起点・隣接を解放すると外側が解禁される', () => {
+  it('武器スキルツリー(階層グリッド): 各階層は中央起点・隣接で解放・次の階層は別グリッドで解禁制', () => {
     const nodes = weaponSkillNodes('pick');
-    const rootIdx = nodes.findIndex((n) => n.root);
-    const farIdx = nodes.findIndex((n) => n.tier >= 2); // 中央から遠い（隣接していない）マス
+    const rootIdx = nodes.findIndex((n) => n.root);                 // 階層1の中央
+    const tier1Root = nodes.findIndex((n) => n.root && n.tier === 1); // 階層2の中央
     const rich = { ...emptyMaterials() };
-    for (const id of MATERIAL_IDS) rich[id] = 999999; // 素材たっぷり
+    for (const id of MATERIAL_IDS) rich[id] = 9_999_999; // 素材たっぷり
     const s0 = { ...initialMineState(), materials: rich };
-    expect(skillNodeUnlockable('pick', [], rootIdx)).toBe(true);       // 中央は最初から解放可
-    expect(skillNodeUnlockable('pick', [], farIdx)).toBe(false);       // 遠いマスは隣接が未解放なので不可
+    expect(skillNodeUnlockable('pick', [], rootIdx)).toBe(true);        // 階層1中央は最初から解放可
+    expect(skillNodeUnlockable('pick', [], tier1Root)).toBe(false);     // 階層2はまだ解禁されていない
     const root = nodes[rootIdx]!;
     const s1 = buyWeaponSkill(s0, 'pick', rootIdx);
-    expect(s1.perm.weaponSkill.pick).toEqual([rootIdx]);              // 中央解放
-    expect(s1.materials[root.matId]).toBe(999999 - root.matCost);     // 素材消費
-    // 中央の隣接マスが解禁される
+    expect(s1.perm.weaponSkill.pick).toEqual([rootIdx]);              // 階層1中央を解放
+    expect(s1.materials[root.matId]).toBe(9_999_999 - root.matCost);  // 素材消費
     const neighbor = root.requires[0]!;
-    expect(skillNodeUnlockable('pick', s1.perm.weaponSkill.pick, neighbor)).toBe(true);
+    expect(skillNodeUnlockable('pick', s1.perm.weaponSkill.pick, neighbor)).toBe(true); // 隣接が解禁
     const poor = { ...initialMineState(), materials: emptyMaterials() };
     expect(buyWeaponSkill(poor, 'pick', rootIdx).perm.weaponSkill.pick).toEqual([]); // 素材不足で不可
   });

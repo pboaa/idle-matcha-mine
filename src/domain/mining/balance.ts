@@ -57,7 +57,7 @@ export const WEAPON_UNLOCK_ORDER: readonly WeaponId[] = ['bomb', 'beam', 'drill'
 
 // ===== 武器ごとの恒久スキルツリー（強化／ツリーのマスターデータは skilltree.ts に分離・ここで再エクスポート） =====
 export type { WeaponStat, WeaponStatDef, WeaponSkillNode } from '@domain/mining/skilltree';
-export { WEAPON_STATS, WEAPON_STAT_DEFS, weaponStatApplies, SKILL_GRID, weaponSkillNodes } from '@domain/mining/skilltree';
+export { WEAPON_STATS, WEAPON_STAT_DEFS, weaponStatApplies, SKILL_TIERS, SKILL_GRID_SIZES, skillGridSize, skillGridCenter, skillGridUnlockNeed, weaponSkillNodes } from '@domain/mining/skilltree';
 
 // ===== コインで買う全体強化（走行限定・転生でリセット）。採掘ブースト(boost)に加えての全体バフ。 =====
 export type CoinUpId = 'haste' | 'greed' | 'luck';

@@ -1,5 +1,5 @@
 import type { MiningBalance, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, skillGridUnlockNeed } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 精錬: 下位素材 refineRatio 個 → 上位1個（土が腐らない）。 */
@@ -37,11 +37,19 @@ export function allowedWeapons(perm: Perm, b: MiningBalance = defaultMiningBalan
   return [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER.filter((w) => perm.starEarned >= weaponUnlockStar(w, b))];
 }
 
-/** そのノードが今解放できるか（未解放・中央 or 隣接が解放済み・素材は別途チェック）。
- * グリッド型ツリー：中央(root)は最初から可、以降は上下左右どれかが解放済みなら解禁＝外へ広げていく。 */
+/** その階層(グリッド)が解禁済みか（前の階層を skillGridUnlockNeed だけ解放していれば解禁）。 */
+export function skillGridOpen(weapon: WeaponId, unlocked: readonly number[], tier: number): boolean {
+  if (tier <= 0) return true;
+  const nodes = weaponSkillNodes(weapon);
+  const boughtPrev = unlocked.filter((i) => nodes[i]?.tier === tier - 1).length;
+  return boughtPrev >= skillGridUnlockNeed(tier - 1);
+}
+/** そのノードが今解放できるか（未解放・階層が解禁済み・中央 or 同グリッド隣接が解放済み）。
+ * 階層グリッド型：各階層は中央(root)起点、上下左右どれかが解放済みなら解禁＝外へ広げていく。 */
 export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number): boolean {
   const n = weaponSkillNodes(weapon)[nodeIndex];
   if (!n || unlocked.includes(nodeIndex)) return false;
+  if (!skillGridOpen(weapon, unlocked, n.tier)) return false; // その階層グリッドが未解禁
   return !!n.root || n.requires.some((r) => unlocked.includes(r));
 }
 /** 武器スキルツリーのノードを1つ解放（隣接解禁＋素材を満たせば）。 */

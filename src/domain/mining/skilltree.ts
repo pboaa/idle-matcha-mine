@@ -29,26 +29,33 @@ export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean => {
   return true;
 };
 
-// ===== グリッド型スキルツリー（中央から外へ広げる・隣接で解禁） =====
+// ===== 階層ごとのグリッド型スキルツリー（武器ごとに5グリッド＝5階層） =====
+// 各階層は1つのグリッド。中央が起点（最初から解放可）・隣接を買うと外へ広がる。
+// 階層が深いほどグリッドは大きく(5x5→10x10)・素材は上位＆高額＝終盤ほど上げにくい。
+// 前の階層を一定数解放すると次の階層グリッドが解禁。
+export const SKILL_GRID_SIZES = [5, 6, 8, 9, 10] as const; // 階層1..5
+export const SKILL_TIERS = SKILL_GRID_SIZES.length;        // 5
+export const skillGridSize = (tier: number): number => SKILL_GRID_SIZES[tier] ?? SKILL_GRID_SIZES[SKILL_GRID_SIZES.length - 1]!;
+export const skillGridCenter = (tier: number): number => Math.floor((skillGridSize(tier) - 1) / 2);
+/** 次の階層グリッドを解禁するのに必要な「前の階層の解放数」（外ほど多い＝終盤ほど重い）。 */
+export const skillGridUnlockNeed = (tier: number): number => Math.ceil(skillGridSize(tier) ** 2 * 0.35);
+
 export interface WeaponSkillNode {
-  readonly x: number; readonly y: number;          // グリッド座標（0..SKILL_GRID-1）
-  readonly tier: number;                            // 中央からの距離(リング)＝階層。外ほど高コスト＝終盤。
+  readonly x: number; readonly y: number;          // そのグリッド内の座標
+  readonly tier: number;                            // 階層(=どのグリッド。0..SKILL_TIERS-1)
   readonly stat: WeaponStat; readonly amount: number;
   readonly matId: MaterialId; readonly matCost: number; // 解放に必要な素材と個数
   readonly big?: boolean;
-  readonly root?: boolean;                          // 中央（最初から解放可能な起点）
-  readonly requires: readonly number[];            // 上下左右の隣接ノードindex（どれか解放済みで解禁）
+  readonly root?: boolean;                          // そのグリッドの中央（階層が解禁されたら最初に解放可能）
+  readonly requires: readonly number[];            // 同グリッド内の上下左右隣接ノードindex（どれか解放済みで解禁）
 }
-const GRID_R = 4;                                   // 半径4 → 9x9（中央から5リング＝5階層・〜10x10規模）
-export const SKILL_GRID = GRID_R * 2 + 1;
-const ringOf = (x: number, y: number): number => Math.max(Math.abs(x - GRID_R), Math.abs(y - GRID_R));
-const RING_MAT = [0, 1, 3, 4, 6]; // リング→素材index（土/石/銅/鉄/金）。外ほど上位。
-/** ノードの素材コスト（中央付近は安く・外ほど上位素材＆高額。ツルハシ序盤の範囲だけ特別に安い）。 */
-function ringCost(ring: number, special: boolean, pickArea: boolean): { matId: MaterialId; matCost: number } {
-  if (pickArea) return { matId: MATERIAL_IDS[0]!, matCost: 25 }; // サクサク用：ツルハシ左右の範囲は土で安く
-  const matIndex = Math.min(MATERIAL_IDS.length - 1, (RING_MAT[Math.min(ring, GRID_R)] ?? 6) + (special && ring >= 2 ? 1 : 0));
-  const base = Math.round(12 * Math.pow(1.9, ring)); // 12,23,43,82,156
-  return { matId: MATERIAL_IDS[matIndex]!, matCost: Math.max(1, special ? base * 6 : base) };
+/** ノードの素材コスト（階層が深いほど上位素材＆高額・グリッド外周ほど少し高い。ツルハシ序盤の範囲だけ安い）。 */
+function nodeCost(tier: number, ring: number, special: boolean, pickArea: boolean): { matId: MaterialId; matCost: number } {
+  if (pickArea) return { matId: MATERIAL_IDS[0]!, matCost: 25 }; // サクサク用：ツルハシ中央左右の範囲は土で安く
+  const matIndex = Math.min(MATERIAL_IDS.length - 1, tier + Math.floor(ring / 2)); // 階層主・外周従
+  const base = Math.round(10 * Math.pow(2.4, tier));                               // 10,24,58,138,332
+  const amount = Math.max(1, Math.round(base * (1 + ring * 0.4)));
+  return { matId: MATERIAL_IDS[matIndex]!, matCost: special ? amount * 6 : amount };
 }
 // 決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
@@ -61,50 +68,55 @@ function weaponSpecials(w: WeaponId): WeaponStat[] {
   if (weaponStatApplies('pierce', w)) out.push('pierce'); // 貫通: 直線系のみ
   return out;
 }
-/** 1武器ぶんのグリッドツリーを生成。中央=起点、隣接で解禁。ツルハシは中央左右に安い範囲（すぐ3方向）。
- * その他の範囲/射程/貫通は外側リング（終盤）に分散。ビーム/ドリルの範囲は8本(=spread6)に届く6個。 */
+interface Cell { grid: number; x: number; y: number; ring: number; stat: WeaponStat; amount: number; special: boolean; pickArea: boolean; root: boolean; statKey: number; sortKey: number }
+/** 1武器ぶんの「5グリッド（5階層）」ツリーを生成。各グリッドは中央起点・隣接で解放。特殊は深い階層へ分散（終盤まで）。 */
 function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const rnd = treeRand(seed);
   const isPick = WEAPON_DEFS[w].pattern === 'front';
-  const N = SKILL_GRID, c = GRID_R;
-  interface Cell { x: number; y: number; ring: number; stat: WeaponStat; amount: number; special: boolean; pickArea: boolean; root: boolean; key: number; sortKey: number }
+  // 全グリッドのセルを生成（flat index = 生成順。グリッド0→1→…）。
   const cells: Cell[] = [];
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) cells.push({ x, y, ring: ringOf(x, y), stat: 'damage', amount: 0.03, special: false, pickArea: false, root: false, key: rnd(), sortKey: rnd() });
-  const at = (x: number, y: number): Cell => cells[y * N + x]!;
-  const center = at(c, c); center.root = true; center.amount = 0.05; // 中央＝起点（最初から解放可能・少し大きめ）
-  if (isPick) { // 中央の左右に範囲（安い）＝すぐ前方+左+右の3方向
-    for (const dx of [-1, 1]) { const cell = at(c + dx, c); cell.stat = 'area'; cell.amount = 1; cell.special = true; cell.pickArea = true; }
+  const startOf: number[] = [];
+  for (let tier = 0; tier < SKILL_TIERS; tier++) {
+    startOf[tier] = cells.length;
+    const size = skillGridSize(tier), cen = skillGridCenter(tier);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      cells.push({ grid: tier, x, y, ring: Math.max(Math.abs(x - cen), Math.abs(y - cen)), stat: 'damage', amount: 0.03, special: false, pickArea: false, root: x === cen && y === cen, statKey: rnd(), sortKey: rnd() });
+    }
   }
-  // 特殊(範囲/射程/貫通)を外側リング(>=2)へ決定的に配置。ビーム/ドリルの範囲は6個。
+  const indexAt = (tier: number, x: number, y: number): number => startOf[tier]! + y * skillGridSize(tier) + x;
+  const cellAt = (tier: number, x: number, y: number): Cell => cells[indexAt(tier, x, y)]!;
+  for (const cell of cells) if (cell.root) cell.amount = 0.05; // 中央＝起点（少し大きめ）
+  if (isPick) { const cen = skillGridCenter(0); for (const dx of [-1, 1]) { const cell = cellAt(0, cen + dx, cen); cell.stat = 'area'; cell.amount = 1; cell.special = true; cell.pickArea = true; } } // 階層1の中央左右＝安い範囲（3方向）
+  // 特殊(範囲/射程/貫通)を階層1..4へ分散配置（外へ進むほど増える＝終盤まで）。ビーム/ドリルの範囲は6個。
   const queue: WeaponStat[] = [];
   for (const stat of weaponSpecials(w)) {
-    if (isPick && stat === 'area') continue; // ツルハシの範囲は左右に置き済み
     const isLineArea = stat === 'area' && (WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward');
-    const n = isLineArea ? 6 : 4;
-    for (let i = 0; i < n; i++) queue.push(stat);
+    for (let i = 0; i < (isLineArea ? 6 : 4); i++) queue.push(stat);
   }
-  // 外側リング(2..GRID_R)に分散配置＝外へ広げるほど特殊が増える（範囲なら方向が1つずつ・終盤まで）。
-  const ringCells = new Map<number, Cell[]>();
-  for (let r = 2; r <= GRID_R; r++) ringCells.set(r, cells.filter((x) => x.ring === r && !x.special && !x.root).sort((a, b) => a.sortKey - b.sortKey));
-  const ringSpan = GRID_R - 2 + 1; // 2..GRID_R
+  const gridSpan = SKILL_TIERS - 1; // 階層1..(SKILL_TIERS-1)
+  const avail = new Map<number, Cell[]>();
+  for (let t = 1; t < SKILL_TIERS; t++) avail.set(t, cells.filter((c) => c.grid === t && !c.special && !c.root && c.ring >= 1).sort((a, b) => (b.ring - a.ring) || (a.sortKey - b.sortKey))); // 外周優先
   const ptr = new Map<number, number>();
   for (let qi = 0; qi < queue.length; qi++) {
-    let ring = 2 + (qi % ringSpan);                         // ラウンドロビンで 2,3,4… に振り分け
-    for (let tries = 0; tries < ringSpan; tries++) { const arr = ringCells.get(ring)!; if ((ptr.get(ring) ?? 0) < arr.length) break; ring = 2 + ((ring - 2 + 1) % ringSpan); }
-    const arr = ringCells.get(ring)!; const pi = ptr.get(ring) ?? 0; if (pi >= arr.length) continue;
-    const cell = arr[pi]!; ptr.set(ring, pi + 1); cell.stat = queue[qi]!; cell.amount = 1; cell.special = true;
+    let t = 1 + (qi % gridSpan);
+    for (let tries = 0; tries < gridSpan; tries++) { if ((ptr.get(t) ?? 0) < (avail.get(t)?.length ?? 0)) break; t = 1 + ((t - 1 + 1) % gridSpan); }
+    const arr = avail.get(t); if (!arr) continue; const pi = ptr.get(t) ?? 0; if (pi >= arr.length) continue;
+    const cell = arr[pi]!; ptr.set(t, pi + 1); cell.stat = queue[qi]!; cell.amount = 1; cell.special = true;
   }
-  // 固有を中盤リング(2-3)に数個。
-  const uniqueCells = cells.filter((x) => (x.ring === 2 || x.ring === 3) && !x.special && !x.root).sort((a, b) => a.key - b.key).slice(0, 3);
+  // 固有を中盤グリッド(2,3)に数個。
+  const uniqueCells = cells.filter((c) => (c.grid === 2 || c.grid === 3) && !c.special && !c.root).sort((a, b) => a.statKey - b.statKey).slice(0, 4);
   for (const u of uniqueCells) { u.stat = 'unique'; u.amount = 0.10; u.special = true; }
   // 残りは小さなfiller（damage/speed）。
-  for (const cell of cells) { if (!cell.special && !cell.root) cell.stat = cell.key < 0.4 ? 'speed' : 'damage'; }
-  // 隣接(上下左右)を requires に。解禁はどれか1つが解放済みなら可（中央は最初から可）。
-  const idx = (x: number, y: number): number => y * N + x;
-  const neighbors = (x: number, y: number): number[] => ([[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]] as const).filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < N && ny < N).map(([nx, ny]) => idx(nx, ny));
+  for (const cell of cells) if (!cell.special && !cell.root) cell.stat = cell.statKey < 0.4 ? 'speed' : 'damage';
+  // 同グリッド内の上下左右を requires に（中央は最初から解放可）。
+  const neighbors = (cell: Cell): number[] => {
+    const size = skillGridSize(cell.grid);
+    return ([[cell.x - 1, cell.y], [cell.x + 1, cell.y], [cell.x, cell.y - 1], [cell.x, cell.y + 1]] as const)
+      .filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < size && ny < size).map(([nx, ny]) => indexAt(cell.grid, nx, ny));
+  };
   return cells.map((cell) => ({
-    x: cell.x, y: cell.y, tier: cell.ring, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined,
-    ...ringCost(cell.ring, cell.special, cell.pickArea), requires: neighbors(cell.x, cell.y),
+    x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined,
+    ...nodeCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell),
   }));
 }
 

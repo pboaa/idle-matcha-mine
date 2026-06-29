@@ -3,10 +3,10 @@ import { sameCell } from '@domain/grid/position';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '@domain/mining/tile';
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, appraiseCost, appraiseCapped, rareChance, epicChance, boostCost, boostMul } from '@application/mining/upgrades';
-import { coinUpCost, skillNodeUnlockable, weaponSkillStats, autoEfficiency, idleCost, idleMaxLevel, weaponUnlockStar, globalDamageMult, IDLE_MATERIAL } from '@application/mining/prestige';
+import { coinUpCost, skillNodeUnlockable, skillGridOpen, weaponSkillStats, autoEfficiency, idleCost, idleMaxLevel, weaponUnlockStar, globalDamageMult, IDLE_MATERIAL } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
-  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, WEAPON_STATS, WEAPON_UNLOCK_ORDER, SKILL_GRID, COIN_UP_IDS, COIN_UP_DEFS, BASE_WEAPONS, defaultMiningBalance, choiceMeta, isWeapon,
+  WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, WEAPON_STATS, WEAPON_UNLOCK_ORDER, SKILL_TIERS, skillGridSize, skillGridUnlockNeed, COIN_UP_IDS, COIN_UP_DEFS, BASE_WEAPONS, defaultMiningBalance, choiceMeta, isWeapon,
   WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STAT_DEFS, weaponSkillNodes,
   type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern, type WeaponStat, type CoinUpId,
 } from '@domain/mining/balance';
@@ -221,9 +221,11 @@ export interface MineSkillNodeVM {
 }
 /** ツリーで強化された累積内容（分かりやすい表示用）。 */
 export interface MineTreeStatVM { readonly emoji: string; readonly label: string; readonly text: string }
+/** 階層タブ1段ぶん（垂直タブ＝各階層が1グリッド）。 */
+export interface MineTierVM { readonly tier: number; readonly size: number; readonly open: boolean; readonly bought: number; readonly total: number; readonly need: number }
 export interface MineWeaponTreeVM {
   readonly id: WeaponId; readonly emoji: string; readonly label: string;
-  readonly skillNodes: readonly MineSkillNodeVM[]; readonly grid: number; readonly skillUnlocked: number; readonly skillTotal: number;
+  readonly skillNodes: readonly MineSkillNodeVM[]; readonly tiers: readonly MineTierVM[]; readonly skillUnlocked: number; readonly skillTotal: number;
   readonly mastery: number; readonly masteryPct: number; readonly stats: readonly MineTreeStatVM[];
 }
 /** 放置ツリー（自動効率・素材=銀）。 */
@@ -289,8 +291,13 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
           can: available && state.materials[n.matId] >= n.matCost,
         };
       });
+      const tiers: MineTierVM[] = Array.from({ length: SKILL_TIERS }, (_, tier) => {
+        const inTier = nodes.filter((n) => n.tier === tier).length;
+        const bought = unlocked.filter((i) => nodes[i]?.tier === tier).length;
+        return { tier, size: skillGridSize(tier), open: skillGridOpen(w, unlocked, tier), bought, total: inTier, need: tier < SKILL_TIERS - 1 ? skillGridUnlockNeed(tier) : 0 };
+      });
       return {
-        id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, grid: SKILL_GRID,
+        id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, tiers,
         skillUnlocked: unlocked.length, skillTotal: nodes.length,
         mastery, masteryPct: Math.round(mastery * B.masteryPerLvl * 100), stats, skillNodes,
       };
