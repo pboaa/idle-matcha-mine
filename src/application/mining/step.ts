@@ -210,7 +210,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   }
 
   // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋★全体ダメージ(恒久)＋自動効率(自動は火力減・放置ツリーで回復)。
-  const globalMul = boostMul(state.boost, b) * globalDamageMult(state.perm.starDamage, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
+  const globalMul = boostMul(state.boost, b) * globalDamageMult(state.perm.starEarned, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, mastery: state.perm.mastery, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);

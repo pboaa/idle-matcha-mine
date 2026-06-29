@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { weaponDmg, weaponRange, weaponMult, passiveTotals } from '@application/mining/weapons';
 import { WEAPON_DEFS, PASSIVE_DEFS } from '@domain/mining/balance';
-import { emptyPerm } from '@application/mining/mineState';
+import { zeroLevels } from '@application/mining/mineState';
 
-const zero = () => emptyPerm().levels;
+const zero = () => zeroLevels();
 
 describe('mining/weapons', () => {
   it('ツルハシが主力（lv1単体DPSが他の武器より高い）', () => {

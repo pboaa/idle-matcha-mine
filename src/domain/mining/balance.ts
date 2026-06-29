@@ -126,67 +126,65 @@ export interface WeaponSkillNode {
   readonly big?: boolean;
   readonly requires: readonly number[];            // 線（描画用）。解禁は階層制で行う。
 }
-const isSpecialStat = (s: WeaponStat): boolean => s !== 'damage' && s !== 'speed';
-/** ノードの素材コスト（浅い列＝土が大量に・深い列ほど上位素材。特殊系は量が割増）。
- * tier0,1=土なので序盤の範囲ノード(前方右/左+1)が「土500くらい」で楽に取れる。 */
-function skillNodeCost(x: number, special: boolean): { matId: MaterialId; matCost: number } {
-  const matIndex = Math.min(MATERIAL_IDS.length - 1, Math.max(0, x - 1)); // tier0,1=土／以降1段ずつ上位
-  const amount = Math.max(1, Math.round(150 * Math.pow(1.5, x) * (special ? 2.2 : 1)));
-  return { matId: MATERIAL_IDS[matIndex]!, matCost: amount };
+export const SKILL_TIERS = 5; // スキルツリーの階層数（上→下に5段）
+// 階層→素材index（浅い＝土が大量に、深い＝上位素材）。特殊系はさらに+1段上位。
+const TIER_MAT = [0, 0, 1, 3, 4]; // 土,土,石,銅,鉄
+/** ノードの素材コスト（小さい数値が一杯＝fillerは安い。特殊系=範囲/射程/貫通/固有は上位素材＆大量）。
+ * 序盤(tier0,1)は特殊でも土のまま（ツルハシの範囲を土で取れる）。tier2以降の特殊は一段上の素材に。 */
+function skillNodeCost(tier: number, special: boolean): { matId: MaterialId; matCost: number } {
+  const bump = special && tier >= 2 ? 1 : 0;
+  const matIndex = Math.min(MATERIAL_IDS.length - 1, (TIER_MAT[tier] ?? tier) + bump);
+  const filler = Math.round(20 * Math.pow(1.7, tier));      // 20,34,58,98,167…
+  return { matId: MATERIAL_IDS[matIndex]!, matCost: Math.max(1, special ? filler * 14 : filler) };
 }
 // 木生成用の小さな決定的PRNG（武器ごとに seed を変えて形を変える）。
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
-/** その武器で意味を持つ特殊強化（範囲/射程/貫通）。三択には載せずツリーで確実に取れるようにする。 */
-function weaponSpecials(w: WeaponId): (readonly [WeaponStat, number])[] {
+/** その武器で意味を持つ特殊強化（範囲/射程/貫通）。三択には載せずツリーで取る。 */
+function weaponSpecials(w: WeaponId): WeaponStat[] {
   const pat = WEAPON_DEFS[w].pattern;
-  const out: (readonly [WeaponStat, number])[] = [];
-  if (weaponStatApplies('area', w)) out.push(['area', 1]);     // 範囲: spread/同時対象（フィールド系以外）
-  if (pat !== 'front') out.push(['range', 1]);                  // 射程: 前方(ツルハシ)は射程概念がないので除外
-  if (weaponStatApplies('pierce', w)) out.push(['pierce', 1]); // 貫通: 直線系のみ
+  const out: WeaponStat[] = [];
+  if (weaponStatApplies('area', w)) out.push('area');     // 範囲: spread/同時対象（フィールド系以外）
+  if (pat !== 'front') out.push('range');                  // 射程: 前方(ツルハシ)は射程概念がないので除外
+  if (weaponStatApplies('pierce', w)) out.push('pierce'); // 貫通: 直線系のみ
   return out;
 }
-/** 1武器ぶんの分岐ツリーを生成（多数の+5%＋固有＋武器ごとの特殊強化を確実に複数）。 */
+/** 1武器ぶんの階層ツリーを生成（上→下に SKILL_TIERS 段・小さなノードが一杯）。
+ * ツルハシ(front)だけ範囲(area)を tier1 に置き序盤で3方向化できる。その他の範囲/射程/貫通は終盤(tier3-4)。 */
 function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const rnd = treeRand(seed);
-  const nodes: WeaponSkillNode[] = [];
-  const add = (x: number, y: number, requires: number[]): number => {
-    const r = rnd();
-    let stat: WeaponStat = 'damage', amount = 0.05, big: boolean | undefined;
-    if (x >= 2 && r < 0.20) { stat = 'unique'; amount = 0.10; big = true; } // 特殊: 固有
-    else if (r < 0.40) { stat = 'speed'; amount = 0.05; }
-    nodes.push({ x, y, tier: x, stat, amount, ...skillNodeCost(x, false), big, requires });
-    return nodes.length - 1;
-  };
-  let prev = [add(0, 1.5, [])];
-  const cols = 6 + Math.floor(rnd() * 3); // 6〜8列
-  for (let x = 1; x < cols; x++) {
-    const count = x === 1 ? 2 : 1 + Math.floor(rnd() * 3); // tier1は必ず2ノード（序盤の範囲2つ＝3方向用）／以降1〜3
-    const col: number[] = [];
-    for (let i = 0; i < count; i++) {
-      const y = count === 1 ? 1.5 : i * (3 / (count - 1));
-      const p1 = prev[Math.floor(rnd() * prev.length)]!;
-      const req = [p1];
-      if (prev.length > 1 && rnd() < 0.35) { const p2 = prev[Math.floor(rnd() * prev.length)]!; if (p2 !== p1) req.push(p2); }
-      col.push(add(x, y, req));
+  const isPick = WEAPON_DEFS[w].pattern === 'front';
+  const tiers: WeaponSkillNode[][] = [];
+  let base = 0; // 連番index
+  const cost = (tier: number, special: boolean): { matId: MaterialId; matCost: number } => skillNodeCost(tier, special);
+  for (let tier = 0; tier < SKILL_TIERS; tier++) {
+    const count = 4 + Math.floor(rnd() * 3); // 4〜6ノード/階層（数値小さめが一杯）
+    const row: WeaponSkillNode[] = [];
+    for (let col = 0; col < count; col++) {
+      const stat: WeaponStat = rnd() < 0.6 ? 'damage' : 'speed';
+      row.push({ x: col, y: tier, tier, stat, amount: 0.03, ...cost(tier, false), requires: [] });
     }
-    prev = col;
+    tiers.push(row);
+    base += count;
   }
-  // 仕上げ: その武器の特殊強化(範囲/射程/貫通)を確実にツリーに用意する。位置/前提は変えず stat だけ差し替え（分岐は壊れない）。
-  const has = (s: WeaponStat): number => nodes.filter((n) => n.stat === s).length;
-  const convert = (stat: WeaponStat, amount: number, fromDamage: boolean): boolean => {
-    const cand = nodes
-      .map((n, i) => ({ n, i }))
-      .filter((x) => x.n.x >= 1 && !x.n.big && (x.n.stat === 'speed' || (fromDamage && x.n.stat === 'damage')))
-      .sort((a, z) => (a.n.x !== z.n.x ? a.n.x - z.n.x : a.n.stat === 'speed' ? -1 : 1))[0]; // 浅い順（序盤で取れる）・同列はspeed優先
-    if (!cand) return false;
-    nodes[cand.i] = { ...cand.n, stat, amount, big: true };
-    return true;
+  void base;
+  // 特殊ノードを所定の階層へ配置（fillerを差し替え）。ツルハシ範囲=tier1×2、その他=tier3とtier4。固有=tier2,4。
+  const place = (tier: number, stat: WeaponStat, amount: number): void => {
+    const row = tiers[tier]; if (!row) return;
+    const i = row.findIndex((n) => n.stat === 'damage') >= 0 ? row.findIndex((n) => n.stat === 'damage') : 0;
+    row[i] = { ...row[i]!, stat, amount, big: true, ...cost(tier, true) };
   };
-  const specials = weaponSpecials(w);
-  for (const [stat, amount] of specials) if (has(stat) < 1) convert(stat, amount, true);          // 最低1つは必ず（足りなければdamageも転用）
-  for (const [stat, amount] of specials) while (has(stat) < 2 && convert(stat, amount, false)) { /* 2つ目は余ったspeedから */ }
-  // 素材コストを最終stat基準で確定（特殊系は上位素材＆割増）。
-  return nodes.map((n) => ({ ...n, ...skillNodeCost(n.x, isSpecialStat(n.stat)) }));
+  if (isPick) { place(1, 'area', 1); place(1, 'area', 1); } // 序盤に右+1/左+1で3方向
+  else for (const s of weaponSpecials(w)) { place(3, s, 1); place(4, s, 1); } // 範囲/射程/貫通は終盤
+  place(2, 'unique', 0.10); place(SKILL_TIERS - 1, 'unique', 0.12); // 固有は中盤と最終段
+  // 平坦化＋描画用に前段の1ノードへ線を引く（解禁は階層制）。
+  const flat: WeaponSkillNode[] = [];
+  const startOf: number[] = [];
+  for (let tier = 0; tier < tiers.length; tier++) { startOf[tier] = flat.length; for (const n of tiers[tier]!) flat.push(n); }
+  return flat.map((n, idx) => {
+    void idx;
+    const requires = n.tier > 0 ? [startOf[n.tier - 1]! + Math.min(n.x, tiers[n.tier - 1]!.length - 1)] : [];
+    return { ...n, requires };
+  });
 }
 /** 武器ごとのスキルツリー（形が様々・起点ノード0は前提なし）。 */
 export const WEAPON_SKILL_TREES: Record<WeaponId, readonly WeaponSkillNode[]> =
@@ -249,9 +247,9 @@ export interface MiningBalance {
   readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
   readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
   readonly weaponUnlockStars: readonly number[]; // 武器を累計★で自動解放する閾値（WEAPON_UNLOCK_ORDER順）
-  // ★(転生ポイント)は「全体ダメージ強化」専用。線形効果＋幾何コストで自己制限（インフレで壊れない）。
-  readonly starDmgPerLvl: number; readonly starDmgCostBase: number; readonly starDmgCostGrowth: number;
-  // 武器スキルツリー（素材で買う・階層制）。tier(列)ごとに素材の質(=tier)と量が上がる（コストはノードに焼き込み）。
+  // ★(累計)は消費せず、貯まるほど全体ダメージが自動で上がる（1+starDmgPerLvl×√累計★＝√で逓減・壊れない）。
+  readonly starDmgPerLvl: number;
+  // 武器スキルツリー（素材で買う・階層制）。階層ごとに素材の質と量が上がる（コストはノードに焼き込み）。
   readonly tierUnlockCount: number;  // 各階層で何ノード買えば次の階層が解禁されるか
   readonly idleMatCostBase: number; readonly idleMatCostGrowth: number; // 放置ツリー（素材・銀）
   readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
@@ -263,10 +261,6 @@ export interface MiningBalance {
   readonly idleEffPerLvl: number;  // 放置ツリー1Lvあたりの自動効率+
   readonly idleCostBase: number; readonly idleCostGrowth: number; // 放置ツリーのポイントコスト
 
-  readonly permStatBase: number; readonly permStatGrowth: number;
-  readonly permPickBase: number; readonly permPickGrowth: number;
-  readonly permWeaponBase: number; readonly permWeaponGrowth: number;
-  readonly permAppraiseBase: number; readonly permAppraiseGrowth: number;
   readonly refineRatio: number;
 }
 
@@ -310,17 +304,13 @@ export const defaultMiningBalance: MiningBalance = {
 
   pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
   weaponUnlockStars: [20, 55, 120, 220, 380],
-  starDmgPerLvl: 0.10, starDmgCostBase: 5, starDmgCostGrowth: 1.5,
-  tierUnlockCount: 2,
+  starDmgPerLvl: 0.12,
+  tierUnlockCount: 3,
   idleMatCostBase: 4, idleMatCostGrowth: 1.6,
   masteryPerLvl: 0.08,
   masteryGateBase: 300, masteryGateGrowth: 1.9,
 
   autoEffBase: 0.7, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
 
-  permStatBase: 25, permStatGrowth: 1.6,
-  permPickBase: 18, permPickGrowth: 1.7,
-  permWeaponBase: 12, permWeaponGrowth: 1.8,
-  permAppraiseBase: 5, permAppraiseGrowth: 2.0,
   refineRatio: 8,
 };

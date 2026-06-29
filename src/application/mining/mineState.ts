@@ -23,18 +23,19 @@ export type WeaponSkill = Record<WeaponId, number[]>;
 export type CoinUp = Record<CoinUpId, number>;
 /** 武器ごとの熟練度（転生で使った武器が少しずつ上がる恒久ボーナス）。 */
 export type Mastery = Record<WeaponId, number>;
-/** 恒久(転生で保持): 開始レベル＋基礎目利き＋武器スキルツリー(素材)＋放置ツリー(素材)＋累計★(武器自動解放)＋熟練度＋★全体ダメージ。 */
-export interface Perm { readonly levels: Levels; readonly appraise: number; readonly weaponSkill: WeaponSkill; readonly idle: number; readonly starEarned: number; readonly mastery: Mastery; readonly starDamage: number }
+/** 恒久(転生で保持): 武器スキルツリー(素材)＋放置ツリー(素材)＋累計★(自動でダメージUP＆武器解放)＋武器ごと熟練度。
+ * ※ 恒久の「開始レベル/目利き」は廃止（強化はスキルツリーへ集約・持ち込みバグ防止）。 */
+export interface Perm { readonly weaponSkill: WeaponSkill; readonly idle: number; readonly starEarned: number; readonly mastery: Mastery }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
-const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
+export const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
 const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as Record<WeaponId, number>;
 
 export const emptyMaterials = (): Materials => Object.fromEntries(MATERIAL_IDS.map((id) => [id, 0])) as Materials;
 export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
 export const emptyCoinUp = (): CoinUp => Object.fromEntries(COIN_UP_IDS.map((id) => [id, 0])) as CoinUp;
 export const emptyMastery = (): Mastery => zeroDmg();
-export const emptyPerm = (): Perm => ({ levels: zeroLevels(), appraise: 0, weaponSkill: emptyWeaponSkill(), idle: 0, starEarned: 0, mastery: emptyMastery(), starDamage: 0 });
+export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), idle: 0, starEarned: 0, mastery: emptyMastery() });
 
 export interface MineState {
   readonly time: number;
@@ -61,39 +62,34 @@ export interface MineState {
   readonly dmgByWeapon: Record<WeaponId, number>;
   readonly weaponCd: Record<WeaponId, number>;       // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
 
-  readonly materials: Materials;   // 鉱石（永続保存・転生でも消えない。後で使う想定）
+  readonly materials: Materials;   // 鉱石（永続保存・転生でも消えない。スキルツリーの素材）
   readonly coinUp: CoinUp;         // コインで買う全体強化（走行限定・転生でリセット）
-  readonly points: number;         // ★恒久ポイント（転生でもらえる・ツリーで使う）
-  readonly runPoints: number;      // この走行の獲得予定★（進行＝レベル/階で貯まり、転生時に points へ）
+  readonly runPoints: number;      // この走行の獲得予定★（進行＝レベル/階で貯まり、転生で perm.starEarned へ）
   readonly perm: Perm;
   readonly prestiges: number;
 }
 
-/** 走行（1回の潜り）を新規生成。開始武器はツルハシ固定。鉱石/恒久(perm)/ポイントは引き継ぐ（走行限定のみリセット）。 */
-export function freshRun(
-  b: MiningBalance, materials: Materials, perm: Perm, prestiges: number,
-  seed = 123456, points = 0,
-): MineState {
+/** 走行（1回の潜り）を新規生成。開始はツルハシのみ（恒久の開始レベルは持ち込まない＝バグ防止）。鉱石/恒久(perm)は引き継ぐ。 */
+export function freshRun(b: MiningBalance, materials: Materials, perm: Perm, prestiges: number, seed = 123456): MineState {
   const base = baseOf(b);
   const levels = zeroLevels();
-  for (const id of ALL_IDS) levels[id] = perm.levels[id];
-  levels.pick += 1; // 開始は必ずツルハシ
+  levels.pick = 1; // 開始はツルハシのみ。他の武器・強化は走行中の3択で集める。
   return {
     time: 0, coins: 0, rev: 0, seq: 0, floor: 0, rngState: seed,
     dug: new Set([cellKey(base)]), damage: new Map(), drops: [], fx: [],
     cat: { pos: { ...base }, gauge: 0, target: null }, cam: { ...base },
     xp: 0, level: 1, levels, autoMode: true, offer: null, offerAt: null,
-    meta: { appraise: perm.appraise },
+    meta: { appraise: 0 }, // 目利きは走行中にコインで上げる（恒久の持ち込みなし）
     boost: 0, // 採掘ブーストはコインで毎走購入（転生でリセット）
     dmgByWeapon: zeroDmg(),
     weaponCd: zeroDmg(),
-    materials, coinUp: emptyCoinUp(), points, runPoints: 0,
+    materials, coinUp: emptyCoinUp(), runPoints: 0,
     perm, prestiges,
   };
 }
 
 export function initialMineState(b: MiningBalance = defaultMiningBalance, seed = 123456): MineState {
-  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed, 0);
+  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed);
 }
 
 export { MATERIAL_IDS };

@@ -29,7 +29,6 @@ export function loadState(): MineState | null {
     const base = emptyPerm();
     const perm: Perm = {
       ...base, ...(s.perm ?? {}),
-      levels: { ...base.levels, ...(s.perm?.levels ?? {}) },
       weaponSkill: { ...base.weaponSkill, ...(s.perm?.weaponSkill ?? {}) },
       mastery: { ...base.mastery, ...(s.perm?.mastery ?? {}) },
     };

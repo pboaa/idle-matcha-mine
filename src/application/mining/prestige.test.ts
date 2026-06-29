@@ -1,13 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
+import { initialMineState, freshRun, emptyMaterials, emptyPerm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
+import { buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, refine, prestige } from '@application/mining/prestige';
 import { defaultMiningBalance, WEAPON_IDS, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
-// 開始武器はランダムに1つ＝武器レベル合計は「恒久武器Lv合計 + 1」
-const extraWeaponLevels = (levels: Record<string, number>, perm: Record<string, number>): number =>
-  WEAPON_IDS.reduce((a, w) => a + ((levels[w] ?? 0) - (perm[w] ?? 0)), 0);
 
 describe('mining/prestige', () => {
   it('採掘で素材がたまる（コインと別資源）', () => {
@@ -24,23 +21,12 @@ describe('mining/prestige', () => {
     expect(r.materials.stone).toBe(1);
   });
 
-  it('恒久強化: 素材を消費してレベルが上がる', () => {
-    const mat = permMaterial('pick'); // 石
-    const s = { ...initialMineState(), materials: { ...emptyMaterials(), [mat]: 9999 } };
-    const cost = permCost('pick', s.perm, B);
-    const r = buyPerm(s, 'pick', B);
-    expect(r.perm.levels.pick).toBe(1);
-    expect(r.materials[mat]).toBe(9999 - cost);
-  });
-
-  it('恒久強化は次走の開始レベルに乗る＋開始は必ずツルハシ（freshRun）', () => {
-    const perm: Perm = { ...emptyPerm(), levels: { ...emptyPerm().levels, pick: 2, bullet: 1, speed: 3 }, appraise: 1 };
-    const s = freshRun(B, emptyMaterials(), perm, 0);
-    expect(s.levels.pick).toBe(2 + 1);                    // 恒久2 + 開始ツルハシ1
-    expect(s.levels.bullet).toBe(1);                      // 恒久そのまま（開始は乗らない）
-    expect(s.levels.speed).toBe(3);                       // パッシブも恒久そのまま
-    expect(s.meta.appraise).toBe(1);                      // 基礎目利き
-    expect(extraWeaponLevels(s.levels, perm.levels)).toBe(1); // 開始武器は1つ(ツルハシ)だけ+1
+  it('開始はツルハシのみ・恒久の開始レベルは持ち込まない（freshRun／持ち込みバグ防止）', () => {
+    // perm(スキルツリーや熟練)を持っていても、走行開始の武器/強化レベルは増えない。
+    const s = freshRun(B, emptyMaterials(), emptyPerm(), 0);
+    expect(s.levels.pick).toBe(1);                         // 開始はツルハシLv1のみ
+    expect(WEAPON_IDS.filter((w) => w !== 'pick').every((w) => s.levels[w] === 0)).toBe(true); // 他武器は0
+    expect(s.meta.appraise).toBe(0);                       // 目利きも持ち込まない
   });
 
   it('序盤は武器2種のみ・累計★で自動解放される', () => {
@@ -109,13 +95,13 @@ describe('mining/prestige', () => {
     expect(pick.map((n) => `${n.x},${n.y}`).join('|')).not.toBe(beam.map((n) => `${n.x},${n.y}`).join('|')); // 形が違う
   });
 
-  it('転生: 走行リセット・鉱石/★/恒久/回数は保持', () => {
+  it('転生: 走行リセット・鉱石/累計★/回数は保持', () => {
     const s = stepMine(initialMineState(), 30_000);
     const r = prestige(s, B);
     expect(r.floor).toBe(0);
     expect(r.level).toBe(1);
     expect(r.materials).toEqual(s.materials); // 鉱石は永続保存（変換しない）
-    expect(r.points).toBe(s.points + s.runPoints); // ★は保持＋走行中の獲得予定をまとめて付与
+    expect(r.perm.starEarned).toBe(s.perm.starEarned + s.runPoints); // 累計★に走行分を加算
     expect(r.prestiges).toBe(s.prestiges + 1);
     expect(r.coins).toBe(0); // コインはリセット
   });
@@ -132,12 +118,12 @@ describe('mining/prestige', () => {
     expect(r2.perm.mastery.pick).toBe(0);
   });
 
-  it('★は走行中に獲得予定が貯まり、転生でもらえる', () => {
+  it('★は走行中に獲得予定(runPoints)が貯まり、転生で累計★に積まれる（＝全体ダメージ自動UP）', () => {
     const s = stepMine(initialMineState(), 60_000);
-    expect(s.runPoints).toBeGreaterThan(0); // 走行中は獲得予定★が貯まる
-    expect(s.points).toBe(0);               // ★本体は転生まで増えない
+    expect(s.runPoints).toBeGreaterThan(0);      // 走行中は獲得予定★が貯まる
+    expect(s.perm.starEarned).toBe(0);           // 累計★は転生まで増えない
     const r = prestige(s, B);
-    expect(r.points).toBe(s.points + s.runPoints); // 転生でまとめてもらえる
-    expect(r.runPoints).toBe(0);                    // リセット
+    expect(r.perm.starEarned).toBe(s.runPoints); // 転生でまとめて積まれる
+    expect(r.runPoints).toBe(0);                 // リセット
   });
 });

@@ -1,40 +1,6 @@
-import type { MiningBalance, ChoiceId, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, isWeapon } from '@domain/mining/balance';
+import type { MiningBalance, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
-
-/** 恒久強化の種類（素材で買う）。武器・強化・基礎採掘・基礎目利き。 */
-export type PermId = ChoiceId | 'appraise';
-
-/** その恒久強化が消費する素材（材料ごとに役割を分ける＝全部に使い道）。 */
-export function permMaterial(id: PermId): MaterialId {
-  if (id === 'appraise') return 'gem';
-  if (id === 'pick') return 'stone';
-  if (isWeapon(id)) return 'copper'; // 武器
-  return 'dirt'; // パッシブ強化
-}
-
-const permLevel = (perm: Perm, id: PermId): number => (id === 'appraise' ? perm.appraise : perm.levels[id]);
-
-/** 恒久強化の次の1段のコスト（素材数）。 */
-export function permCost(id: PermId, perm: Perm, b: MiningBalance = defaultMiningBalance): number {
-  const lvl = permLevel(perm, id);
-  if (id === 'appraise') return Math.floor(b.permAppraiseBase * Math.pow(b.permAppraiseGrowth, lvl));
-  if (id === 'pick') return Math.floor(b.permPickBase * Math.pow(b.permPickGrowth, lvl));
-  if (isWeapon(id)) return Math.floor(b.permWeaponBase * Math.pow(b.permWeaponGrowth, lvl));
-  return Math.floor(b.permStatBase * Math.pow(b.permStatGrowth, lvl));
-}
-
-/** 恒久強化を1段買う（素材を消費）。足りなければ何もしない。 */
-export function buyPerm(state: MineState, id: PermId, b: MiningBalance = defaultMiningBalance): MineState {
-  const mat = permMaterial(id);
-  const cost = permCost(id, state.perm, b);
-  if (state.materials[mat] < cost) return state;
-  const materials = { ...state.materials, [mat]: state.materials[mat] - cost };
-  const perm: Perm = id === 'appraise'
-    ? { ...state.perm, appraise: state.perm.appraise + 1 }
-    : { ...state.perm, levels: { ...state.perm.levels, [id]: state.perm.levels[id] + 1 } };
-  return { ...state, materials, perm };
-}
 
 /** 精錬: 下位素材 refineRatio 個 → 上位1個（土が腐らない）。 */
 export function refine(state: MineState, from: MaterialId, b: MiningBalance = defaultMiningBalance): MineState {
@@ -129,20 +95,10 @@ export function buyIdle(state: MineState, b: MiningBalance = defaultMiningBalanc
   return { ...state, materials, perm: { ...state.perm, idle: state.perm.idle + 1 } };
 }
 
-// ===== ★ポイント＝全体ダメージ強化（唯一の用途）。線形効果＋幾何コストでインフレ自己制限。 =====
-/** 全武器に乗る全体ダメージ倍率（1 + Lv × starDmgPerLvl）。 */
-export function globalDamageMult(starDamage: number, b: MiningBalance = defaultMiningBalance): number {
-  return 1 + starDamage * b.starDmgPerLvl;
-}
-/** 全体ダメージ強化の次の1段のコスト（★）。 */
-export function starDamageCost(starDamage: number, b: MiningBalance = defaultMiningBalance): number {
-  return Math.floor(b.starDmgCostBase * Math.pow(b.starDmgCostGrowth, starDamage));
-}
-/** 全体ダメージ強化を1段買う（★を消費）。 */
-export function buyStarDamage(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const cost = starDamageCost(state.perm.starDamage, b);
-  if (state.points < cost) return state;
-  return { ...state, points: state.points - cost, perm: { ...state.perm, starDamage: state.perm.starDamage + 1 } };
+// ===== ★(累計)＝全体ダメージが「勝手に」上がる（消費しない）。√で逓減＝インフレで壊れない。 =====
+/** 全武器に乗る全体ダメージ倍率（1 + k×√累計★）。★を貯めるほど自動で全武器が強くなる。 */
+export function globalDamageMult(starEarned: number, b: MiningBalance = defaultMiningBalance): number {
+  return 1 + b.starDmgPerLvl * Math.sqrt(Math.max(0, starEarned));
 }
 
 // ===== 熟練度（転生で使った武器が少しずつ恒久強化・幾何の硬さに追従させる線形） =====
@@ -168,5 +124,5 @@ export function gainMastery(state: MineState, b: MiningBalance = defaultMiningBa
  * 使った武器は+1熟練。累計★(starEarned)も加算し、閾値に達した武器が次走から3択に出る（自動解放）。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
   const perm = { ...state.perm, mastery: gainMastery(state, b), starEarned: state.perm.starEarned + state.runPoints };
-  return freshRun(b, state.materials, perm, state.prestiges + 1, state.rngState, state.points + state.runPoints);
+  return freshRun(b, state.materials, perm, state.prestiges + 1, state.rngState);
 }

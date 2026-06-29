@@ -19,9 +19,9 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
 
       {/* 今回の獲得予定★ */}
       <div className="flex flex-col items-center gap-0.5 rounded-lg bg-amber-950/40 p-3 ring-1 ring-amber-700/40">
-        <span className="text-[11px] text-amber-300/80">この走行で もらえる ★</span>
+        <span className="text-[11px] text-amber-300/80">この走行で もらえる ★（全体ダメージが自動UP）</span>
         <span className="text-2xl font-bold text-amber-200">+{formatNumber(p.runPoints)} ⭐</span>
-        <span className="text-[10px] text-stone-400">所持 ★{formatNumber(p.points)} → ★{formatNumber(p.points + p.runPoints)}</span>
+        <span className="text-[10px] text-stone-400">累計★ {formatNumber(p.starEarned)} → {formatNumber(p.starEarned + p.runPoints)}</span>
       </div>
 
       {/* 使った武器の熟練度が+1（恒久・転生を重ねるほど強くなる） */}
