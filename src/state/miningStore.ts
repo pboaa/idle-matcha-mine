@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { type MineState } from '@application/mining/mineState';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
-import { prestige, buyCoinUp, buyWeaponSkill, buyWeaponSkillMax, buyIdle, refine } from '@application/mining/prestige';
+import { prestige, buyCoinUp, buySkill, buySkillMax, buyIdle, refine } from '@application/mining/prestige';
 import type { MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
+type SkillTreeTarget = WeaponId | 'main';
 import type { Cell } from '@domain/grid/position';
 import { loadState, saveState, clearSave, freshState, exportSave, importSave } from '@state/persistence';
 
@@ -17,8 +18,8 @@ interface MiningStore {
   buyBoost: () => void;
   prestige: () => void;
   buyCoinUp: (id: CoinUpId) => void;
-  buyWeaponSkill: (weapon: WeaponId, nodeIndex: number) => void;
-  buyWeaponSkillMax: (weapon: WeaponId) => void;
+  buyWeaponSkill: (target: SkillTreeTarget, nodeIndex: number) => void;
+  buyWeaponSkillMax: (target: SkillTreeTarget) => void;
   buyIdle: () => void;
   setTarget: (cell: Cell) => void; // 手動モードで猫の目標を設定
   refine: (from: MaterialId) => void;
@@ -64,8 +65,8 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   buyCoinUp: (id) => set((st) => ({ state: buyCoinUp(st.state, id) })),
-  buyWeaponSkill: (weapon, nodeIndex) => set((st) => ({ state: buyWeaponSkill(st.state, weapon, nodeIndex) })),
-  buyWeaponSkillMax: (weapon) => set((st) => ({ state: buyWeaponSkillMax(st.state, weapon) })),
+  buyWeaponSkill: (target, nodeIndex) => set((st) => ({ state: buySkill(st.state, target, nodeIndex) })),
+  buyWeaponSkillMax: (target) => set((st) => ({ state: buySkillMax(st.state, target) })),
   buyIdle: () => set((st) => ({ state: buyIdle(st.state) })),
   setTarget: (cell) => set((st) => (st.state.autoMode ? {} : { state: { ...st.state, cat: { ...st.state.cat, target: cell } } })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),

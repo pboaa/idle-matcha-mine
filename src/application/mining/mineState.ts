@@ -23,9 +23,8 @@ export type WeaponSkill = Record<WeaponId, number[]>;
 export type CoinUp = Record<CoinUpId, number>;
 /** 武器ごとの熟練度（転生で使った武器が少しずつ上がる恒久ボーナス）。 */
 export type Mastery = Record<WeaponId, number>;
-/** 恒久(転生で保持): 武器スキルツリー(素材)＋放置ツリー(素材)＋累計★(自動でダメージUP＆武器解放)＋武器ごと熟練度。
- * ※ 恒久の「開始レベル/目利き」は廃止（強化はスキルツリーへ集約・持ち込みバグ防止）。 */
-export interface Perm { readonly weaponSkill: WeaponSkill; readonly idle: number; readonly starEarned: number; readonly mastery: Mastery }
+/** 恒久(転生で保持): 武器スキルツリー＋メイン(全体)ツリー＋放置ツリー＋累計★＋武器ごと熟練度。 */
+export interface Perm { readonly weaponSkill: WeaponSkill; readonly mainSkill: number[]; readonly idle: number; readonly starEarned: number; readonly mastery: Mastery }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 export const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
@@ -35,7 +34,7 @@ export const emptyMaterials = (): Materials => Object.fromEntries(MATERIAL_IDS.m
 export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
 export const emptyCoinUp = (): CoinUp => Object.fromEntries(COIN_UP_IDS.map((id) => [id, 0])) as CoinUp;
 export const emptyMastery = (): Mastery => zeroDmg();
-export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), idle: 0, starEarned: 0, mastery: emptyMastery() });
+export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), mainSkill: [], idle: 0, starEarned: 0, mastery: emptyMastery() });
 
 export interface MineState {
   readonly time: number;

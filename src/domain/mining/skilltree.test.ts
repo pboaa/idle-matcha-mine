@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { weaponSkillNodes, weaponStatApplies, WEAPON_STATS, SKILL_TIERS, SKILL_GRID_SIZES, skillGridCenter, WEAPON_STAT_DEFS, type WeaponStat } from '@domain/mining/skilltree';
+import { weaponSkillNodes, mainSkillNodes, weaponStatApplies, WEAPON_STATS, MAIN_STATS, SKILL_TIERS, SKILL_GRID_SIZES, skillGridCenter, WEAPON_STAT_DEFS, type WeaponStat } from '@domain/mining/skilltree';
 import { WEAPON_IDS } from '@domain/mining/balance';
 
 const totalCells = SKILL_GRID_SIZES.reduce((a, s) => a + s * s, 0);
@@ -10,7 +10,7 @@ describe('mining/skilltree', () => {
       const n = weaponSkillNodes(w);
       expect(n.length).toBe(totalCells);                         // 5グリッドの全マス合計
       expect(weaponSkillNodes(w)).toBe(n);                       // メモ化＝同一参照（決定的）
-      expect(n.every((x) => WEAPON_STATS.includes(x.stat))).toBe(true);
+      expect(n.every((x) => (WEAPON_STATS as readonly string[]).includes(x.stat))).toBe(true); // 武器ツリーは武器ステータスのみ
       expect(new Set(n.map((x) => x.tier)).size).toBe(SKILL_TIERS); // 5階層
       // 各階層に中央起点(root)が1つ
       for (let t = 0; t < SKILL_TIERS; t++) {
@@ -29,14 +29,26 @@ describe('mining/skilltree', () => {
     expect(lr.every((n) => n.stat === 'area' && n.matCosts.length === 1 && n.matCosts[0]!.matId === 'dirt' && n.matCosts[0]!.amount <= 50)).toBe(true); // 安い
   });
 
-  it('特殊系(範囲/射程/貫通/固有)は1ツリーに約2個だけ（インフレ防止）・残りはfiller', () => {
+  it('特殊系は「1グリッドに約2個」だけ（インフレ防止）・残りはfiller。種類は巡回でバリエーション', () => {
     const beam = weaponSkillNodes('beam'); // 直線系＝貫通も範囲も射程も有効
-    for (const stat of ['range', 'area', 'pierce', 'unique'] as const) expect(beam.filter((n) => n.stat === stat).length).toBe(2); // 各2個ぴったり
+    for (let grid = 1; grid < SKILL_TIERS; grid++) {
+      const specials = beam.filter((n) => n.tier === grid && (n.stat === 'range' || n.stat === 'area' || n.stat === 'pierce' || n.stat === 'unique'));
+      expect(specials.length).toBeLessThanOrEqual(2); // 1グリッド最大2個
+    }
+    for (const stat of ['range', 'area', 'pierce', 'unique'] as const) expect(beam.some((n) => n.stat === stat)).toBe(true); // 種類が一通りある
     expect(beam.filter((n) => n.stat === 'damage' || n.stat === 'speed').length).toBeGreaterThan(beam.length * 0.9); // 9割超がfiller
-    // フィールド系(オーラ)は範囲(area)/貫通(pierce)は無効＝出ない、射程(range)は2個。
+    // フィールド系(オーラ)は範囲/貫通は無効＝出ない、射程は出る。
     const aura = weaponSkillNodes('aura');
     expect(aura.some((n) => n.stat === 'area' || n.stat === 'pierce')).toBe(false);
-    expect(aura.filter((n) => n.stat === 'range').length).toBe(2);
+    expect(aura.some((n) => n.stat === 'range')).toBe(true);
+  });
+
+  it('メインツリー: 全体強化のステータス（power/crit/coin等）で構成・武器ステータスは無い', () => {
+    const main = mainSkillNodes();
+    expect(main.length).toBe(totalCells);
+    expect(main.every((n) => (MAIN_STATS as readonly string[]).includes(n.stat))).toBe(true); // 全体ステータスのみ
+    for (const stat of ['power', 'crit', 'coin'] as const) expect(main.some((n) => n.stat === stat)).toBe(true);
+    expect(main.filter((n) => n.stat === 'power' || n.stat === 'mine' || n.stat === 'haste').length).toBeGreaterThan(main.length * 0.8); // 大半がfiller(火力/採掘/速度)
   });
 
   it('1ノード＝1素材・深い階層ほど高コスト＆上位素材。全体では色んな素材が要る', () => {

@@ -1,4 +1,4 @@
-import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM, type MineTierVM } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, useMineBuyIdle, useMineRefine, type MineSkillNodeVM, type MineTierVM, type SkillTreeTarget } from '@state/miningSelectors';
 import { useState } from 'react';
 import { formatNumber } from '@shared/format';
 
@@ -54,7 +54,7 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   const buyWeaponSkillMax = useMineBuyWeaponSkillMax();
   const buyIdle = useMineBuyIdle();
   const refine = useMineRefine();
-  const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
+  const [weaponSel, setWeaponSel] = useState<SkillTreeTarget>('pick');
   const [tierSel, setTierSel] = useState(0);
   const wt = p.weaponTree.find((w) => w.id === weaponSel) ?? p.weaponTree[0]!;
   const tier = wt.tiers[tierSel] ?? wt.tiers[0]!;

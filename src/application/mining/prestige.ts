@@ -1,5 +1,5 @@
 import type { MiningBalance, MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, skillGridUnlockNeed } from '@domain/mining/balance';
+import { defaultMiningBalance, MATERIAL_IDS, BASE_WEAPONS, WEAPON_UNLOCK_ORDER, COIN_UP_DEFS, WEAPON_IDS, weaponSkillNodes, mainSkillNodes, nodeUnlockableIn, gridOpenFor, sumSkillStats, type MainStat } from '@domain/mining/balance';
 import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
 
 /** 精錬: 下位素材 refineRatio 個 → 上位1個（土が腐らない）。 */
@@ -37,56 +37,59 @@ export function allowedWeapons(perm: Perm, b: MiningBalance = defaultMiningBalan
   return [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER.filter((w) => perm.starEarned >= weaponUnlockStar(w, b))];
 }
 
-/** その階層(グリッド)が解禁済みか（前の階層を skillGridUnlockNeed だけ解放していれば解禁）。 */
-export function skillGridOpen(weapon: WeaponId, unlocked: readonly number[], tier: number): boolean {
-  if (tier <= 0) return true;
-  const nodes = weaponSkillNodes(weapon);
-  const boughtPrev = unlocked.filter((i) => nodes[i]?.tier === tier - 1).length;
-  return boughtPrev >= skillGridUnlockNeed(tier - 1);
+// ===== スキルツリー（武器ツリー＋メインツリー共通のグリッド解禁・素材購入） =====
+/** unlocked配列（武器ならその武器、メインなら perm.mainSkill）を取得。 */
+const unlockedOf = (perm: Perm, target: WeaponId | 'main'): readonly number[] => target === 'main' ? perm.mainSkill : perm.weaponSkill[target];
+const nodesOf = (target: WeaponId | 'main'): ReturnType<typeof weaponSkillNodes> => target === 'main' ? mainSkillNodes() : weaponSkillNodes(target);
+/** そのノードが今解放できるか（未解放・階層が解禁済み・中央or隣接が解放済み）。 */
+export function skillNodeUnlockable(target: WeaponId | 'main', unlocked: readonly number[], nodeIndex: number): boolean {
+  return nodeUnlockableIn(nodesOf(target), unlocked, nodeIndex);
 }
-/** そのノードが今解放できるか（未解放・階層が解禁済み・中央 or 同グリッド隣接が解放済み）。
- * 階層グリッド型：各階層は中央(root)起点、上下左右どれかが解放済みなら解禁＝外へ広げていく。 */
-export function skillNodeUnlockable(weapon: WeaponId, unlocked: readonly number[], nodeIndex: number): boolean {
-  const n = weaponSkillNodes(weapon)[nodeIndex];
-  if (!n || unlocked.includes(nodeIndex)) return false;
-  if (!skillGridOpen(weapon, unlocked, n.tier)) return false; // その階層グリッドが未解禁
-  return !!n.root || n.requires.some((r) => unlocked.includes(r));
+/** その階層グリッドが解禁済みか。 */
+export function skillGridOpen(target: WeaponId | 'main', unlocked: readonly number[], tier: number): boolean {
+  return gridOpenFor(nodesOf(target), unlocked, tier);
 }
-/** 武器スキルツリーのノードを1つ解放（隣接解禁＋必要素材を全て満たせば）。 */
-export function buyWeaponSkill(state: MineState, weapon: WeaponId, nodeIndex: number): MineState {
-  const unlocked = state.perm.weaponSkill[weapon];
-  const node = weaponSkillNodes(weapon)[nodeIndex];
-  if (!node || !skillNodeUnlockable(weapon, unlocked, nodeIndex)) return state;
-  if (node.matCosts.some((c) => state.materials[c.matId] < c.amount)) return state; // どれか不足なら不可
+const withUnlocked = (perm: Perm, target: WeaponId | 'main', unlocked: number[]): Perm =>
+  target === 'main' ? { ...perm, mainSkill: unlocked } : { ...perm, weaponSkill: { ...perm.weaponSkill, [target]: unlocked } };
+/** ノードを1つ解放（隣接解禁＋素材）。武器/メイン共通。 */
+export function buySkill(state: MineState, target: WeaponId | 'main', nodeIndex: number): MineState {
+  const unlocked = unlockedOf(state.perm, target);
+  const node = nodesOf(target)[nodeIndex];
+  if (!node || !skillNodeUnlockable(target, unlocked, nodeIndex)) return state;
+  if (node.matCosts.some((c) => state.materials[c.matId] < c.amount)) return state;
   const materials = { ...state.materials };
   for (const c of node.matCosts) materials[c.matId] -= c.amount;
-  const weaponSkill = { ...state.perm.weaponSkill, [weapon]: [...unlocked, nodeIndex] };
-  return { ...state, materials, perm: { ...state.perm, weaponSkill } };
+  return { ...state, materials, perm: withUnlocked(state.perm, target, [...unlocked, nodeIndex]) };
 }
-/** 一気に上げる: 解禁可能＆素材が足りるノードを「安い順」に買えるだけ買う（外へ広げていく）。 */
-export function buyWeaponSkillMax(state: MineState, weapon: WeaponId): MineState {
-  const nodes = weaponSkillNodes(weapon);
-  const totalCost = (i: number): number => nodes[i]!.matCosts.reduce((a, c) => a + c.amount, 0);
+/** 一気に上げる: 解禁可能＆素材が足りるノードを「安い順」に買えるだけ。 */
+export function buySkillMax(state: MineState, target: WeaponId | 'main'): MineState {
+  const nodes = nodesOf(target);
+  const cost = (i: number): number => nodes[i]!.matCosts.reduce((a, c) => a + c.amount, 0);
   let s = state;
   for (let guard = 0; guard < nodes.length; guard++) {
-    const unlocked = s.perm.weaponSkill[weapon];
+    const unlocked = unlockedOf(s.perm, target);
     let best = -1, bestCost = Infinity;
     for (let i = 0; i < nodes.length; i++) {
-      if (unlocked.includes(i) || !skillNodeUnlockable(weapon, unlocked, i)) continue;
+      if (unlocked.includes(i) || !skillNodeUnlockable(target, unlocked, i)) continue;
       if (nodes[i]!.matCosts.some((c) => s.materials[c.matId] < c.amount)) continue;
-      const cost = totalCost(i); if (cost < bestCost) { bestCost = cost; best = i; }
+      const c = cost(i); if (c < bestCost) { bestCost = c; best = i; }
     }
-    if (best < 0) break;          // もう買えるノードが無い
-    s = buyWeaponSkill(s, weapon, best);
+    if (best < 0) break;
+    s = buySkill(s, target, best);
   }
   return s;
 }
-/** 解放済みノードの累積ステータス（武器に恒久で乗る）。 */
+// 後方互換エイリアス（武器ツリー）。
+export const buyWeaponSkill = (state: MineState, weapon: WeaponId, i: number): MineState => buySkill(state, weapon, i);
+export const buyWeaponSkillMax = (state: MineState, weapon: WeaponId): MineState => buySkillMax(state, weapon);
+/** 武器ツリーの累積ステータス（武器に恒久で乗る）。 */
 export function weaponSkillStats(weapon: WeaponId, unlocked: readonly number[]): WeaponStatLevels {
-  const s: WeaponStatLevels = { damage: 0, speed: 0, range: 0, pierce: 0, area: 0, unique: 0 };
-  const nodes = weaponSkillNodes(weapon);
-  for (const i of unlocked) { const n = nodes[i]; if (n) s[n.stat] += n.amount; }
-  return s;
+  const s = sumSkillStats(weaponSkillNodes(weapon), unlocked);
+  return { damage: s.damage ?? 0, speed: s.speed ?? 0, range: s.range ?? 0, pierce: s.pierce ?? 0, area: s.area ?? 0, unique: s.unique ?? 0 };
+}
+/** メインツリーの累積（全体強化）。 */
+export function mainSkillStats(unlocked: readonly number[]): Partial<Record<MainStat, number>> {
+  return sumSkillStats(mainSkillNodes(), unlocked) as Partial<Record<MainStat, number>>;
 }
 
 // ===== 放置ツリー（自動モードの効率・ポイントで恒久解放） =====

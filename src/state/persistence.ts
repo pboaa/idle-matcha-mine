@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 4; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄してフレッシュ開始）。v4=★自動ダメ/縦5階層ツリー/perm刷新（一度データ消去）
+const VERSION = 5; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v5=メインツリー(全体強化)/特殊2個per grid/コスト改定
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {
@@ -23,6 +23,7 @@ function deserialize(raw: string): MineState | null {
     const perm: Perm = {
       ...base, ...(s.perm ?? {}),
       weaponSkill: { ...base.weaponSkill, ...(s.perm?.weaponSkill ?? {}) },
+      mainSkill: Array.isArray(s.perm?.mainSkill) ? s.perm.mainSkill : [],
       mastery: { ...base.mastery, ...(s.perm?.mastery ?? {}) },
     };
     return { ...freshState(), ...s, perm, dug: new Set<string>(s.dug), damage: new Map<string, number>(s.damage) } as unknown as MineState;
