@@ -37,15 +37,18 @@ export function allowedWeapons(perm: Perm, b: MiningBalance = defaultMiningBalan
   return [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER.filter((w) => perm.starEarned >= weaponUnlockStar(w, b))];
 }
 
-/** その階層(列)が解禁済みか（下の階層を tierUnlockCount だけ買っていれば次が開く）。 */
+/** その階層を次へ進めるのに必要な解放数（終盤ほど多い＝上げにくい）。 */
+export function skillTierNeed(weapon: WeaponId, tier: number, b: MiningBalance = defaultMiningBalance): number {
+  const inTier = weaponSkillNodes(weapon).filter((n) => n.tier === tier).length;
+  return Math.min(inTier, b.tierUnlockCount + tier); // tier0=3, tier1=4, tier2=5… と段々厳しく
+}
+/** その階層(列)が解禁済みか（下の各階層を skillTierNeed だけ買っていれば次が開く）。 */
 export function skillTierOpen(weapon: WeaponId, unlocked: readonly number[], tier: number, b: MiningBalance = defaultMiningBalance): boolean {
   if (tier <= 0) return true;
   const nodes = weaponSkillNodes(weapon);
   for (let t = 0; t < tier; t++) {
-    const inTier = nodes.filter((n) => n.tier === t).length;
-    const need = Math.min(b.tierUnlockCount, inTier);
     const bought = unlocked.filter((i) => nodes[i]?.tier === t).length;
-    if (bought < need) return false; // 下の階層がまだ条件未達
+    if (bought < skillTierNeed(weapon, t, b)) return false; // 下の階層がまだ条件未達
   }
   return true;
 }

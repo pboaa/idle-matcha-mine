@@ -88,7 +88,7 @@ function genSkillTree(seed: number, w: WeaponId): WeaponSkillNode[] {
   const tiers: WeaponSkillNode[][] = [];
   for (let tier = 0; tier < SKILL_TIERS; tier++) {
     const specials = byTier.get(tier) ?? [];
-    const fillers = 4 + Math.floor(rnd() * 2);  // 4〜5個の小ノード（一杯）
+    const fillers = 6 + Math.floor(rnd() * 4);  // 6〜9個の小ノード（1階層もだいぶ刻む）
     const row: WeaponSkillNode[] = [];
     for (const sp of specials) row.push({ x: row.length, y: tier, tier, stat: sp.stat, amount: sp.amount, big: true, ...skillNodeCost(tier, true), requires: [] });
     for (let i = 0; i < fillers; i++) { const stat: WeaponStat = rnd() < 0.6 ? 'damage' : 'speed'; row.push({ x: row.length, y: tier, tier, stat, amount: 0.03, ...skillNodeCost(tier, false), requires: [] }); }
