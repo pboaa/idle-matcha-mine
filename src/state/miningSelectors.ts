@@ -204,7 +204,7 @@ export function buildMineHud(state: MineState): MineHudVM {
 
 // ===== 転生パネル =====
 export interface MineMatVM { readonly id: MaterialId; readonly emoji: string; readonly name: string; readonly count: number }
-export interface MinePermVM { readonly id: PermId; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
+export interface MinePermVM { readonly id: PermId; readonly kind: 'weapon' | 'passive'; readonly emoji: string; readonly label: string; readonly lv: number; readonly matEmoji: string; readonly cost: number; readonly can: boolean }
 export interface MineRefineVM { readonly from: MaterialId; readonly fromEmoji: string; readonly toEmoji: string; readonly ratio: number; readonly can: boolean }
 export interface MinePrestigeVM { readonly prestiges: number; readonly materials: readonly MineMatVM[]; readonly perms: readonly MinePermVM[]; readonly refines: readonly MineRefineVM[]; readonly mastery: MineMasteryVM }
 
@@ -220,7 +220,8 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
       const lv = id === 'appraise' ? state.perm.appraise : state.perm.levels[id];
       const mat = permMaterial(id);
       const cost = permCost(id, state.perm);
-      return { id, emoji: meta.emoji, label: meta.label, lv, matEmoji: matEmoji(mat), cost, can: state.materials[mat] >= cost };
+      const kind = id !== 'appraise' && isWeapon(id) ? 'weapon' : 'passive';
+      return { id, kind, emoji: meta.emoji, label: meta.label, lv, matEmoji: matEmoji(mat), cost, can: state.materials[mat] >= cost };
     }),
     refines: MATERIAL_IDS.slice(0, -1).map((from, i) => ({ from, fromEmoji: matEmoji(from), toEmoji: matEmoji(MATERIAL_IDS[i + 1]!), ratio: B.refineRatio, can: state.materials[from] >= B.refineRatio })),
     mastery: buildMasteryVM(state),

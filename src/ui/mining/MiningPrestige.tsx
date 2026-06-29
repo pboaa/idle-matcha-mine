@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineRefine } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
@@ -7,6 +8,8 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
   const doPrestige = useMinePrestigeAct();
   const buyPerm = useMineBuyPerm();
   const refine = useMineRefine();
+  const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
+  const shownPerms = p.perms.filter((u) => u.kind === permTab);
 
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
@@ -44,12 +47,22 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      {/* 恒久強化（素材で買う・次走から有効）— 3列グリッド */}
+      {/* 恒久強化（素材で買う・次走から有効）— 武器/強化の個別タブ */}
       <div>
-        <div className="mb-1 text-[10px] text-stone-500">恒久強化（次の潜りから・素材で購入）</div>
+        <div className="mb-1 flex items-center justify-between">
+          <div className="text-[10px] text-stone-500">恒久強化（次の潜りから・素材で購入）</div>
+          <div className="flex gap-1">
+            {([['weapon', '⚔️ 武器'], ['passive', '✨ 強化']] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setPermTab(k)}
+                className={['rounded-md px-2 py-0.5 text-[11px] font-bold transition', permTab === k ? 'bg-amber-400 text-stone-900' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'].join(' ')}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-1.5">
-          {p.perms.map((u) => (
-            <button key={u.id} onClick={() => buyPerm(u.id)} disabled={!u.can}
+          {shownPerms.map((u) => (
+            <button key={u.id} onClick={() => buyPerm(u.id)} disabled={!u.can} title={`${u.label}（恒久Lv${u.lv}）／ ${u.matEmoji}${u.cost}`}
               className={['flex items-center justify-between rounded-md px-2 py-1 text-[11px] shadow transition', u.can ? 'bg-stone-700 text-stone-100 hover:bg-stone-600 active:scale-95' : 'cursor-not-allowed bg-stone-800 text-stone-500'].join(' ')}>
               <span className="truncate">{u.emoji}<b className="text-amber-300">{u.lv}</b></span>
               <span className="ml-1 whitespace-nowrap text-[10px]">{u.matEmoji}{formatNumber(u.cost)}</span>
