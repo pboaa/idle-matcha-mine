@@ -98,14 +98,17 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     cd[id] += dtMs;
     if (cd[id] < interval) continue; // まだクールダウン中
     cd[id] -= interval;              // 1回攻撃（位相を保つ）
-    const upDmg = (1 + damageBonus) * (1 + uniqueBonus);                 // スキルツリー(ダメージ/固有)
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * upDmg * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
     const isLine = def.pattern === 'cross' || def.pattern === 'forward';
     const isField = def.pattern === 'around' || def.pattern === 'ring';
-    const range = weaponRange(def, lvl, rangeBonus + rangeAdd + (isField ? q : 0)); // オーラ/リングは固有特性で半径+
-    const lineRange = range + pierceBonus + pierceAdd + (isLine ? q : 0);           // 直線系は固有特性で貫通+
-    // 範囲段階(方向/横幅): レベル(areaPerLvls段ごと)で緩やかに増える。射程投資は「長さ」専用で広がり方には影響させない。
-    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + (def.pattern === 'front' || def.pattern === 'burst' ? q : 0);
+    // 固有特性(レア/エピック)の効き方を均す: フィールドは半径(二乗で爆発)でなくダメージで化ける。前方/爆発の横幅はゆるやかに。
+    const qHalf = Math.ceil(q / 2);
+    const qMul = 1 + (isField ? q * 0.3 : 0);
+    const upDmg = (1 + damageBonus) * (1 + uniqueBonus);                 // スキルツリー(ダメージ/固有)
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * upDmg * qMul * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
+    const range = weaponRange(def, lvl, rangeBonus + rangeAdd);
+    const lineRange = range + pierceBonus + pierceAdd + (isLine ? q : 0);              // 直線系は固有特性で貫通+（長さ）
+    // 範囲段階(方向/横幅): レベル(areaPerLvls段ごと)で緩やかに。射程投資は「長さ」専用で広がり方には影響させない。
+    const spread = Math.floor((lvl - 1) / b.areaPerLvls) + (def.pattern === 'front' || def.pattern === 'burst' ? qHalf : 0);
     const targets = 1 + (def.pattern === 'nearest' ? q : 0); // 弾は固有特性で多点同時
     switch (def.pattern) {
       case 'front': { // ツルハシ: 最初は前方1マス、spreadで横に広がる（横振り）。
@@ -123,12 +126,14 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
         }
         break; }
       case 'burst': { const c = nearestSolid(dug, pos, range, b); if (c) { const br = 1 + Math.floor(spread / 2); for (let dy = -br; dy <= br; dy++) for (let dx = -br; dx <= br; dx++) deal({ x: c.x + dx, y: c.y + dy }, dmg, id); } break; }
-      case 'cross': { // ビーム: spreadで 2方向→4方向→8方向。
+      case 'cross': { // ビーム: spreadで 2方向→4方向→8方向。方向が増えるほど1方向は弱く＝総DPSは一定で被覆だけ広がる（化け防止）。
         const dirs = spread <= 0 ? DIRS_H : spread === 1 ? DIRS : DIRS_8;
-        for (const [dx, dy] of dirs) for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + dx * r, y: pos.y + dy * r }, dmg, id); break; }
-      case 'forward': { // ドリル: 直線、spreadで横幅が増える。
+        const dmgDir = dmg * (2 / dirs.length);
+        for (const [dx, dy] of dirs) for (let r = 1; r <= lineRange; r++) deal({ x: pos.x + dx * r, y: pos.y + dy * r }, dmgDir, id); break; }
+      case 'forward': { // ドリル: 直線、spreadで横幅が増える。横幅は被覆用＝総DPSは一定（化け防止）。
         const d = target ? dirToward(pos, target) : { x: 1, y: 0 }; const perp = { x: d.y, y: d.x }; const hw = Math.floor(spread / 2);
-        for (let r = 1; r <= lineRange; r++) { deal({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmg, id); for (let k = 1; k <= hw; k++) { deal({ x: pos.x + d.x * r + perp.x * k, y: pos.y + d.y * r + perp.y * k }, dmg, id); deal({ x: pos.x + d.x * r - perp.x * k, y: pos.y + d.y * r - perp.y * k }, dmg, id); } } break; }
+        const dmgW = dmg / (1 + 2 * hw);
+        for (let r = 1; r <= lineRange; r++) { deal({ x: pos.x + d.x * r, y: pos.y + d.y * r }, dmgW, id); for (let k = 1; k <= hw; k++) { deal({ x: pos.x + d.x * r + perp.x * k, y: pos.y + d.y * r + perp.y * k }, dmgW, id); deal({ x: pos.x + d.x * r - perp.x * k, y: pos.y + d.y * r - perp.y * k }, dmgW, id); } } break; }
       case 'around': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
       case 'ring': { for (let dy = -range; dy <= range; dy++) for (let dx = -range; dx <= range; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === range) deal({ x: pos.x + dx, y: pos.y + dy }, dmg, id); break; }
     }
