@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineBuyPerm, useMineBuyWeaponSkill, useMineBuyIdle, useMineRefine, useMineResetData, type WeaponId, type MineSkillNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 const COL = 80, ROW = 52, PADX = 30, PADY = 30, R = 16, RBIG = 20;
@@ -54,6 +54,7 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
   const buyWeaponSkill = useMineBuyWeaponSkill();
   const buyIdle = useMineBuyIdle();
   const refine = useMineRefine();
+  const resetData = useMineResetData();
   const [permTab, setPermTab] = useState<'weapon' | 'passive'>('weapon');
   const [weaponSel, setWeaponSel] = useState<WeaponId>('pick');
   const shownPerms = p.perms.filter((u) => u.kind === 'passive');
@@ -152,6 +153,15 @@ export function MiningPrestige({ onClose }: { onClose: () => void }) {
         className="rounded-lg bg-fuchsia-600 px-2 py-2 text-sm font-bold text-white shadow ring-2 ring-fuchsia-300 transition hover:bg-fuchsia-500 active:scale-95">
         🔄 転生する（階・Lv・コインはリセット ／ 鉱石・★・恒久・熟練度は保持）
       </button>
+
+      {/* データ: 自動セーブ＋削除 */}
+      <div className="flex items-center justify-between border-t border-stone-700 pt-2 text-[10px] text-stone-500">
+        <span>💾 自動セーブ中（タブを閉じても続きから）</span>
+        <button onClick={() => { if (window.confirm('セーブを削除して最初からやり直します。よろしいですか？')) resetData(); }}
+          className="rounded bg-stone-800 px-2 py-0.5 text-rose-300 ring-1 ring-rose-900/60 hover:bg-stone-700">
+          🗑️ データ削除
+        </button>
+      </div>
     </div>
   );
 }

@@ -291,3 +291,5 @@ export const useMineBuyWeaponSkill = (): ((weapon: WeaponId, nodeIndex: number) 
 export const useMineBuyIdle = (): (() => void) => useMiningStore((s) => s.buyIdle);
 export const useMineSetTarget = (): ((cell: { x: number; y: number }) => void) => useMiningStore((s) => s.setTarget);
 export const useMineRefine = (): ((from: MaterialId) => void) => useMiningStore((s) => s.refine);
+export const useMineSave = (): (() => void) => useMiningStore((s) => s.save);
+export const useMineResetData = (): (() => void) => useMiningStore((s) => s.resetData);

@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { initialMineState, type MineState } from '@application/mining/mineState';
-import { defaultMiningBalance } from '@domain/mining/balance';
+import { type MineState } from '@application/mining/mineState';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
 import { prestige, buyPerm, buyCoinUp, buyWeaponSkill, buyIdle, refine, type PermId } from '@application/mining/prestige';
 import type { MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
 import type { Cell } from '@domain/grid/position';
+import { loadState, saveState, clearSave, freshState } from '@state/persistence';
 
 interface MiningStore {
   readonly state: MineState;
@@ -21,12 +21,16 @@ interface MiningStore {
   buyIdle: () => void;
   setTarget: (cell: Cell) => void; // 手動モードで猫の目標を設定
   refine: (from: MaterialId) => void;
+  save: () => void;       // 即時セーブ（離脱時など）
+  resetData: () => void;  // セーブ削除して最初から
 }
 
 let accumulatorMs = 0;
+let lastSaveMs = 0;
+const AUTOSAVE_MS = 3000;
 
 export const useMiningStore = create<MiningStore>((set, get) => ({
-  state: { ...initialMineState(defaultMiningBalance, (Math.random() * 0x7fffffff) | 0), autoMode: false }, // 序盤は手動で3択を選ぶ楽しみ
+  state: loadState() ?? freshState(), // 保存済みがあれば続きから、なければ新規
   tick: (realDtMs) => {
     accumulatorMs += realDtMs;
     const maxBatch = MINE_STEP_MS * 20;
@@ -34,7 +38,10 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     if (accumulatorMs < MINE_STEP_MS) return;
     const steps = Math.floor(accumulatorMs / MINE_STEP_MS);
     accumulatorMs -= steps * MINE_STEP_MS;
-    set({ state: stepMine(get().state, steps * MINE_STEP_MS) });
+    const state = stepMine(get().state, steps * MINE_STEP_MS);
+    set({ state });
+    const now = Date.now();
+    if (now - lastSaveMs > AUTOSAVE_MS) { lastSaveMs = now; saveState(state); } // 自動セーブ（3秒ごと）
   },
   chooseOffer: (index) => {
     const s = get().state;
@@ -51,4 +58,6 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   buyIdle: () => set((st) => ({ state: buyIdle(st.state) })),
   setTarget: (cell) => set((st) => (st.state.autoMode ? {} : { state: { ...st.state, cat: { ...st.state.cat, target: cell } } })),
   refine: (from) => set((st) => ({ state: refine(st.state, from) })),
+  save: () => saveState(get().state),
+  resetData: () => { clearSave(); lastSaveMs = Date.now(); set({ state: freshState() }); },
 }));
