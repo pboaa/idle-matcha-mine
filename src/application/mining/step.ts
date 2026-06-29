@@ -188,7 +188,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 武器発射（武器ごとの攻撃間隔で発射）。採掘ブースト(コイン)＋自動効率(自動は火力減・放置ツリーで回復)。
   const globalMul = boostMul(state.boost, b) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
   const weaponCd = { ...state.weaponCd };
-  const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
+  const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, mastery: state.mastery, masteryPerLvl: b.masteryPerLvl, skillStats, globalMul, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
   // 階クリアで降下。★ポイントは「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。

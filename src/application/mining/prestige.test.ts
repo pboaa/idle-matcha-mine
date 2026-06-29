@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyMaterials, emptyPerm, type Perm } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
 import { buyPerm, buyCoinUp, coinUpCost, buyWeaponSkill, skillNodeUnlockable, refine, prestige, permCost, permMaterial } from '@application/mining/prestige';
-import { defaultMiningBalance, WEAPON_IDS, WEAPON_SKILL_NODES } from '@domain/mining/balance';
+import { defaultMiningBalance, WEAPON_IDS, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 // 開始武器はランダムに1つ＝武器レベル合計は「恒久武器Lv合計 + 1」
@@ -86,16 +86,24 @@ describe('mining/prestige', () => {
   });
 
   it('武器スキルツリー(グラフ): 前提を満たすノードをポイントで解放', () => {
-    const s0 = { ...initialMineState(), points: 100 };
-    expect(skillNodeUnlockable(s0.perm.weaponSkill.pick, 0)).toBe(true);  // 起点は前提なし
-    expect(skillNodeUnlockable(s0.perm.weaponSkill.pick, 3)).toBe(false); // ノード3は前提[1]が未解放
-    const cost0 = WEAPON_SKILL_NODES[0]!.cost;
+    const nodes = weaponSkillNodes('pick');
+    const gated = nodes.findIndex((n) => n.requires.length > 0); // 前提のあるノード
+    const s0 = { ...initialMineState(), points: 9999 };
+    expect(skillNodeUnlockable('pick', [], 0)).toBe(true);          // 起点は前提なし
+    expect(skillNodeUnlockable('pick', [], gated)).toBe(false);     // 前提が未解放
+    expect(buyWeaponSkill(s0, 'pick', gated).perm.weaponSkill.pick).toEqual([]); // 前提未達は不可
     const s1 = buyWeaponSkill(s0, 'pick', 0);
-    expect(s1.perm.weaponSkill.pick).toEqual([0]);   // 起点解放
-    expect(s1.points).toBe(100 - cost0);             // ポイント消費
-    expect(buyWeaponSkill(s1, 'pick', 3).perm.weaponSkill.pick).toEqual([0]); // 前提未達は不可
+    expect(s1.perm.weaponSkill.pick).toEqual([0]);                 // 起点解放
+    expect(s1.points).toBe(9999 - nodes[0]!.cost);                // ポイント消費
     const poor = { ...initialMineState(), points: 0 };
     expect(buyWeaponSkill(poor, 'pick', 0).perm.weaponSkill.pick).toEqual([]); // ポイント不足で不可
+  });
+
+  it('武器スキルツリーは+5%ダメージ系が大量・武器ごとに形が違う', () => {
+    const pick = weaponSkillNodes('pick'); const beam = weaponSkillNodes('beam');
+    expect(pick.length).toBeGreaterThan(8);                         // ノードがいっぱい
+    expect(pick.filter((n) => n.stat === 'damage').length).toBeGreaterThan(pick.length / 2); // 過半が+ダメージ
+    expect(pick.map((n) => `${n.x},${n.y}`).join('|')).not.toBe(beam.map((n) => `${n.x},${n.y}`).join('|')); // 形が違う
   });
 
   it('転生: 走行リセット・鉱石/★/恒久/回数は保持', () => {

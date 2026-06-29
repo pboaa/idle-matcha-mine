@@ -95,27 +95,48 @@ export const WEAPON_STAT_DEFS: Record<WeaponStat, WeaponStatDef> = {
 export const weaponStatApplies = (stat: WeaponStat, w: WeaponId): boolean =>
   !WEAPON_STAT_DEFS[stat].lineOnly || WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward';
 
-// ===== 武器ごとの恒久スキルツリー（分岐グラフ・ポイントで解放）。前提を満たすと広がる。所々に大ノード。 =====
+// ===== 武器ごとの恒久スキルツリー（分岐グラフ・ポイントで解放）。+5%ダメージが大量＋所々に大ノード。武器ごとに形が違う。 =====
 export interface WeaponSkillNode {
   readonly x: number; readonly y: number;          // グラフ上の位置（col, row）
   readonly stat: WeaponStat; readonly amount: number;
   readonly cost: number; readonly big?: boolean;
   readonly requires: readonly number[];            // 解放に必要な先行ノードのindex
 }
-/** 全武器共通のノードグラフ（武器ごとに独立に解放）。amount: damage/speed/uniqueは倍率加算、rangeはマス+。 */
-export const WEAPON_SKILL_NODES: readonly WeaponSkillNode[] = [
-  { x: 0, y: 1.5, stat: 'damage', amount: 0.10, cost: 1, requires: [] },             // 0 起点
-  { x: 1, y: 0.5, stat: 'damage', amount: 0.15, cost: 2, requires: [0] },            // 1 威力枝
-  { x: 1, y: 2.5, stat: 'speed', amount: 0.15, cost: 2, requires: [0] },             // 2 速度枝
-  { x: 2, y: 0, stat: 'damage', amount: 0.20, cost: 4, requires: [1] },              // 3
-  { x: 2, y: 1, stat: 'range', amount: 1, cost: 8, big: true, requires: [1] },       // 4 大:射程
-  { x: 2, y: 2, stat: 'speed', amount: 0.20, cost: 4, requires: [2] },               // 5
-  { x: 2, y: 3, stat: 'range', amount: 1, cost: 8, big: true, requires: [2] },       // 6 大:射程
-  { x: 3, y: 0.5, stat: 'unique', amount: 0.5, cost: 18, big: true, requires: [3, 4] }, // 7 大:威力の極
-  { x: 3, y: 2.5, stat: 'unique', amount: 0.5, cost: 18, big: true, requires: [5, 6] }, // 8 大:速度の極
-  { x: 4, y: 1.5, stat: 'damage', amount: 0.40, cost: 30, requires: [7, 8] },        // 9 合流
-  { x: 5, y: 1.5, stat: 'unique', amount: 1.0, cost: 70, big: true, requires: [9] }, // 10 最終大
-];
+// 木生成用の小さな決定的PRNG（武器ごとに seed を変えて形を変える）。
+const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
+/** 1武器ぶんの分岐ツリーを生成（多数の+5%＋たまに大ノード、列ごとに前提で広がる）。 */
+function genSkillTree(seed: number): WeaponSkillNode[] {
+  const rnd = treeRand(seed);
+  const nodes: WeaponSkillNode[] = [];
+  const add = (x: number, y: number, requires: number[]): number => {
+    const r = rnd();
+    let stat: WeaponStat = 'damage', amount = 0.05, cost = (x + 1) * 2, big: boolean | undefined;
+    if (x >= 3 && r < 0.10) { stat = 'range'; amount = 1; cost = (x + 1) * 6; big = true; }
+    else if (x >= 2 && r < 0.22) { stat = 'unique'; amount = 0.10; cost = (x + 1) * 8; big = true; }
+    else if (r < 0.40) { stat = 'speed'; amount = 0.05; }
+    nodes.push({ x, y, stat, amount, cost, big, requires });
+    return nodes.length - 1;
+  };
+  let prev = [add(0, 1.5, [])];
+  const cols = 6 + Math.floor(rnd() * 3); // 6〜8列
+  for (let x = 1; x < cols; x++) {
+    const count = 1 + Math.floor(rnd() * 3); // 1〜3ノード/列
+    const col: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const y = count === 1 ? 1.5 : i * (3 / (count - 1));
+      const p1 = prev[Math.floor(rnd() * prev.length)]!;
+      const req = [p1];
+      if (prev.length > 1 && rnd() < 0.35) { const p2 = prev[Math.floor(rnd() * prev.length)]!; if (p2 !== p1) req.push(p2); }
+      col.push(add(x, y, req));
+    }
+    prev = col;
+  }
+  return nodes;
+}
+/** 武器ごとのスキルツリー（形が様々・起点ノード0は前提なし）。 */
+export const WEAPON_SKILL_TREES: Record<WeaponId, readonly WeaponSkillNode[]> =
+  Object.fromEntries(WEAPON_IDS.map((w, i) => [w, genSkillTree(Math.imul(i + 1, 2654435761))])) as unknown as Record<WeaponId, readonly WeaponSkillNode[]>;
+export const weaponSkillNodes = (w: WeaponId): readonly WeaponSkillNode[] => WEAPON_SKILL_TREES[w];
 
 // ===== コインで買う全体強化（走行限定・転生でリセット）。採掘ブースト(boost)に加えての全体バフ。 =====
 export type CoinUpId = 'haste' | 'greed' | 'luck';

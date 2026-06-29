@@ -8,7 +8,7 @@ import { permCost, permMaterial, coinUpCost, skillNodeUnlockable, autoEfficiency
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import {
   WEAPON_IDS, PASSIVE_IDS, MATERIAL_IDS, COIN_UP_IDS, COIN_UP_DEFS, defaultMiningBalance, choiceMeta, isWeapon,
-  WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STAT_DEFS, WEAPON_SKILL_NODES,
+  WEAPON_DEFS, PASSIVE_DEFS, WEAPON_STAT_DEFS, weaponSkillNodes,
   type OfferRarity, type MaterialId, type ChoiceId, type WeaponId, type PassiveId, type WeaponTag, type WeaponPattern, type WeaponStat, type CoinUpId,
 } from '@domain/mining/balance';
 import { useMiningStore } from '@state/miningStore';
@@ -278,12 +278,13 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
     })(),
     weaponTree: WEAPON_IDS.map((w) => {
       const unlocked = state.perm.weaponSkill[w];
+      const nodes = weaponSkillNodes(w);
       return {
         id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, masteryLv: state.mastery[w],
-        skillUnlocked: unlocked.length, skillTotal: WEAPON_SKILL_NODES.length,
-        skillNodes: WEAPON_SKILL_NODES.map((n, i) => {
+        skillUnlocked: unlocked.length, skillTotal: nodes.length,
+        skillNodes: nodes.map((n, i) => {
           const isUnlocked = unlocked.includes(i);
-          const available = skillNodeUnlockable(unlocked, i);
+          const available = skillNodeUnlockable(w, unlocked, i);
           return {
             index: i, x: n.x, y: n.y, emoji: WEAPON_STAT_DEFS[n.stat].emoji, label: skillNodeLabel(n.stat, n.amount), cost: n.cost, big: !!n.big, requires: n.requires,
             state: isUnlocked ? 'unlocked' as const : available ? 'available' as const : 'locked' as const,
