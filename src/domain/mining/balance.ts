@@ -130,14 +130,14 @@ export interface MiningBalance {
 
 export const defaultMiningBalance: MiningBalance = {
   worldSize: 30,
-  baseRate: 0.28,
+  baseRate: 0.5,
   moveCost: 0.5,
   dropVisualMs: 900,
   fxVisualMs: 220,
 
-  hardnessBase: 1,
+  hardnessBase: 2,
   hardnessGrowth: 1.34,
-  distHardness: 0.06,
+  distHardness: 0.15,
   valueGrowth: 1.13,
   kinds: {
     dirt: { id: 'dirt', name: '土', emoji: '🟫', color: '#8d6e63', mult: 1 },

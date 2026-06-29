@@ -19,7 +19,7 @@ describe('mining/balance', () => {
     const tot = WEAPON_IDS.reduce((a, w) => a + s.dmgByWeapon[w], 0);
     const share = WEAPON_IDS.filter((w) => s.dmgByWeapon[w] > 0).map((w) => `${choiceMeta(w).emoji}${tot > 0 ? Math.round((s.dmgByWeapon[w] / tot) * 100) : 0}%`);
     console.log(`ダメージ内訳: ${share.join(' ')}`);
-    expect(s.meta.appraise).toBeGreaterThan(0);
+    expect(s.meta.appraise + s.boost).toBeGreaterThan(0); // コインが目利き/ブーストに回っている（のんびり経済）
     expect(s.dug.size).toBeGreaterThan(10);
     expect(s.dmgByWeapon.pick).toBeGreaterThan(0);
   });

@@ -43,7 +43,7 @@ describe('mining/step', () => {
   });
 
   it('自動モードでコインが目利き/ブーストに使われる（消費先がある）', () => {
-    const s = stepMine(initialMineState(), 60_000);
+    const s = stepMine(initialMineState(), 180_000); // のんびり経済: 数分でブースト等に回り始める
     expect(s.meta.appraise + s.boost).toBeGreaterThan(0); // どちらかにコインが回る
   });
 
