@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 10; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v10=お宝図鑑を個数制(採掘ドロップ・遠いほどレア・√逓減)・★グリッド廃止
+const VERSION = 11; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v11=お宝レアリティ5段階(解禁階/ドロップ率)・メイン霧・走行グリッドの貫通範囲を階層1つまで
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {

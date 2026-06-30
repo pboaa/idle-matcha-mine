@@ -6,7 +6,7 @@ import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/ba
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { stepToward, patternHits } from '@domain/mining/patterns';
 import { runPassiveLevels } from '@domain/mining/runGrid';
-import { dexEffectTotals, NORMAL_IDS, RARE_IDS } from '@domain/mining/treasures';
+import { dexEffectTotals, RARITY_DEFS, RARITY_IDS } from '@domain/mining/treasures';
 import { type MineState, type Levels } from '@application/mining/mineState';
 import { globalDamageMult } from '@application/mining/prestige';
 import { xpForNext } from '@application/mining/upgrades';
@@ -104,17 +104,14 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const coinMult = (1 + t.coin) * (1 + dex.coin);
   const rangeBonus = Math.floor(t.range);   // 走行グリッドに射程は無いので実質0（武器の基本値のみ）
   const pierceBonus = Math.floor(t.pierce);
-  // お宝の採掘ドロップ（個数制で重複OK）。ノーマルとレアは独立ロール。
+  // お宝の採掘ドロップ（個数制で重複OK）。レアリティごとに独立ロール（解禁階＋ドロップ率はレアリティ依存）。
   const dexAdds: Record<number, number> = {};
-  const dropMul = 1 + dex.drop; // 発掘効果でドロップ率UP
+  const dropMul = (1 + dex.drop) * b.treasureDropMul; // 発掘効果＋全体調整でドロップ率UP
   const addFrom = (pool: readonly number[]): void => { const id = pool[Math.floor(rng.next() * pool.length)]!; dexAdds[id] = (dexAdds[id] ?? 0) + 1; };
-  const tryDropTreasure = (cell: Cell): void => {
-    if (rng.next() < b.treasureDropChance * dropMul) addFrom(NORMAL_IDS); // ノーマル＝どの階でも
-    // レア＝一定階より深く＆極低確率（深い/遠いほど僅かに上がる・最後のやり込み）
-    if (state.floor >= b.rareMinFloor) {
-      const dist = tileDist(cell, b);
-      const rareCh = Math.min(b.rareDropCap, b.rareDropBase + (state.floor - b.rareMinFloor) * b.rareDropPerFloor + dist * b.rareDropPerDist) * dropMul;
-      if (rng.next() < rareCh) addFrom(RARE_IDS);
+  const tryDropTreasure = (): void => {
+    for (const r of RARITY_DEFS) {
+      if (state.floor < r.minFloor) continue;                  // そのレアリティの解禁階に未到達
+      if (rng.next() < r.baseChance * dropMul) addFrom(RARITY_IDS[r.id]);
     }
   };
 
@@ -132,7 +129,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     damage.delete(k);
     dug.add(k);
     coins += tileValue(kind, state.floor, coinMult, b);
-    tryDropTreasure(cell); // 採掘でお宝（遠い/深いほどレア）
+    tryDropTreasure(); // 採掘でお宝（レアリティごとに解禁階＋確率）
     xpGain += (1 + t.xp) * (1 + dex.xp);
     seq += 1;
     drops = [...drops, { id: seq, x: cell.x, y: cell.y, emoji: kind.emoji, value: tileValue(kind, state.floor, coinMult, b), bornAt: now }];

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyPerm, type MineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
 import { allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult } from '@application/mining/prestige';
-import { isRare, dexKinds, dexEffectTotals } from '@domain/mining/treasures';
+import { rarityOf, dexKinds, dexEffectTotals } from '@domain/mining/treasures';
 import { defaultMiningBalance, WEAPON_IDS, WEAPON_UNLOCK_ORDER } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -44,7 +44,7 @@ describe('mining/prestige', () => {
   });
 
   it('図鑑効果: 重なるほど1個あたり弱まる（√逓減）', () => {
-    const one = dexEffectTotals({ 0: 1 }).power;   // レア#0=火力
+    const one = dexEffectTotals({ 0: 1 }).power;   // #0=火力
     const four = dexEffectTotals({ 0: 4 }).power;  // 4個
     expect(four).toBeCloseTo(one * 2, 6);          // √4=2倍（線形の4倍より弱い）
     expect(four).toBeLessThan(one * 4);            // インフレしない
@@ -73,25 +73,14 @@ describe('mining/prestige', () => {
     expect(r.perm.starTotal).toBe(s.runPoints);
   });
 
-  it('お宝は採掘でランダムに図鑑へ貯まる（序盤=floor0近辺はノーマル中心）', () => {
-    const b = { ...B, treasureDropChance: 0.6 }; // ドロップ率を上げて検証を安定化
+  it('お宝は採掘でランダムに貯まる・高レアリティは深い階でないと出ない', () => {
+    const b = { ...B, treasureDropMul: 50 }; // ドロップ率を上げて検証を安定化
     const s = stepMine({ ...initialMineState(b), perm: { ...emptyPerm() } }, 120_000, b);
     expect(dexKinds(s.perm.dex)).toBeGreaterThan(0);              // 採掘でお宝が貯まる
-    const rareCount = Object.entries(s.perm.dex).filter(([id]) => isRare(Number(id))).reduce((a, [, c]) => a + c, 0);
-    const normalCount = Object.entries(s.perm.dex).filter(([id]) => !isRare(Number(id))).reduce((a, [, c]) => a + c, 0);
-    expect(normalCount).toBeGreaterThan(rareCount);              // 浅い階(floor0)ではノーマルが多い
-  });
-
-  it('レアはフロアゲート＆極低確率で絞られる（深く潜らないと出ない）', () => {
-    // floor0(< rareMinFloor)ではノーマルを切ってもレアは出ない＝dex空
-    const gated = { ...B, treasureDropChance: 0 };
-    const a = stepMine({ ...initialMineState(gated), perm: { ...emptyPerm() } }, 60_000, gated);
-    expect(dexKinds(a.perm.dex)).toBe(0);
-    // ゲート解除＋高確率なら採掘でレアだけが入る
-    const open = { ...B, treasureDropChance: 0, rareMinFloor: 0, rareDropBase: 1, rareDropCap: 1 };
-    const r = stepMine({ ...initialMineState(open), perm: { ...emptyPerm() } }, 60_000, open);
-    expect(dexKinds(r.perm.dex)).toBeGreaterThan(0);
-    expect(Object.keys(r.perm.dex).every((id) => isRare(Number(id)))).toBe(true);
+    expect(s.floor).toBe(0);                                      // まだ地下1階
+    const rarities = new Set(Object.keys(s.perm.dex).map((id) => rarityOf(Number(id))));
+    expect(rarities.has('common')).toBe(true);                   // コモンは floor0 から出る
+    expect([...rarities].every((r) => r === 'common')).toBe(true); // アンコモン以上(minFloor>=1)は浅い階では出ない
   });
 
   it('累計★で全体ダメージ倍率が上がる', () => {

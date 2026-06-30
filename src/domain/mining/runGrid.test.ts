@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { genRunGrid, runGridUnlockable, runGridUnlock, runGridFull, runGridFilled, rerollRunGrid, runPassiveLevels } from '@domain/mining/runGrid';
-import { PASSIVE_DEFS } from '@domain/mining/balance';
+import { PASSIVE_DEFS, type PassiveEffect } from '@domain/mining/balance';
 
 describe('domain/runGrid', () => {
   it('決定的: 同じシード・装備なら同じ配置', () => {
@@ -53,11 +53,16 @@ describe('domain/runGrid', () => {
     expect(reqs.every((w) => w === 'pick' || w === 'bullet')).toBe(true);
   });
 
-  it('貫通・射程(範囲)は走行グリッドに出ない（武器の基本値で扱う）', () => {
+  it('貫通/範囲は1リング(階層)に1つまで', () => {
+    const cen = Math.floor((9 - 1) / 2);
+    const ring = (n: { x: number; y: number }): number => Math.max(Math.abs(n.x - cen), Math.abs(n.y - cen));
     for (const seed of [1, 2, 3, 50, 999]) {
       const g = genRunGrid(seed, 9, ['pick', 'bullet', 'beam'], 99);
-      const effects = g.nodes.map((n) => PASSIVE_DEFS[n.pid].effect);
-      expect(effects.some((e) => e === 'pierce' || e === 'range')).toBe(false);
+      for (const eff of ['pierce', 'range'] as PassiveEffect[]) {
+        const perRing: Record<number, number> = {};
+        for (const n of g.nodes) if (PASSIVE_DEFS[n.pid].effect === eff) perRing[ring(n)] = (perRing[ring(n)] ?? 0) + 1;
+        expect(Object.values(perRing).every((c) => c <= 1)).toBe(true); // 1リング1つまで
+      }
     }
   });
 

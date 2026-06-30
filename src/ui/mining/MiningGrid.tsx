@@ -29,7 +29,7 @@ export function MiningGrid() {
     <div onClick={onClick} className={['relative overflow-hidden rounded-lg ring-2 ring-stone-950/70 shadow-inner', view.manual ? 'cursor-crosshair' : ''].join(' ')} style={{ width: view.w * CELL, height: view.h * CELL }}>
       <div className="grid" style={{ gridTemplateColumns: `repeat(${view.w}, ${CELL}px)`, gridTemplateRows: `repeat(${view.h}, ${CELL}px)` }}>
         {view.tiles.map((t) => (
-          <div key={`${t.rx},${t.ry}`} style={{ background: t.color }} className={['relative', t.kind === 'solid' ? 'border border-black/25' : '', t.front ? 'ring-2 ring-amber-300' : ''].join(' ')}>
+          <div key={`${t.rx},${t.ry}`} style={{ background: t.color }} className={['relative', t.fog ? 'border border-black/40' : t.kind === 'solid' ? 'border border-black/25' : '', t.front ? 'ring-2 ring-amber-300' : ''].join(' ')}>
             {/* 硬さの可視化: 硬いほど暗く（遠い／上位鉱石ほど手応え） */}
             {t.tough > 0 && <span className="pointer-events-none absolute inset-0" style={{ background: `rgba(0,0,0,${t.tough})` }} />}
             {t.crack > 0 && <Cracks stage={t.crack} />}

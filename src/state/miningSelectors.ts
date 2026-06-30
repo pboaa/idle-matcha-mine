@@ -7,8 +7,8 @@ import { weaponUnlockStar, globalDamageMult } from '@application/mining/prestige
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import { runPassiveLevels, runGridUnlockable, runGridFilled, runGridFull } from '@domain/mining/runGrid';
 import {
-  TREASURE_DEFS, RARE_COUNT, NORMAL_COUNT, TREASURE_TOTAL, TREASURE_EFFECT_LABEL, dexEffectTotals, dexKinds, dexTotalCount, isRare,
-  type TreasureEffect,
+  TREASURE_DEFS, RARITY_DEFS, RARITY_BY_ID, TREASURE_TOTAL, TREASURE_EFFECT_LABEL, dexEffectTotals, dexKinds, dexTotalCount,
+  type TreasureEffect, type TreasureRarity,
 } from '@domain/mining/treasures';
 import {
   WEAPON_IDS, PASSIVE_IDS, WEAPON_UNLOCK_ORDER, BASE_WEAPONS, defaultMiningBalance, choiceMeta,
@@ -26,7 +26,7 @@ const BASE = baseOf(B);
 const TOTAL_TILES = totalTilesOf(B);
 
 // ===== 盤面ビュー =====
-export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number; readonly tough: number }
+export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number; readonly tough: number; readonly fog: boolean }
 export interface MineDropVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string }
 /** 武器命中エフェクトの見た目種別（パターンから決まる）。 */
 export type MineEffectKind = 'line' | 'burst' | 'field' | 'impact';
@@ -56,16 +56,20 @@ export function buildMineView(state: MineState): MineViewVM {
     for (let rx = 0; rx < VIEW_W; rx++) {
       const c = { x: x0 + rx, y: y0 + ry };
       const isFront = front !== null && sameCell(c, front);
-      if (!inBounds(c, B)) { tiles.push({ rx, ry, kind: 'wall', color: '#1c1917', isBase: false, front: false, crack: 0, tough: 0 }); continue; }
+      if (!inBounds(c, B)) { tiles.push({ rx, ry, kind: 'wall', color: '#1c1917', isBase: false, front: false, crack: 0, tough: 0, fog: false }); continue; }
       const k = `${c.x},${c.y}`;
       const dug = state.dug.has(k);
+      const isBase = c.x === BASE.x && c.y === BASE.y;
+      // 霧(フォグ): 未採掘マスは、掘った場所の隣に来るまで隠す（拠点も既知）。掘り進むほど見える。
+      const fog = !dug && !isBase && !isFront && !revealedNear(state.dug, c);
+      if (fog) { tiles.push({ rx, ry, kind: 'solid', color: '#14110e', isBase: false, front: false, crack: 0, tough: 0, fog: true }); continue; }
       const kind = kindAt(c, state.floor, B);
       const dist = tileDist(c, B);
       const ratio = dug ? 0 : Math.min(1, (state.damage.get(k) ?? 0) / tileHardness(state.floor, dist, kind.hardMult, B));
       // 硬さの可視化: 拠点距離×種類で「relHard」を出し、硬いほど暗く（遠い/上位鉱石が一目で分かる）。
       const relHard = (1 + dist * B.distHardness) * kind.hardMult;
       const tough = dug ? 0 : Math.min(0.55, Math.max(0, (relHard - 1) / 8));
-      tiles.push({ rx, ry, kind: dug ? 'dug' : 'solid', color: dug ? '#2e2a26' : kind.color, isBase: c.x === BASE.x && c.y === BASE.y, front: isFront, crack: ratio <= 0 ? 0 : Math.min(3, 1 + Math.floor(ratio * 3)), tough });
+      tiles.push({ rx, ry, kind: dug ? 'dug' : 'solid', color: dug ? '#2e2a26' : kind.color, isBase, front: isFront, crack: ratio <= 0 ? 0 : Math.min(3, 1 + Math.floor(ratio * 3)), tough, fog: false });
     }
   }
   const drops: MineDropVM[] = [];
@@ -96,6 +100,15 @@ export function buildMineView(state: MineState): MineViewVM {
     targetRx: inView ? tgt!.x - x0 : null, targetRy: inView ? tgt!.y - y0 : null,
     orbit,
   };
+}
+
+// 霧の解除判定: 8近傍に掘ったマスがあれば「見えている」（掘り進んだ縁が露出）。
+function revealedNear(dug: ReadonlySet<string>, c: { x: number; y: number }): boolean {
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if (dx === 0 && dy === 0) continue;
+    if (dug.has(`${c.x + dx},${c.y + dy}`)) return true;
+  }
+  return false;
 }
 
 // front を selectors 内で再計算（step に依存しすぎない簡易版）
@@ -221,7 +234,9 @@ export function buildMineHud(state: MineState): MineHudVM {
 
 // ===== 転生パネル =====
 /** お宝図鑑の1エントリ（個数つき）。 */
-export interface MineDexEntryVM { readonly id: number; readonly emoji: string; readonly name: string; readonly rarity: 'normal' | 'rare'; readonly effectEmoji: string; readonly text: string; readonly count: number }
+export interface MineDexEntryVM { readonly id: number; readonly emoji: string; readonly name: string; readonly rarity: TreasureRarity; readonly rarityLabel: string; readonly color: string; readonly effectEmoji: string; readonly text: string; readonly count: number }
+/** レアリティ別の収集進捗。 */
+export interface MineRarityVM { readonly id: TreasureRarity; readonly label: string; readonly color: string; readonly kinds: number; readonly total: number; readonly minFloor: number }
 /** 図鑑の効果合計（表示用）。 */
 export interface MineDexEffectVM { readonly emoji: string; readonly label: string; readonly text: string }
 /** 武器の解放状態（つるはし/弾は最初から・残りは★を消費して解放）。cost=必要★。 */
@@ -233,8 +248,7 @@ export interface MinePrestigeVM {
   readonly starPoints: number; readonly starTotal: number; readonly dmgMult: number;
   readonly dex: {
     readonly kinds: number; readonly total: number; readonly count: number; // 集めた種類／全種類／総個数
-    readonly normalKinds: number; readonly normalTotal: number;
-    readonly rareKinds: number; readonly rareTotal: number;
+    readonly rarities: readonly MineRarityVM[]; // レアリティ別の進捗
     readonly entries: readonly MineDexEntryVM[]; readonly effects: readonly MineDexEffectVM[];
   };
   readonly unlocks: readonly MineWeaponUnlockVM[];
@@ -249,16 +263,14 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
   const eff = dexEffectTotals(dex);
   const effects: MineDexEffectVM[] = (Object.keys(TREASURE_EFFECT_LABEL) as TreasureEffect[])
     .filter((e) => eff[e] > 0).map((e) => ({ emoji: TREASURE_EFFECT_LABEL[e].emoji, label: TREASURE_EFFECT_LABEL[e].label, text: `+${Math.round(eff[e] * 100)}%` }));
-  const kindsCollected = (filter: (id: number) => boolean): number => TREASURE_DEFS.filter((d) => filter(d.id) && (dex[d.id] ?? 0) > 0).length;
   return {
     prestiges: state.prestiges,
     runPoints: state.runPoints,
     starPoints: sp, starTotal: state.perm.starTotal, dmgMult: globalDamageMult(state.perm.starTotal) * (1 + eff.power),
     dex: {
       kinds: dexKinds(dex), total: TREASURE_TOTAL, count: dexTotalCount(dex),
-      normalKinds: kindsCollected((id) => !isRare(id)), normalTotal: NORMAL_COUNT,
-      rareKinds: kindsCollected(isRare), rareTotal: RARE_COUNT,
-      entries: TREASURE_DEFS.map((d) => ({ id: d.id, emoji: d.emoji, name: d.name, rarity: d.rarity, effectEmoji: TREASURE_EFFECT_LABEL[d.effect].emoji, text: treasureText(d.effect, d.amount), count: dex[d.id] ?? 0 })),
+      rarities: RARITY_DEFS.map((r) => ({ id: r.id, label: r.label, color: r.color, minFloor: r.minFloor, total: r.count, kinds: TREASURE_DEFS.filter((d) => d.rarity === r.id && (dex[d.id] ?? 0) > 0).length })),
+      entries: TREASURE_DEFS.map((d) => ({ id: d.id, emoji: d.emoji, name: d.name, rarity: d.rarity, rarityLabel: RARITY_BY_ID[d.rarity].label, color: RARITY_BY_ID[d.rarity].color, effectEmoji: TREASURE_EFFECT_LABEL[d.effect].emoji, text: treasureText(d.effect, d.amount), count: dex[d.id] ?? 0 })),
       effects,
     },
     unlocks: [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER].map((w) => {

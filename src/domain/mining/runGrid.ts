@@ -26,14 +26,14 @@ const neighborsOf = (size: number, x: number, y: number): number[] =>
     .filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < size && ny < size)
     .map(([nx, ny]) => idxAt(size, nx, ny));
 
-// 貫通(pierce)・射程/範囲(range)は走行グリッドに出さない（武器の基本値で扱う）。
-const RUN_EXCLUDED = (id: PassiveId): boolean => { const e = PASSIVE_DEFS[id].effect; return e === 'pierce' || e === 'range'; };
-/** その周のフィラー（汎用・弱め）と特殊（少数・強め）に分類。武器固有は装備中のみ。貫通/射程は除外。 */
+// 貫通(pierce)・射程/範囲(range)は「1階層(リング)に1つまで」に制限して配置する。
+const isLimited = (id: PassiveId): boolean => { const e = PASSIVE_DEFS[id].effect; return e === 'pierce' || e === 'range'; };
+/** その周のフィラー（汎用・弱め）と特殊（少数・強め）に分類。武器固有は装備中のみ。 */
 function poolsFor(equipped: readonly WeaponId[]): { fillers: PassiveId[]; specials: PassiveId[] } {
-  const fillers = PASSIVE_IDS.filter((id) => { const d = PASSIVE_DEFS[id]; return !d.special && !d.reqWeapon && !RUN_EXCLUDED(id); });
+  const fillers = PASSIVE_IDS.filter((id) => { const d = PASSIVE_DEFS[id]; return !d.special && !d.reqWeapon && !isLimited(id); });
   const specials = PASSIVE_IDS.filter((id) => {
     const d = PASSIVE_DEFS[id];
-    if (!d.special || RUN_EXCLUDED(id)) return false;
+    if (!d.special) return false;
     if (d.reqWeapon && !equipped.includes(d.reqWeapon)) return false;
     return true;
   });
@@ -52,13 +52,21 @@ export function genRunGrid(seed: number, size: number, equipped: readonly Weapon
     const pid = root ? 'power' : fillers[Math.floor(rng.next() * fillers.length)]!;
     nodes.push({ x, y, pid, special: false, root: root || undefined, requires: neighborsOf(size, x, y) });
   }
-  // 特殊マスを散りばめる（中央以外・約 size 個）。
+  // 特殊マスを散りばめる（中央以外・約 size 個）。貫通/範囲は「1階層(中央からのリング)に1つまで」。
+  const ringOf = (i: number): number => { const n = nodes[i]!; return Math.max(Math.abs(n.x - cen), Math.abs(n.y - cen)); };
+  const ringHasLimited = new Map<string, boolean>(); // `${ring}:${effect}` → 既に配置済み
+  const nonLimited = specials.filter((s) => !isLimited(s));
   const cand = nodes.map((_, i) => i).filter((i) => !nodes[i]!.root);
   const want = Math.min(cand.length, specials.length === 0 ? 0 : Math.max(3, Math.round(size * 1.2)));
   for (let k = 0; k < want; k++) {
     const ci = Math.floor(rng.next() * cand.length);
     const ni = cand.splice(ci, 1)[0]!;
-    const pid = specials[Math.floor(rng.next() * specials.length)]!;
+    let pid = specials[Math.floor(rng.next() * specials.length)]!;
+    if (isLimited(pid)) {
+      const key = `${ringOf(ni)}:${PASSIVE_DEFS[pid].effect}`;
+      if (ringHasLimited.get(key)) pid = nonLimited.length > 0 ? nonLimited[Math.floor(rng.next() * nonLimited.length)]! : pid; // この階層は埋まってる→別の特殊へ
+      else ringHasLimited.set(key, true);
+    }
     nodes[ni] = { ...nodes[ni]!, pid, special: true };
   }
   return { size, nodes, unlocked: [rootIndex], cap, coinUnlocks: 0, rerolls: 0 };
