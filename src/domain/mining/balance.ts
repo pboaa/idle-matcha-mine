@@ -138,7 +138,7 @@ export const defaultMiningBalance: MiningBalance = {
   runGridSize: 9,                            // 9x9＝マス多め（大量に上げられる）
   runCoinCostBase: 20, runCoinGrowth: 1.18,  // 逓増だが緩め＝コインを貯めれば沢山上げられる（やり込み）
   runRerollCostBase: 40, runRerollGrowth: 1.8,
-  runCapBase: 40, runCapPerTreasures: 12,    // 上限は大きめ40・図鑑12種ごとに+1（限界はあるが大量）
+  runCapBase: 70, runCapPerTreasures: 16,    // 最初から上限ゆるめ70（9x9のほぼ全マス）・図鑑16種ごとに+1。実質の制限はコスト逓増
 
   treasureDropMul: 1, // お宝ドロップの全体倍率（レアリティ別の率は RARITY_DEFS）
   treasureVisualMs: 1600, // お宝を拾った演出の表示寿命（少し長めで気づける）
