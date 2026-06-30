@@ -81,6 +81,8 @@ export interface MiningBalance {
 
   readonly areaPerLvls: number;  // 武器レベル何段ごとに範囲段階(spread)が+1（射程投資でも増える）
   readonly critMult: number;     // 会心倍率
+  readonly maxRangeBonus: number;  // 走行グリッドの射程ボーナスのハードキャップ（盤面を覆い尽くさないように）
+  readonly maxPierceBonus: number; // 走行グリッドの貫通ボーナスのハードキャップ
 
   readonly xpBase: number; readonly xpPerLevel: number; // レベルアップ＝走行グリッドの無料解放権+1
 
@@ -104,15 +106,15 @@ export interface MiningBalance {
 }
 
 export const defaultMiningBalance: MiningBalance = {
-  worldSize: 30,
-  baseRate: 0.45,
+  worldSize: 26,
+  baseRate: 0.9,
   moveCost: 0.5,
   dropVisualMs: 900,
   fxVisualMs: 220,
 
-  hardnessBase: 0.5,
-  hardnessGrowth: 1.32,
-  distHardness: 0.12,
+  hardnessBase: 0.38,
+  hardnessGrowth: 1.27,
+  distHardness: 0.10,
   valueGrowth: 1.10,
   kinds: KINDS_BY_ID,
   matTiers: [
@@ -127,13 +129,14 @@ export const defaultMiningBalance: MiningBalance = {
 
   areaPerLvls: 6,
   critMult: 3,
+  maxRangeBonus: 4, maxPierceBonus: 4, // 貫通/範囲は最大+4まで（ハードキャップ）
 
   xpBase: 5, xpPerLevel: 3,
 
   pointsPerLevel: 1, pointsPerFloor: 3,
 
   weaponUnlockStarCost: [10, 24, 48, 85, 140], // bomb/beam/drill/aura/ring（★消費・少しずつ高く）
-  starMultPerLvl: 0.04, // 累計★で全体ダメージ 1+0.04×√累計★（100→×1.4, 400→×1.8, 2500→×3）
+  starMultPerLvl: 0.06, // 累計★で全体ダメージ 1+0.06×√累計★（補填: 旧スキルツリー廃止ぶんを永続火力で）
 
   runGridSize: 9,                            // 9x9＝マス多め（大量に上げられる）
   runCoinCostBase: 20, runCoinGrowth: 1.18,  // 逓増だが緩め＝コインを貯めれば沢山上げられる（やり込み）

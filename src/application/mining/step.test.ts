@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { initialMineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
 import { defaultMiningBalance } from '@domain/mining/balance';
+import { baseOf } from '@domain/mining/tile';
+
+const BASE = baseOf(defaultMiningBalance);
 
 describe('mining/step', () => {
   it('決定的（同じ初期状態・同じ時間で一致）', () => {
@@ -79,8 +82,8 @@ describe('mining/step', () => {
       const s = { ...initialMineState(), autoMode: false, levels: { ...initialMineState().levels, pick: 0, beam: lvl } };
       const r = stepMine(s, 600);
       const cells = r.fx.filter((f) => f.weapon === 'beam').flatMap((f) => f.cells);
-      // 中心(cat)から見た方向の種類数
-      return new Set(cells.map((c) => `${Math.sign(c.x - 15)},${Math.sign(c.y - 15)}`)).size;
+      // 中心(cat=拠点)から見た方向の種類数
+      return new Set(cells.map((c) => `${Math.sign(c.x - BASE.x)},${Math.sign(c.y - BASE.y)}`)).size;
     };
     expect(beamDirs(1)).toBe(2);            // Lv1: 2方向
     expect(beamDirs(10)).toBeGreaterThan(2); // 高Lv: 4/8方向

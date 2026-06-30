@@ -59,8 +59,9 @@ describe('mining/tile', () => {
   });
 
   it('base は中心、total は size^2', () => {
-    expect(baseOf(B)).toEqual({ x: 15, y: 15 });
-    expect(totalTilesOf(B)).toBe(900);
+    const c = Math.floor(B.worldSize / 2);
+    expect(baseOf(B)).toEqual({ x: c, y: c });
+    expect(totalTilesOf(B)).toBe(B.worldSize * B.worldSize);
     expect(baseOf({ ...B, worldSize: 5 })).toEqual({ x: 2, y: 2 });
   });
 });

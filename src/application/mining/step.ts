@@ -105,8 +105,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
   const coinMult = (1 + t.coin) * (1 + dg.coin);
-  const rangeBonus = Math.floor(t.range);   // 走行グリッドの射程（貫通/範囲は1階層1つまで）
-  const pierceBonus = Math.floor(t.pierce);
+  const rangeBonus = Math.min(b.maxRangeBonus, Math.floor(t.range));   // 走行グリッドの射程（ハードキャップあり）
+  const pierceBonus = Math.min(b.maxPierceBonus, Math.floor(t.pierce)); // 貫通（ハードキャップあり）
   // お宝の採掘ドロップ（個数制で重複OK）。レアリティごとに独立ロール。持ち込み中の武器のお宝だけ出る。
   const dexAdds: Record<number, number> = {};
   const newPops: TreasurePop[] = []; // 拾った演出（採掘地点に浮く）
