@@ -98,9 +98,11 @@ export interface MiningBalance {
   readonly runRerollCostBase: number; readonly runRerollGrowth: number; // 未解放マスのリロール
   readonly runCapBase: number; readonly runCapPerTreasures: number;     // 走行グリッド上限（基本＋図鑑N個ごとに+1）
 
-  // お宝図鑑: 採掘1ブロックでこの確率でお宝ドロップ（低め＝やり込み）。レアか否かは「遠さ/深さ」で決まる。
+  // お宝図鑑: ノーマルお宝は採掘1ブロックでこの確率でドロップ（どの階でも）。
   readonly treasureDropChance: number;
-  readonly rareDropPerFloor: number; readonly rareDropPerDist: number; readonly rareDropCap: number; // レア確率＝floor×_＋dist×_（上限cap）
+  // レアお宝は「一定階より深く」かつ極低確率でのみドロップ（やり込み）。確率＝base＋(floor超過)×_＋dist×_（上限cap）。
+  readonly rareMinFloor: number;       // この階(index)以降でないとレアは出ない
+  readonly rareDropBase: number; readonly rareDropPerFloor: number; readonly rareDropPerDist: number; readonly rareDropCap: number;
 }
 
 export const defaultMiningBalance: MiningBalance = {
@@ -140,6 +142,7 @@ export const defaultMiningBalance: MiningBalance = {
   runRerollCostBase: 40, runRerollGrowth: 1.8,
   runCapBase: 6, runCapPerTreasures: 8,     // 最初6マス・図鑑8種ごとに上限+1
 
-  treasureDropChance: 0.02, // 採掘1ブロックで2%（低め＝最後のやり込み）
-  rareDropPerFloor: 0.03, rareDropPerDist: 0.015, rareDropCap: 0.7, // 深く/遠いほどレアになりやすい（最大70%）
+  treasureDropChance: 0.02, // ノーマルは採掘1ブロックで2%（どの階でも）
+  // レアは地下6階(index5)以降のみ・基本0.01%。深く/遠いほど僅かに上がる（上限0.3%）＝最後のやり込み。
+  rareMinFloor: 5, rareDropBase: 0.0001, rareDropPerFloor: 0.00006, rareDropPerDist: 0.00003, rareDropCap: 0.003,
 };

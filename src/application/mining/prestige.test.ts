@@ -82,6 +82,18 @@ describe('mining/prestige', () => {
     expect(normalCount).toBeGreaterThan(rareCount);              // 浅い階(floor0)ではノーマルが多い
   });
 
+  it('レアはフロアゲート＆極低確率で絞られる（深く潜らないと出ない）', () => {
+    // floor0(< rareMinFloor)ではノーマルを切ってもレアは出ない＝dex空
+    const gated = { ...B, treasureDropChance: 0 };
+    const a = stepMine({ ...initialMineState(gated), perm: { ...emptyPerm() } }, 60_000, gated);
+    expect(dexKinds(a.perm.dex)).toBe(0);
+    // ゲート解除＋高確率なら採掘でレアだけが入る
+    const open = { ...B, treasureDropChance: 0, rareMinFloor: 0, rareDropBase: 1, rareDropCap: 1 };
+    const r = stepMine({ ...initialMineState(open), perm: { ...emptyPerm() } }, 60_000, open);
+    expect(dexKinds(r.perm.dex)).toBeGreaterThan(0);
+    expect(Object.keys(r.perm.dex).every((id) => isRare(Number(id)))).toBe(true);
+  });
+
   it('累計★で全体ダメージ倍率が上がる', () => {
     const s = stepMine(initialMineState(), 30_000);
     const r = prestige(s, B);

@@ -104,15 +104,18 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const coinMult = (1 + t.coin) * (1 + dex.coin);
   const rangeBonus = Math.floor(t.range);   // 走行グリッドに射程は無いので実質0（武器の基本値のみ）
   const pierceBonus = Math.floor(t.pierce);
-  // お宝の採掘ドロップ（低確率・個数制で重複OK）。レアは「遠く/深く」ほど出やすい。
+  // お宝の採掘ドロップ（個数制で重複OK）。ノーマルとレアは独立ロール。
   const dexAdds: Record<number, number> = {};
+  const dropMul = 1 + dex.drop; // 発掘効果でドロップ率UP
+  const addFrom = (pool: readonly number[]): void => { const id = pool[Math.floor(rng.next() * pool.length)]!; dexAdds[id] = (dexAdds[id] ?? 0) + 1; };
   const tryDropTreasure = (cell: Cell): void => {
-    if (rng.next() >= b.treasureDropChance * (1 + dex.drop)) return;
-    const dist = tileDist(cell, b);
-    const rareProb = Math.min(b.rareDropCap, state.floor * b.rareDropPerFloor + dist * b.rareDropPerDist);
-    const pool = rng.next() < rareProb ? RARE_IDS : NORMAL_IDS;
-    const id = pool[Math.floor(rng.next() * pool.length)]!;
-    dexAdds[id] = (dexAdds[id] ?? 0) + 1;
+    if (rng.next() < b.treasureDropChance * dropMul) addFrom(NORMAL_IDS); // ノーマル＝どの階でも
+    // レア＝一定階より深く＆極低確率（深い/遠いほど僅かに上がる・最後のやり込み）
+    if (state.floor >= b.rareMinFloor) {
+      const dist = tileDist(cell, b);
+      const rareCh = Math.min(b.rareDropCap, b.rareDropBase + (state.floor - b.rareMinFloor) * b.rareDropPerFloor + dist * b.rareDropPerDist) * dropMul;
+      if (rng.next() < rareCh) addFrom(RARE_IDS);
+    }
   };
 
   const applyDmg = (cell: Cell, baseAmt: number, w: WeaponId): void => {
