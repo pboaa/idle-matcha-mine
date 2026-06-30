@@ -102,7 +102,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
   const coinMult = (1 + t.coin) * (1 + dex.coin);
-  const rangeBonus = Math.floor(t.range);   // 走行グリッドに射程はないので実質0（恒久側で扱う想定）
+  const rangeBonus = Math.floor(t.range);   // 走行グリッドに射程は無いので実質0（武器の基本値のみ）
   const pierceBonus = Math.floor(t.pierce);
   // お宝の採掘ドロップ（低確率・個数制で重複OK）。レアは「遠く/深く」ほど出やすい。
   const dexAdds: Record<number, number> = {};

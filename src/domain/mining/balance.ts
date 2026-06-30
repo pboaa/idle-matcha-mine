@@ -87,7 +87,6 @@ export interface MiningBalance {
   readonly pointsPerLevel: number; // レベルアップで貯まる★（runPoints・転生で確定）
   readonly pointsPerFloor: number; // 階を降りるごとに貯まる★（深いほど＝floor倍）
 
-  // ★グリッド（レアお宝）のノード★コストは treasures.ts（STAR_NODES）が保持。★を消費してマスを開ける。
   // 武器の解放に必要な★（消費・WEAPON_UNLOCK_ORDER順に少しずつ高い）。
   readonly weaponUnlockStarCost: readonly number[];
   // 累計★（消費しない総獲得★）による全体ダメージ倍率: 1 + starMultPerLvl×√累計★（√で逓減＝壊れない）。

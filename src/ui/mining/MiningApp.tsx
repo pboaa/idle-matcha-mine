@@ -4,13 +4,13 @@ import { MiningGrid } from '@ui/mining/MiningGrid';
 import { MiningOverlay } from '@ui/mining/MiningOverlay';
 import { MiningHud } from '@ui/mining/MiningHud';
 import { MiningPrestige } from '@ui/mining/MiningPrestige';
-import { MiningTree } from '@ui/mining/MiningTree';
+import { MiningDex } from '@ui/mining/MiningDex';
 import { MiningHelp } from '@ui/mining/MiningHelp';
 
-/** 採掘モックのルート。1匹の猫が自動でグリッドを掘り、転生＝★獲得→転生ツリーで成長する。 */
+/** 採掘モックのルート。1匹の猫が自動でグリッドを掘り、転生＝★獲得・採掘でお宝図鑑を集めて成長する。 */
 export function MiningApp() {
   useMiningTick();
-  const [modal, setModal] = useState<null | 'prestige' | 'tree' | 'help'>(null);
+  const [modal, setModal] = useState<null | 'prestige' | 'dex' | 'help'>(null);
   const close = (): void => setModal(null);
   return (
     <div className="flex h-full w-full flex-col items-center bg-gradient-to-b from-stone-800 to-stone-950 p-4">
@@ -20,9 +20,9 @@ export function MiningApp() {
           className="rounded-md bg-fuchsia-800 px-2.5 py-1 text-[11px] font-bold text-fuchsia-100 shadow ring-1 ring-fuchsia-600 transition hover:bg-fuchsia-700">
           🔄 転生
         </button>
-        <button onClick={() => setModal('tree')}
+        <button onClick={() => setModal('dex')}
           className="rounded-md bg-emerald-800 px-2.5 py-1 text-[11px] font-bold text-emerald-100 shadow ring-1 ring-emerald-600 transition hover:bg-emerald-700">
-          🌳 強化ツリー
+          📒 お宝図鑑
         </button>
         <button onClick={() => setModal('help')}
           className="rounded-md bg-stone-700 px-2.5 py-1 text-[11px] font-bold text-stone-200 shadow ring-1 ring-stone-600 transition hover:bg-stone-600">
@@ -36,16 +36,16 @@ export function MiningApp() {
         </div>
         <MiningHud />
       </div>
-      <p className="mt-2 text-[11px] text-stone-500">最初に武器を選んで採掘。レベルアップで走行グリッドを解放（右上で自動に切替）。★→恒久グリッド。詳しくは ❓遊び方。</p>
+      <p className="mt-2 text-[11px] text-stone-500">最初に武器を選んで採掘。コインで走行グリッドを解放（右上で自動に切替）。採掘でお宝図鑑が集まる。詳しくは ❓遊び方。</p>
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={close}>
           <div onClick={(e) => e.stopPropagation()}>
             {modal === 'prestige'
-              ? <MiningPrestige onClose={close} onOpenTree={() => setModal('tree')} />
+              ? <MiningPrestige onClose={close} onOpenDex={() => setModal('dex')} />
               : modal === 'help'
                 ? <MiningHelp onClose={close} />
-                : <MiningTree onClose={close} />}
+                : <MiningDex onClose={close} />}
           </div>
         </div>
       )}

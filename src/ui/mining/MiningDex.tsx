@@ -17,8 +17,8 @@ function DexBook({ entries }: { entries: readonly MineDexEntryVM[] }) {
   );
 }
 
-/** 強化画面: ★残高/累計★×倍率／お宝図鑑（全100種・採掘でランダム入手・重複OK）。 */
-export function MiningTree({ onClose }: { onClose: () => void }) {
+/** お宝図鑑画面: ★残高/累計★×倍率／お宝図鑑（全100種・採掘でランダム入手・重複OK）。 */
+export function MiningDex({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">

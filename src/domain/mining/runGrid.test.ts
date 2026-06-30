@@ -53,7 +53,7 @@ describe('domain/runGrid', () => {
     expect(reqs.every((w) => w === 'pick' || w === 'bullet')).toBe(true);
   });
 
-  it('貫通・射程(範囲)は走行グリッドに出ない（恒久ツリー側）', () => {
+  it('貫通・射程(範囲)は走行グリッドに出ない（武器の基本値で扱う）', () => {
     for (const seed of [1, 2, 3, 50, 999]) {
       const g = genRunGrid(seed, 9, ['pick', 'bullet', 'beam'], 99);
       const effects = g.nodes.map((n) => PASSIVE_DEFS[n.pid].effect);

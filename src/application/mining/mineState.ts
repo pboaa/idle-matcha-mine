@@ -14,9 +14,9 @@ export interface WeaponFx { readonly id: number; readonly weapon: WeaponId; read
 export interface MineCat { readonly pos: Cell; readonly gauge: number; readonly target: Cell | null }
 
 export type Levels = Record<ChoiceId, number>;
-/** 恒久(転生で保持): ★残高/累計★/解放済み武器＋お宝図鑑(収集したidの配列)。 */
+/** 恒久(転生で保持): ★残高/累計★/解放済み武器＋お宝図鑑(id→個数)。 */
 export interface Perm {
-  readonly starPoints: number;            // 消費可能な★残高（★グリッドのマスを開けるのに使う）
+  readonly starPoints: number;            // 消費可能な★残高（武器の解放に使う）
   readonly starTotal: number;             // 累計★（消費しても減らない総獲得★・全体ダメージ倍率に使う）
   readonly unlockedWeapons: WeaponId[];   // 開始時に選べる武器（つるはし以外。★で解放）
   readonly dex: TreasureDex;              // お宝図鑑（id→個数・採掘でランダムドロップ・重複OK）

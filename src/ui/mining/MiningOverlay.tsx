@@ -15,7 +15,7 @@ export function MiningOverlay() {
           🪙 {formatNumber(hud.coins)}
           <span className="ml-2 text-stone-200">地下 {hud.floor + 1}階</span>
           {hud.dmgMult > 1.001 && <span className="ml-2 text-amber-200" title="累計★＋お宝図鑑による全体ダメージ倍率">⭐×{hud.dmgMult.toFixed(2)}</span>}
-          {hud.dexCount > 0 && <span className="ml-2 text-yellow-200" title="お宝図鑑の収集数（採掘=ノーマル／★グリッド=レア）">📒{hud.dexCount}/{hud.dexTotal}</span>}
+          {hud.dexCount > 0 && <span className="ml-2 text-yellow-200" title="お宝図鑑の収集数（採掘でドロップ・遠い/深いほどレア）">📒{hud.dexCount}/{hud.dexTotal}</span>}
           {hud.runPoints > 0 && <span className="ml-2 text-fuchsia-300" title="転生でもらえる★">⭐+{formatNumber(hud.runPoints)}</span>}
         </div>
         <button onClick={toggleAuto} title="手動: クリックで猫を誘導 ／ 自動: おまかせ移動。どちらも火力は同じ（ペナルティなし）"

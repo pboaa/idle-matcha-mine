@@ -1,8 +1,8 @@
 import { useMinePrestige, useMinePrestigeAct, useMineStartRun, useMineUnlockWeapon, useMineResetData, useMineExportSave, useMineImportSave } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
-/** 転生画面: ★残高／今回の獲得予定★／開始武器の選択・武器の★解放／転生ツリーへ。 */
-export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; onOpenTree: () => void }) {
+/** 転生画面: ★残高／今回の獲得予定★／開始武器の選択・武器の★解放／お宝図鑑へ。 */
+export function MiningPrestige({ onClose, onOpenDex }: { onClose: () => void; onOpenDex: () => void }) {
   const p = useMinePrestige();
   const doPrestige = useMinePrestigeAct();
   const startRun = useMineStartRun();
@@ -36,7 +36,7 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
 
       {/* ★残高（消費）＋累計★（消費しても減らない・全体倍率）＋今回の獲得予定★ */}
       <div className="flex flex-col items-center gap-0.5 rounded-lg bg-amber-950/40 p-3 ring-1 ring-amber-700/40">
-        <span className="text-[11px] text-amber-300/80">★残高（恒久グリッド・武器解放に使う）</span>
+        <span className="text-[11px] text-amber-300/80">★残高（武器の解放に使う）</span>
         <span className="text-2xl font-bold text-amber-200">{formatNumber(p.starPoints)} ⭐</span>
         <span className="text-[10px] text-stone-400">この走行で +{formatNumber(p.runPoints)} → {formatNumber(p.starPoints + p.runPoints)}</span>
         <span className="mt-1 text-[10px] text-amber-300/80">累計★ {formatNumber(p.starTotal)} ＝ 全体ダメージ <b className="text-amber-200">×{p.dmgMult.toFixed(2)}</b> <span className="text-stone-500">（消費しても減らない）</span></span>
@@ -74,13 +74,13 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
 
       <button onClick={doPrestige} disabled={p.runPoints <= 0}
         className={['rounded-lg px-2 py-2 text-sm font-bold text-white shadow ring-2 transition active:scale-95', p.runPoints > 0 ? 'bg-fuchsia-600 ring-fuchsia-300 hover:bg-fuchsia-500' : 'cursor-not-allowed bg-stone-700 ring-stone-600'].join(' ')}>
-        🔄 転生する（★獲得 ／ 階・Lv・コイン・走行グリッドはリセット、恒久は保持）
+        🔄 転生する（★獲得 ／ 階・Lv・コイン・走行グリッドはリセット、★・お宝図鑑・武器は保持）
       </button>
       {p.runPoints <= 0 && <div className="text-center text-[10px] text-stone-500">レベルアップ・階を進めると★が貯まります</div>}
 
-      <button onClick={onOpenTree}
+      <button onClick={onOpenDex}
         className="rounded-lg bg-emerald-700 px-2 py-1.5 text-[12px] font-bold text-emerald-100 shadow ring-1 ring-emerald-500/50 transition hover:bg-emerald-600">
-        🌳 強化ツリーを開く（★で強化）
+        📒 お宝図鑑を開く
       </button>
 
       {/* データ: 自動セーブ＋書き出し/読み込み＋削除 */}
