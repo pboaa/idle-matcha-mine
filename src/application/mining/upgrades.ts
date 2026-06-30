@@ -15,17 +15,13 @@ export const runUnlockCoinCost = (state: MineState, b: MiningBalance = defaultMi
 export const runRerollCoinCost = (state: MineState, b: MiningBalance = defaultMiningBalance): number =>
   Math.floor(b.runRerollCostBase * Math.pow(b.runRerollGrowth, state.runGrid.rerolls));
 
-/** コインでマスを解放（上限まで・コスト逓増・解放ごとにお宝+1）。 */
+/** コインでマスを解放（上限まで・コスト逓増）。一時バフ（その周だけ）。 */
 export function buyRunUnlock(state: MineState, index: number, b: MiningBalance = defaultMiningBalance): MineState {
   if (!runGridUnlockable(state.runGrid, index)) return state;
   const cost = runUnlockCoinCost(state, b);
   if (state.coins < cost) return state;
   const grid = runGridUnlock(state.runGrid, index);
-  return {
-    ...state, coins: state.coins - cost,
-    runGrid: { ...grid, coinUnlocks: grid.coinUnlocks + 1 },
-    perm: { ...state.perm, treasure: state.perm.treasure + b.treasurePerUnlock },
-  };
+  return { ...state, coins: state.coins - cost, runGrid: { ...grid, coinUnlocks: grid.coinUnlocks + 1 } };
 }
 /** 一括購入: コインが足りる＆上限までのマスをまとめて解放。 */
 export function buyRunBulk(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {

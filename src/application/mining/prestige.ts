@@ -1,6 +1,7 @@
-import type { MiningBalance, WeaponId, MainStat } from '@domain/mining/balance';
-import { defaultMiningBalance, WEAPON_UNLOCK_ORDER, BASE_WEAPONS, weaponSkillNodes, mainSkillNodes, nodeUnlockableIn, gridOpenFor, sumSkillStats } from '@domain/mining/balance';
-import { freshRun, type MineState, type Perm, type WeaponStatLevels } from '@application/mining/mineState';
+import type { MiningBalance, WeaponId } from '@domain/mining/balance';
+import { defaultMiningBalance, WEAPON_UNLOCK_ORDER, BASE_WEAPONS } from '@domain/mining/balance';
+import { STAR_NODES, starNodeUnlockable } from '@domain/mining/treasures';
+import { freshRun, type MineState, type Perm } from '@application/mining/mineState';
 
 // ===== 武器の解放（★を消費・つるはし＋bulletは最初から） =====
 /** その武器の解放に必要な★（基本武器は0、対象外はInfinity）。 */
@@ -21,56 +22,33 @@ export function unlockWeapon(state: MineState, w: WeaponId, b: MiningBalance = d
   return { ...state, perm: { ...state.perm, starPoints: state.perm.starPoints - cost, unlockedWeapons: [...state.perm.unlockedWeapons, w] } };
 }
 
-// ===== 恒久スキルツリー（武器ツリー＋メインツリー・★を消費して購入・グリッド解禁） =====
-const unlockedOf = (perm: Perm, target: WeaponId | 'main'): readonly number[] => target === 'main' ? perm.mainSkill : perm.weaponSkill[target];
-const nodesOf = (target: WeaponId | 'main'): ReturnType<typeof weaponSkillNodes> => target === 'main' ? mainSkillNodes() : weaponSkillNodes(target);
-/** そのノードが今解放できるか（未解放・階層が解禁済み・中央or隣接が解放済み）。 */
-export function skillNodeUnlockable(target: WeaponId | 'main', unlocked: readonly number[], nodeIndex: number): boolean {
-  return nodeUnlockableIn(nodesOf(target), unlocked, nodeIndex);
+// ===== ★グリッド（旧・恒久スキルツリーの置き換え）。★を消費してマスを開け、レアお宝を入手 =====
+/** そのレアマスが今開けられるか（未収集・中央or隣接が収集済み）。 */
+export function starNodeBuyable(perm: Perm, id: number): boolean {
+  return starNodeUnlockable(new Set(perm.dex), id);
 }
-/** その階層グリッドが解禁済みか。 */
-export function skillGridOpen(target: WeaponId | 'main', unlocked: readonly number[], tier: number): boolean {
-  return gridOpenFor(nodesOf(target), unlocked, tier);
-}
-const withUnlocked = (perm: Perm, target: WeaponId | 'main', unlocked: number[]): Perm =>
-  target === 'main' ? { ...perm, mainSkill: unlocked } : { ...perm, weaponSkill: { ...perm.weaponSkill, [target]: unlocked } };
-/** ノードを1つ★で解放（隣接解禁＋★残高を消費）。武器/メイン共通。 */
-export function buySkill(state: MineState, target: WeaponId | 'main', nodeIndex: number): MineState {
-  const unlocked = unlockedOf(state.perm, target);
-  const node = nodesOf(target)[nodeIndex];
-  if (!node || !skillNodeUnlockable(target, unlocked, nodeIndex)) return state;
+/** ★グリッドのマスを開ける（★を消費・レアお宝を図鑑に追加）。 */
+export function buyStarNode(state: MineState, id: number): MineState {
+  const node = STAR_NODES[id];
+  if (!node || !starNodeBuyable(state.perm, id)) return state;
   if (state.perm.starPoints < node.starCost) return state;
-  const perm = withUnlocked({ ...state.perm, starPoints: state.perm.starPoints - node.starCost }, target, [...unlocked, nodeIndex]);
-  return { ...state, perm };
+  return { ...state, perm: { ...state.perm, starPoints: state.perm.starPoints - node.starCost, dex: [...state.perm.dex, id] } };
 }
-/** 一気に上げる: 解禁可能＆★が足りるノードを「安い順」に買えるだけ。 */
-export function buySkillMax(state: MineState, target: WeaponId | 'main'): MineState {
-  const nodes = nodesOf(target);
+/** 一気に開ける: 開放可能＆★が足りるマスを「安い順」に買えるだけ。 */
+export function buyStarGridMax(state: MineState): MineState {
   let s = state;
-  for (let guard = 0; guard < nodes.length; guard++) {
-    const unlocked = unlockedOf(s.perm, target);
+  for (let guard = 0; guard < STAR_NODES.length; guard++) {
+    const collected = new Set(s.perm.dex);
     let best = -1, bestCost = Infinity;
-    for (let i = 0; i < nodes.length; i++) {
-      if (unlocked.includes(i) || !skillNodeUnlockable(target, unlocked, i)) continue;
-      if (nodes[i]!.starCost > s.perm.starPoints) continue;
-      if (nodes[i]!.starCost < bestCost) { bestCost = nodes[i]!.starCost; best = i; }
+    for (const n of STAR_NODES) {
+      if (collected.has(n.id) || !starNodeUnlockable(collected, n.id)) continue;
+      if (n.starCost > s.perm.starPoints) continue;
+      if (n.starCost < bestCost) { bestCost = n.starCost; best = n.id; }
     }
     if (best < 0) break;
-    s = buySkill(s, target, best);
+    s = buyStarNode(s, best);
   }
   return s;
-}
-// 後方互換エイリアス（武器ツリー）。
-export const buyWeaponSkill = (state: MineState, weapon: WeaponId, i: number): MineState => buySkill(state, weapon, i);
-export const buyWeaponSkillMax = (state: MineState, weapon: WeaponId): MineState => buySkillMax(state, weapon);
-/** 武器ツリーの累積ステータス（武器に恒久で乗る）。 */
-export function weaponSkillStats(weapon: WeaponId, unlocked: readonly number[]): WeaponStatLevels {
-  const s = sumSkillStats(weaponSkillNodes(weapon), unlocked);
-  return { damage: s.damage ?? 0, speed: s.speed ?? 0, range: s.range ?? 0, pierce: s.pierce ?? 0, area: s.area ?? 0, unique: s.unique ?? 0 };
-}
-/** メインツリーの累積（全体強化）。 */
-export function mainSkillStats(unlocked: readonly number[]): Partial<Record<MainStat, number>> {
-  return sumSkillStats(mainSkillNodes(), unlocked) as Partial<Record<MainStat, number>>;
 }
 
 // ===== 累計★＝全体ダメージ倍率（消費しても減らない総獲得★・√で逓減＝壊れない） =====
@@ -79,36 +57,13 @@ export function globalDamageMult(starTotal: number, b: MiningBalance = defaultMi
   return 1 + b.starMultPerLvl * Math.sqrt(Math.max(0, starTotal));
 }
 
-// ===== お宝（永続資源）で買う永続強化 =====
-/** 走行グリッド上限+1 の次のお宝コスト。 */
-export const capUpgradeCost = (capLevel: number, b: MiningBalance = defaultMiningBalance): number =>
-  Math.floor(b.capCostBase * Math.pow(b.capCostGrowth, capLevel));
-/** 走行グリッド上限を1段（お宝を消費）。 */
-export function buyCapUpgrade(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const cost = capUpgradeCost(state.perm.capLevel, b);
-  if (state.perm.treasure < cost) return state;
-  return { ...state, perm: { ...state.perm, treasure: state.perm.treasure - cost, capLevel: state.perm.capLevel + 1 } };
-}
-/** 永続全体火力+1 の次のお宝コスト。 */
-export const treasurePowerCost = (lvl: number, b: MiningBalance = defaultMiningBalance): number =>
-  Math.floor(b.treasurePowerCostBase * Math.pow(b.treasurePowerCostGrowth, lvl));
-/** 永続全体火力倍率（1 + treasurePowerPerLvl×Lv）。 */
-export const treasurePowerMult = (lvl: number, b: MiningBalance = defaultMiningBalance): number =>
-  1 + lvl * b.treasurePowerPerLvl;
-/** 永続全体火力を1段（お宝を消費）。 */
-export function buyTreasurePower(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
-  const cost = treasurePowerCost(state.perm.treasurePower, b);
-  if (state.perm.treasure < cost) return state;
-  return { ...state, perm: { ...state.perm, treasure: state.perm.treasure - cost, treasurePower: state.perm.treasurePower + 1 } };
-}
-
 // ===== 開始武器の選択／転生 =====
 /** 開始武器を選んで走行をやり直す（floor0想定・★は据え置き）。解放済み武器のみ。 */
 export function startRun(state: MineState, w: WeaponId, b: MiningBalance = defaultMiningBalance): MineState {
   if (w !== 'pick' && !state.perm.unlockedWeapons.includes(w)) return state;
   return freshRun(b, state.perm, state.prestiges, w, state.rngState);
 }
-/** 転生: 走行をリセット。獲得予定★(runPoints)を★残高(starPoints)と累計★(starTotal)の両方へ加算。開始武器は引き継ぐ。 */
+/** 転生: 走行をリセット。獲得予定★(runPoints)を★残高(starPoints)と累計★(starTotal)の両方へ加算。開始武器・図鑑は引き継ぐ。 */
 export function prestige(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
   const perm: Perm = { ...state.perm, starPoints: state.perm.starPoints + state.runPoints, starTotal: state.perm.starTotal + state.runPoints };
   return freshRun(b, perm, state.prestiges + 1, state.startWeapon, state.rngState);

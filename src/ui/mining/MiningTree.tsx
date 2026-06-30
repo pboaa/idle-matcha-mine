@@ -1,23 +1,22 @@
-import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, useMineBuyCapUpgrade, useMineBuyTreasurePower, type MineSkillNodeVM, type MineTierVM, type SkillTreeTarget } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyStarNode, useMineBuyStarGridMax, type MineStarNodeVM, type MineDexEntryVM } from '@state/miningSelectors';
 import { useState } from 'react';
 import { formatNumber } from '@shared/format';
 
-const cellCls = (n: MineSkillNodeVM): string =>
-  n.state === 'unlocked' ? (n.root ? 'bg-amber-800/40 text-amber-200/70 ring-amber-600/40' : 'bg-amber-900/30 text-amber-200/60 ring-amber-700/30') // 取得済み＝薄く残す
+const starCellCls = (n: MineStarNodeVM): string =>
+  n.state === 'unlocked' ? (n.root ? 'bg-amber-700/50 text-amber-100 ring-amber-500/50' : 'bg-amber-900/40 text-amber-200/80 ring-amber-700/40') // 収集済み＝薄く残す
     : n.state === 'available' ? (n.can ? 'bg-amber-500 text-stone-900 ring-amber-300 hover:bg-amber-400 active:scale-95 cursor-pointer' : 'bg-stone-700 text-amber-200/80 ring-stone-500 cursor-not-allowed')
-      : 'bg-stone-900/60 text-transparent ring-stone-800/60 cursor-default'; // 未到達＝隠す（広げると現れる）
+      : 'bg-stone-900/60 text-transparent ring-stone-800/60 cursor-default'; // 未到達＝隠す
 
-/** 1階層ぶんのグリッド：中央◎から外へ。隣接を買うと外側が現れる。★コストで購入。 */
-function SkillGrid({ size, nodes, onBuy }: { size: number; nodes: readonly MineSkillNodeVM[]; onBuy: (index: number) => void }) {
-  const cell = size >= 9 ? '1.45rem' : '1.7rem';
+/** ★グリッド：★を使ってマスを開け、レアお宝を図鑑へ。中央から外へ広げる。 */
+function StarGrid({ size, nodes, onBuy }: { size: number; nodes: readonly MineStarNodeVM[]; onBuy: (id: number) => void }) {
   return (
-    <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${size}, ${cell})` }}>
+    <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${size}, 1.7rem)` }}>
       {nodes.map((n) => (
-        <button key={n.index} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.index)}
-          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? `★${n.star}で解放（消費）` : `★不足（★${n.star}）`}`}
-          style={{ height: cell }}
-          className={['flex flex-col items-center justify-center rounded-[3px] text-[11px] leading-none ring-1 transition', n.big && n.visible ? 'ring-2' : '', cellCls(n)].join(' ')}>
-          {n.visible && <span>{n.state === 'unlocked' ? (n.root ? '◎' : '✓') : n.emoji}</span>}
+        <button key={n.id} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.id)}
+          title={!n.visible ? '未到達（隣を開けると現れる）' : `${n.emoji}${n.name}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '収集済み' : n.can ? `★${n.star}で開ける` : `★不足（★${n.star}）`}`}
+          style={{ height: '1.7rem' }}
+          className={['flex flex-col items-center justify-center rounded-[3px] text-[12px] leading-none ring-1 transition', starCellCls(n)].join(' ')}>
+          {n.visible && <span>{n.state === 'unlocked' ? n.emoji : '✦'}</span>}
           {n.visible && n.state !== 'unlocked' && <span className="text-[7px] leading-none opacity-90">⭐{n.star}</span>}
         </button>
       ))}
@@ -25,100 +24,75 @@ function SkillGrid({ size, nodes, onBuy }: { size: number; nodes: readonly MineS
   );
 }
 
-/** 階層の垂直タブ（各階層＝1グリッド。サイズ5x5→13x13。未解禁はロック・終盤ほど重い）。 */
-function TierTabs({ tiers, sel, onSelect }: { tiers: readonly MineTierVM[]; sel: number; onSelect: (t: number) => void }) {
+/** お宝図鑑：全100種。収集済みは絵文字、未収集は❓（レアは枠色）。 */
+function DexBook({ entries }: { entries: readonly MineDexEntryVM[] }) {
   return (
-    <div className="flex w-[4.2rem] shrink-0 flex-col gap-1">
-      {tiers.map((t) => (
-        <button key={t.tier} onClick={() => onSelect(t.tier)}
-          title={t.open ? `階層${t.tier + 1}（${t.size}x${t.size}・${t.bought}/${t.total}解放${t.need ? `・次の階層へは${t.need}個` : ''}）` : `階層${t.tier + 1}：前の階層を ${t.need} 個解放で解禁`}
-          className={['flex flex-col items-center rounded-md px-1 py-1.5 text-[10px] leading-tight ring-1 transition',
-            sel === t.tier ? 'bg-amber-500 text-stone-900 ring-amber-300' : t.open ? 'bg-stone-700 text-stone-200 ring-stone-600 hover:bg-stone-600' : 'bg-stone-800 text-stone-500 ring-stone-700'].join(' ')}>
-          <span className="font-bold">{t.open ? `階層${t.tier + 1}` : `🔒${t.tier + 1}`}</span>
-          <span className="text-[8px] opacity-90">{t.size}x{t.size}</span>
-          <span className="text-[8px] opacity-90">{t.bought}/{t.total}</span>
-        </button>
+    <div className="grid grid-cols-10 gap-0.5">
+      {entries.map((e) => (
+        <div key={e.id} title={e.collected ? `${e.emoji}${e.name}（${e.rarity === 'rare' ? 'レア' : 'ノーマル'}）／ ${e.text}` : `未収集（${e.rarity === 'rare' ? 'レア=★グリッド' : 'ノーマル=採掘'}）`}
+          className={['flex h-[1.5rem] items-center justify-center rounded-[3px] text-[12px] leading-none ring-1',
+            e.collected ? (e.rarity === 'rare' ? 'bg-amber-800/40 ring-amber-500/50' : 'bg-stone-700/50 ring-stone-500/40') : 'bg-stone-900/60 text-stone-700 ring-stone-800/60'].join(' ')}>
+          {e.collected ? e.emoji : (e.rarity === 'rare' ? '✦' : '·')}
+        </div>
       ))}
     </div>
   );
 }
 
-/** 強化ツリー画面: ★残高／放置ツリー（★）／武器スキルツリー・メイン（階層ごとにグリッド・★で購入）。 */
+/** 強化ツリー画面: ★残高／★グリッド（レアお宝）／お宝図鑑（全100種）。 */
 export function MiningTree({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
-  const buyWeaponSkill = useMineBuyWeaponSkill();
-  const buyWeaponSkillMax = useMineBuyWeaponSkillMax();
-  const buyCap = useMineBuyCapUpgrade();
-  const buyTreasurePower = useMineBuyTreasurePower();
-  const [weaponSel, setWeaponSel] = useState<SkillTreeTarget>('pick');
-  const [tierSel, setTierSel] = useState(0);
-  const wt = p.weaponTree.find((w) => w.id === weaponSel) ?? p.weaponTree[0]!;
-  const tier = wt.tiers[tierSel] ?? wt.tiers[0]!;
-  const tierNodes = wt.skillNodes.filter((n) => n.tier === tierSel);
+  const buyStarNode = useMineBuyStarNode();
+  const buyStarGridMax = useMineBuyStarGridMax();
+  const [tab, setTab] = useState<'grid' | 'dex'>('grid');
 
   return (
     <div className="flex max-h-[88vh] w-[34rem] flex-col gap-3 overflow-y-auto rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-stone-100">🌳 強化ツリー<span className="ml-2 text-[10px] font-normal text-stone-400">★で恒久強化（転生で貯まる）</span></h2>
+        <h2 className="text-base font-bold text-stone-100">🌳 強化（お宝図鑑）<span className="ml-2 text-[10px] font-normal text-stone-400">★でレアお宝・採掘でノーマルお宝</span></h2>
         <button onClick={onClose} className="rounded-md bg-stone-700 px-2 py-0.5 text-xs text-stone-200 hover:bg-stone-600">✕ 閉じる</button>
       </div>
 
-      {/* ★残高（消費して購入）＋累計★/お宝（消費しても減らない・全体倍率） */}
+      {/* ★残高＋累計★×倍率 */}
       <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-600/40">
-        <div className="text-[12px] text-amber-100">⭐ ★残高 <b className="text-amber-200">{formatNumber(p.starPoints)}</b><span className="ml-1 text-[10px] font-normal text-amber-300/70">（マス解放で消費）</span></div>
+        <div className="text-[12px] text-amber-100">⭐ ★残高 <b className="text-amber-200">{formatNumber(p.starPoints)}</b><span className="ml-1 text-[10px] font-normal text-amber-300/70">（★グリッドで消費）</span></div>
         <div className="text-right text-[10px] text-amber-300/80">累計★ {formatNumber(p.starTotal)}<br /><span className="text-amber-200">全体ダメージ ×{p.dmgMult.toFixed(2)}</span></div>
       </div>
 
-      {/* お宝（永続資源）で買う永続強化: グリッド上限＋／全体火力＋ */}
-      <div className="flex flex-col gap-1 rounded-lg bg-yellow-950/40 p-2 ring-1 ring-yellow-700/40">
-        <div className="text-[12px] text-yellow-100">💰 お宝 <b className="text-yellow-200">{formatNumber(p.treasure.treasure)}</b><span className="ml-1 text-[10px] font-normal text-yellow-300/70">（走行グリッドの解放で貯まる）</span></div>
-        <div className="flex gap-1.5">
-          <button onClick={buyCap} disabled={!p.treasure.capCan} title="走行グリッドで解放できる上限を+1"
-            className={['flex-1 rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.treasure.capCan ? 'bg-yellow-400 text-stone-900 hover:bg-yellow-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-            🗺️ 上限+1（今{p.treasure.cap}）💰{formatNumber(p.treasure.capCost)}
-          </button>
-          <button onClick={buyTreasurePower} disabled={!p.treasure.powerCan} title="全武器の永続ダメージ+"
-            className={['flex-1 rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.treasure.powerCan ? 'bg-yellow-400 text-stone-900 hover:bg-yellow-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-            💪 火力+（+{p.treasure.powerPct}%）💰{formatNumber(p.treasure.powerCost)}
-          </button>
-        </div>
+      {/* 図鑑の収集効果（累積） */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-yellow-950/40 p-2 text-[11px] ring-1 ring-yellow-700/30">
+        <span className="text-[10px] text-yellow-300/80">📒 図鑑 {p.dex.collected}/{p.dex.total}（ノーマル {p.dex.normalCollected}/{p.dex.normalTotal}・レア {p.dex.rareCollected}/{p.dex.rareTotal}）</span>
+        {p.dex.effects.length === 0 ? <span className="text-[10px] text-stone-600">まだ効果なし</span>
+          : p.dex.effects.map((s) => <span key={s.label} title={s.label} className="text-yellow-100">{s.emoji}<b className="text-yellow-300">{s.text}</b></span>)}
       </div>
 
-      {/* 武器ごとの強化＋メイン（階層ごとに1グリッド・タブ切替・中央から外へ広げる） */}
-      <div>
-        <div className="mb-1 text-[10px] text-stone-500">武器ごと／全体(🌐)の強化（階層＝グリッド。中央から外へ・前の階層を一定数で次が解禁・★で購入）</div>
-        <div className="mb-1 flex flex-wrap gap-1">
-          {p.weaponTree.map((w) => (
-            <button key={w.id} onClick={() => { setWeaponSel(w.id); setTierSel(0); }} title={w.label}
-              className={['relative rounded-md px-2 py-1 text-[14px] leading-none transition', weaponSel === w.id ? 'bg-amber-400 ring-1 ring-amber-200' : 'bg-stone-700 hover:bg-stone-600'].join(' ')}>
-              {w.emoji}
-            </button>
-          ))}
-        </div>
-        <div className="rounded-md bg-amber-950/30 p-1.5 ring-1 ring-amber-800/30">
-          <div className="mb-1 flex items-center justify-between text-[10px] text-amber-300/80">
-            <span>{wt.emoji} {wt.label} <span className="text-stone-400">解放 {wt.skillUnlocked}/{wt.skillTotal}</span></span>
-            <button onClick={() => buyWeaponSkillMax(wt.id)}
-              className="rounded bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-stone-900 shadow transition hover:bg-amber-400 active:scale-95">
-              ⏫ 一気に上げる
-            </button>
-          </div>
-          {/* 強化された内容（累積） */}
-          <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded bg-stone-900/50 px-1.5 py-1 text-[11px]">
-            {wt.stats.length === 0
-              ? <span className="text-[10px] text-stone-600">まだ強化なし</span>
-              : wt.stats.map((s) => <span key={s.label} title={s.label} className="text-amber-100">{s.emoji}<b className="text-amber-300">{s.text}</b></span>)}
-          </div>
-          {/* 垂直タブ（階層）＋ 選択中の階層のグリッド */}
-          <div className="flex gap-2">
-            <TierTabs tiers={wt.tiers} sel={tierSel} onSelect={setTierSel} />
-            <div className="min-w-0 flex-1">
-              {!tier.open && <div className="mb-1 rounded bg-stone-800/60 px-2 py-1 text-[10px] text-stone-400">🔒 前の階層を {tier.need} 個解放すると解禁（このグリッドが開く）</div>}
-              <SkillGrid size={tier.size} nodes={tierNodes} onBuy={(i) => buyWeaponSkill(wt.id, i)} />
-            </div>
-          </div>
-        </div>
+      {/* タブ: ★グリッド / 図鑑一覧 */}
+      <div className="flex gap-1">
+        {(['grid', 'dex'] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={['rounded-md px-3 py-1 text-[11px] font-bold transition', tab === t ? 'bg-amber-500 text-stone-900' : 'bg-stone-700 text-stone-200 hover:bg-stone-600'].join(' ')}>
+            {t === 'grid' ? '✦ ★グリッド（レア）' : '📒 図鑑一覧'}
+          </button>
+        ))}
       </div>
+
+      {tab === 'grid' ? (
+        <div className="rounded-md bg-amber-950/30 p-2 ring-1 ring-amber-800/30">
+          <div className="mb-1 flex items-center justify-between text-[10px] text-amber-300/80">
+            <span>★を使ってマスを開け、レアお宝を集める（中央から外へ・コストは外周ほど高い）</span>
+            <button onClick={buyStarGridMax} disabled={!p.starGrid.anyBuyable}
+              className={['rounded px-2 py-0.5 text-[10px] font-bold shadow transition', p.starGrid.anyBuyable ? 'bg-amber-500 text-stone-900 hover:bg-amber-400 active:scale-95' : 'cursor-not-allowed bg-stone-700 text-stone-500'].join(' ')}>
+              ⏫ 一気に開ける
+            </button>
+          </div>
+          <StarGrid size={p.starGrid.size} nodes={p.starGrid.nodes} onBuy={buyStarNode} />
+        </div>
+      ) : (
+        <div className="rounded-md bg-stone-800/40 p-2 ring-1 ring-stone-700/40">
+          <div className="mb-1 text-[10px] text-stone-400">全{p.dex.total}種。ノーマルは採掘で、レア(✦)は★グリッドで集まる。</div>
+          <DexBook entries={p.dex.entries} />
+        </div>
+      )}
     </div>
   );
 }

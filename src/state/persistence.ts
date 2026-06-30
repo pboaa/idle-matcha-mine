@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 8; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v8=お宝(treasure)導入・走行グリッド上限制(コイン解放/お宝で上限+)・放置時間ボーナス廃止
+const VERSION = 9; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v9=お宝図鑑(全100)・★グリッド(レア)・採掘でノーマル・恒久スキルツリー廃止
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {
@@ -19,12 +19,11 @@ function deserialize(raw: string): MineState | null {
     const data = JSON.parse(raw) as { v?: number; s?: Record<string, unknown> };
     if (data.v !== VERSION || !data.s) return null;
     const s = data.s as { dug: string[]; damage: [string, number][]; perm?: Partial<Perm> } & Record<string, unknown>;
-    const base = emptyPerm(); // perm は入れ子なので深めに補完（欠損フィールドで落ちないように）。
+    const base = emptyPerm(); // perm は配列が入るので欠損フィールドを補完（落ちないように）。
     const perm: Perm = {
       ...base, ...(s.perm ?? {}),
-      weaponSkill: { ...base.weaponSkill, ...(s.perm?.weaponSkill ?? {}) },
-      mainSkill: Array.isArray(s.perm?.mainSkill) ? s.perm.mainSkill : [],
       unlockedWeapons: Array.isArray(s.perm?.unlockedWeapons) ? s.perm.unlockedWeapons : base.unlockedWeapons,
+      dex: Array.isArray(s.perm?.dex) ? s.perm.dex : [],
     };
     return { ...freshState(), ...s, perm, dug: new Set<string>(s.dug), damage: new Map<string, number>(s.damage) } as unknown as MineState;
   } catch { return null; }

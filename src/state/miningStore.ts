@@ -2,9 +2,8 @@ import { create } from 'zustand';
 import { type MineState } from '@application/mining/mineState';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
 import { buyRunUnlock, buyRunBulk, rerollRun } from '@application/mining/upgrades';
-import { prestige, startRun, unlockWeapon, buySkill, buySkillMax, buyCapUpgrade, buyTreasurePower } from '@application/mining/prestige';
+import { prestige, startRun, unlockWeapon, buyStarNode, buyStarGridMax } from '@application/mining/prestige';
 import type { WeaponId } from '@domain/mining/balance';
-type SkillTreeTarget = WeaponId | 'main';
 import type { Cell } from '@domain/grid/position';
 import { loadState, saveState, clearSave, freshState, exportSave, importSave } from '@state/persistence';
 
@@ -19,10 +18,8 @@ interface MiningStore {
   prestige: () => void;
   startRun: (w: WeaponId) => void;         // 開始武器を選んで走行をやり直す
   unlockWeapon: (w: WeaponId) => void;     // ★で武器を解放
-  buyCapUpgrade: () => void;               // お宝で走行グリッド上限+
-  buyTreasurePower: () => void;            // お宝で永続全体火力+
-  buyWeaponSkill: (target: SkillTreeTarget, nodeIndex: number) => void;
-  buyWeaponSkillMax: (target: SkillTreeTarget) => void;
+  buyStarNode: (id: number) => void;       // ★グリッドのマスを開ける（レアお宝入手）
+  buyStarGridMax: () => void;              // ★グリッドを一気に開ける
   setTarget: (cell: Cell) => void; // 手動モードで猫の目標を設定
   save: () => void;       // 即時セーブ（離脱時など）
   resetData: () => void;  // セーブ削除して最初から
@@ -63,10 +60,8 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   startRun: (w) => set((st) => ({ state: { ...startRun(st.state, w), autoMode: st.state.autoMode } })),
   unlockWeapon: (w) => set((st) => ({ state: unlockWeapon(st.state, w) })),
-  buyCapUpgrade: () => set((st) => ({ state: buyCapUpgrade(st.state) })),
-  buyTreasurePower: () => set((st) => ({ state: buyTreasurePower(st.state) })),
-  buyWeaponSkill: (target, nodeIndex) => set((st) => ({ state: buySkill(st.state, target, nodeIndex) })),
-  buyWeaponSkillMax: (target) => set((st) => ({ state: buySkillMax(st.state, target) })),
+  buyStarNode: (id) => set((st) => ({ state: buyStarNode(st.state, id) })),
+  buyStarGridMax: () => set((st) => ({ state: buyStarGridMax(st.state) })),
   setTarget: (cell) => set((st) => (st.state.autoMode ? {} : { state: { ...st.state, cat: { ...st.state.cat, target: cell } } })),
   save: () => saveState(get().state),
   resetData: () => { clearSave(); lastSaveMs = Date.now(); set({ state: freshState() }); },

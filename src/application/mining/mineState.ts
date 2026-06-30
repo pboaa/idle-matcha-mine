@@ -1,6 +1,6 @@
 import type { Cell } from '@domain/grid/position';
 import { cellKey } from '@domain/grid/position';
-import type { MiningBalance, ChoiceId, WeaponId, WeaponStat } from '@domain/mining/balance';
+import type { MiningBalance, ChoiceId, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_IDS, PASSIVE_IDS } from '@domain/mining/balance';
 import { baseOf } from '@domain/mining/tile';
 import { genRunGrid, type RunGrid } from '@domain/mining/runGrid';
@@ -13,30 +13,21 @@ export interface WeaponFx { readonly id: number; readonly weapon: WeaponId; read
 export interface MineCat { readonly pos: Cell; readonly gauge: number; readonly target: Cell | null }
 
 export type Levels = Record<ChoiceId, number>;
-/** 武器ステータス量（ダメージ/攻撃速度/射程/貫通/範囲/固有）。恒久スキルツリーの累積。 */
-export type WeaponStatLevels = Record<WeaponStat, number>;
-/** 武器ごとの恒久スキルツリー進捗（解放済みノードindexの配列）。★で解放。 */
-export type WeaponSkill = Record<WeaponId, number[]>;
-/** 恒久(転生で保持): 武器スキルツリー＋メイン(全体)ツリー＋放置ツリー＋★残高＋解放済み武器。 */
+/** 恒久(転生で保持): ★残高/累計★/解放済み武器＋お宝図鑑(収集したidの配列)。 */
 export interface Perm {
-  readonly weaponSkill: WeaponSkill;
-  readonly mainSkill: number[];
-  readonly starPoints: number;            // 消費可能な★残高（恒久グリッド/武器解放に使う）
+  readonly starPoints: number;            // 消費可能な★残高（★グリッドのマスを開けるのに使う）
   readonly starTotal: number;             // 累計★（消費しても減らない総獲得★・全体ダメージ倍率に使う）
   readonly unlockedWeapons: WeaponId[];   // 開始時に選べる武器（つるはし以外。★で解放）
-  readonly treasure: number;              // お宝（永続資源・走行グリッドのマス解放で貯まる）
-  readonly capLevel: number;              // お宝で買う走行グリッド上限Lv
-  readonly treasurePower: number;         // お宝で買う永続全体火力Lv
+  readonly dex: number[];                 // お宝図鑑: 収集したお宝idの配列（ノーマル=採掘／レア=★グリッド）
 }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 export const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
 const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as Record<WeaponId, number>;
 
-export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
-export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), mainSkill: [], starPoints: 0, starTotal: 0, unlockedWeapons: ['bullet'], treasure: 0, capLevel: 0, treasurePower: 0 });
-/** 走行グリッドで解放できる上限（基本＋お宝で伸ばしたLv）。 */
-export const runGridCap = (b: MiningBalance, capLevel: number): number => b.runCapBase + capLevel * b.runCapPerLevel;
+export const emptyPerm = (): Perm => ({ starPoints: 0, starTotal: 0, unlockedWeapons: ['bullet'], dex: [] });
+/** 走行グリッドで解放できる上限（基本＋図鑑の収集数で少しずつ伸びる）。 */
+export const runGridCap = (b: MiningBalance, dexCount: number): number => b.runCapBase + Math.floor(dexCount / b.runCapPerTreasures);
 
 export interface MineState {
   readonly time: number;
@@ -79,7 +70,7 @@ export function freshRun(b: MiningBalance, perm: Perm, prestiges: number, startW
     xp: 0, level: 1, levels, autoMode: true,
     dmgByWeapon: zeroDmg(), weaponCd: zeroDmg(),
     startWeapon,
-    runGrid: genRunGrid(seed, b.runGridSize, ['pick', startWeapon], runGridCap(b, perm.capLevel)),
+    runGrid: genRunGrid(seed, b.runGridSize, ['pick', startWeapon], runGridCap(b, perm.dex.length)),
     runPoints: 0, perm, prestiges,
   };
 }

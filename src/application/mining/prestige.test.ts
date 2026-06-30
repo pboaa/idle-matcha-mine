@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyPerm, type MineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyWeaponSkill, buyWeaponSkillMax, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult, buyCapUpgrade, buyTreasurePower } from '@application/mining/prestige';
-import { buyRunUnlock } from '@application/mining/upgrades';
-import { runGridUnlockable } from '@domain/mining/runGrid';
-import { defaultMiningBalance, WEAPON_IDS, WEAPON_UNLOCK_ORDER, weaponSkillNodes } from '@domain/mining/balance';
+import { allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult, buyStarNode, buyStarGridMax, starNodeBuyable } from '@application/mining/prestige';
+import { STAR_NODES, isRare } from '@domain/mining/treasures';
+import { defaultMiningBalance, WEAPON_IDS, WEAPON_UNLOCK_ORDER } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
 const withStars = (s: MineState, n: number): MineState => ({ ...s, perm: { ...s.perm, starPoints: n } });
@@ -44,27 +43,25 @@ describe('mining/prestige', () => {
     expect(startRun(s0, locked).startWeapon).toBe(s0.startWeapon);
   });
 
-  it('恒久グリッド(階層): 中央起点・隣接で解放・★を消費・不足は不可', () => {
-    const nodes = weaponSkillNodes('pick');
-    const rootIdx = nodes.findIndex((n) => n.root);
-    const tier1Root = nodes.findIndex((n) => n.root && n.tier === 1);
+  it('★グリッド: 中央起点・隣接で開く・★を消費・レアお宝を図鑑へ・不足は不可', () => {
+    const rootId = STAR_NODES.find((n) => n.root)!.id;
+    const root = STAR_NODES[rootId]!;
     const s0 = withStars(initialMineState(), 9_999_999);
-    expect(skillNodeUnlockable('pick', [], rootIdx)).toBe(true);     // 階層1中央は最初から解放可
-    expect(skillNodeUnlockable('pick', [], tier1Root)).toBe(false);  // 階層2はまだ解禁されていない
-    const root = nodes[rootIdx]!;
-    const s1 = buyWeaponSkill(s0, 'pick', rootIdx);
-    expect(s1.perm.weaponSkill.pick).toEqual([rootIdx]);
-    expect(s1.perm.starPoints).toBe(9_999_999 - root.starCost);   // ★残高を消費
+    expect(starNodeBuyable(s0.perm, rootId)).toBe(true);            // 中央は最初から開ける
+    const s1 = buyStarNode(s0, rootId);
+    expect(s1.perm.dex).toContain(rootId);                          // 図鑑にレアお宝が入る
+    expect(isRare(rootId)).toBe(true);
+    expect(s1.perm.starPoints).toBe(9_999_999 - root.starCost);    // ★残高を消費
     const neighbor = root.requires[0]!;
-    expect(skillNodeUnlockable('pick', s1.perm.weaponSkill.pick, neighbor)).toBe(true); // 隣接が解禁
-    expect(buyWeaponSkill(withStars(initialMineState(), 0), 'pick', rootIdx).perm.weaponSkill.pick).toEqual([]); // ★残高不足で不可
+    expect(starNodeBuyable(s1.perm, neighbor)).toBe(true);         // 隣接が開放可
+    expect(buyStarNode(withStars(initialMineState(), 0), rootId).perm.dex).toEqual([]); // ★残高不足で不可
   });
 
-  it('一気に上げる: 解禁可能＆★が足りるノードを買えるだけ買う', () => {
-    const r = buyWeaponSkillMax(withStars(initialMineState(), 9_999_999), 'pick');
-    expect(r.perm.weaponSkill.pick.length).toBeGreaterThan(10);
-    const poor = buyWeaponSkillMax(withStars(initialMineState(), 0), 'pick');
-    expect(poor.perm.weaponSkill.pick.length).toBe(0);
+  it('一気に開ける: 開放可能＆★が足りるマスを開けるだけ', () => {
+    const r = buyStarGridMax(withStars(initialMineState(), 9_999_999));
+    expect(r.perm.dex.length).toBeGreaterThan(10);
+    const poor = buyStarGridMax(withStars(initialMineState(), 0));
+    expect(poor.perm.dex.length).toBe(0);
   });
 
   it('転生: 走行リセット・runPoints を★残高と累計★の両方へ・回数+1・コイン0', () => {
@@ -90,16 +87,10 @@ describe('mining/prestige', () => {
     expect(r.perm.starTotal).toBe(s.runPoints);
   });
 
-  it('お宝: 走行グリッドのマス解放でお宝+1、お宝で上限/全体火力を永続購入', () => {
-    let s: MineState = { ...initialMineState(), coins: 99_999 };
-    const i = s.runGrid.nodes.findIndex((_, idx) => runGridUnlockable(s.runGrid, idx));
-    s = buyRunUnlock(s, i, B);
-    expect(s.perm.treasure).toBe(B.treasurePerUnlock); // 解放でお宝+1
-    expect(s.runGrid.unlocked.length).toBe(2);         // 中央＋1
-    const rich = { ...s, perm: { ...s.perm, treasure: 9_999 } };
-    expect(buyCapUpgrade(rich, B).perm.capLevel).toBe(1);             // お宝で上限+1
-    expect(buyTreasurePower(rich, B).perm.treasurePower).toBe(1);     // お宝で全体火力+1
-    expect(buyCapUpgrade({ ...rich, perm: { ...rich.perm, treasure: 0 } }, B).perm.capLevel).toBe(0); // お宝不足で不可
+  it('ノーマルお宝は採掘で図鑑に貯まる（ノーマルidが入る）', () => {
+    const s = stepMine({ ...initialMineState(), perm: { ...emptyPerm() } }, 60_000);
+    expect(s.perm.dex.length).toBeGreaterThan(0);            // 採掘でお宝が貯まる
+    expect(s.perm.dex.every((id) => !isRare(id))).toBe(true); // 採掘で入るのはノーマルのみ
   });
 
   it('累計★で全体ダメージ倍率が上がる（消費しても減らない）', () => {
@@ -107,8 +98,9 @@ describe('mining/prestige', () => {
     const r = prestige(s, B);
     expect(globalDamageMult(0, B)).toBe(1);
     expect(globalDamageMult(r.perm.starTotal, B)).toBeGreaterThan(1); // 累計★>0で倍率>1
-    // ★を消費(buySkill)しても starTotal は減らない＝倍率は維持
-    const spent = buyWeaponSkill(withStars(r, 9_999_999), 'pick', weaponSkillNodes('pick').findIndex((n) => n.root));
+    // ★を消費(★グリッド)しても starTotal は減らない＝倍率は維持
+    const rootId = STAR_NODES.find((n) => n.root)!.id;
+    const spent = buyStarNode(withStars(r, 9_999_999), rootId);
     expect(spent.perm.starTotal).toBe(r.perm.starTotal);
   });
 });
