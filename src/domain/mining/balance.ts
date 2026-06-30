@@ -100,6 +100,7 @@ export interface MiningBalance {
 
   // お宝図鑑のドロップ全体倍率（レアリティ別の確率/解禁階は treasures.ts の RARITY_DEFS が保持）。
   readonly treasureDropMul: number;
+  readonly treasureVisualMs: number; // お宝を拾った演出の表示寿命
 }
 
 export const defaultMiningBalance: MiningBalance = {
@@ -140,4 +141,5 @@ export const defaultMiningBalance: MiningBalance = {
   runCapBase: 40, runCapPerTreasures: 12,    // 上限は大きめ40・図鑑12種ごとに+1（限界はあるが大量）
 
   treasureDropMul: 1, // お宝ドロップの全体倍率（レアリティ別の率は RARITY_DEFS）
+  treasureVisualMs: 1600, // お宝を拾った演出の表示寿命（少し長めで気づける）
 };

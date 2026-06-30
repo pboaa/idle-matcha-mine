@@ -28,6 +28,8 @@ const TOTAL_TILES = totalTilesOf(B);
 // ===== 盤面ビュー =====
 export interface MineTileVM { readonly rx: number; readonly ry: number; readonly kind: 'dug' | 'wall' | 'solid'; readonly color: string; readonly isBase: boolean; readonly front: boolean; readonly crack: number; readonly tough: number; readonly fog: boolean }
 export interface MineDropVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string }
+/** お宝を拾った演出（採掘地点に浮く・レアリティ色／高レアは大きく）。 */
+export interface MineTreasurePopVM { readonly id: number; readonly rx: number; readonly ry: number; readonly emoji: string; readonly color: string; readonly big: boolean }
 /** 武器命中エフェクトの見た目種別（パターンから決まる）。 */
 export type MineEffectKind = 'line' | 'burst' | 'field' | 'impact';
 /** 武器命中エフェクト（ビュー座標のマス群＋発射元＋色＋種別）。 */
@@ -38,6 +40,7 @@ export interface MineViewVM {
   readonly x0: number; readonly y0: number;   // ビュー左上のワールド座標（クリック→セル変換用）
   readonly manual: boolean;                    // 手動モード（クリックで猫を誘導できる）
   readonly tiles: readonly MineTileVM[]; readonly drops: readonly MineDropVM[];
+  readonly treasurePops: readonly MineTreasurePopVM[];
   readonly effects: readonly MineEffectVM[];
   readonly catRx: number; readonly catRy: number;
   readonly targetRx: number | null; readonly targetRy: number | null; // 手動目標マーカー（ビュー座標）
@@ -77,6 +80,11 @@ export function buildMineView(state: MineState): MineViewVM {
     const rx = d.x - x0; const ry = d.y - y0;
     if (rx >= -1 && rx <= VIEW_W && ry >= -1 && ry <= VIEW_H) drops.push({ id: d.id, rx, ry, emoji: d.emoji });
   }
+  const treasurePops: MineTreasurePopVM[] = [];
+  for (const p of state.treasurePops) {
+    const rx = p.x - x0; const ry = p.y - y0;
+    if (rx >= -1 && rx <= VIEW_W && ry >= -1 && ry <= VIEW_H) treasurePops.push({ id: p.id, rx, ry, emoji: p.emoji, color: p.color, big: p.rarity !== 'common' && p.rarity !== 'uncommon' });
+  }
   const effects: MineEffectVM[] = [];
   let fxBudget = FX_CELL_CAP;
   for (const f of state.fx) {
@@ -95,7 +103,7 @@ export function buildMineView(state: MineState): MineViewVM {
   const tgt = state.cat.target;
   const inView = tgt && tgt.x - x0 >= 0 && tgt.x - x0 < VIEW_W && tgt.y - y0 >= 0 && tgt.y - y0 < VIEW_H;
   return {
-    w: VIEW_W, h: VIEW_H, x0, y0, manual: !state.autoMode, tiles, drops, effects,
+    w: VIEW_W, h: VIEW_H, x0, y0, manual: !state.autoMode, tiles, drops, treasurePops, effects,
     catRx: state.cat.pos.x - x0, catRy: state.cat.pos.y - y0,
     targetRx: inView ? tgt!.x - x0 : null, targetRy: inView ? tgt!.y - y0 : null,
     orbit,

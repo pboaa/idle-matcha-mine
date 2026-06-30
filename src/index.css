@@ -23,6 +23,7 @@
   --font-rounded: 'Hiragino Maru Gothic ProN', 'Quicksand', system-ui, sans-serif;
 
   --animate-coin-float: coin-float 1s ease-out forwards;
+  --animate-treasure-pop: treasure-pop 1.5s ease-out forwards;
   --animate-pop: pop 0.25s ease-out;
   --animate-fx-flash: fx-flash 0.22s ease-out forwards;
   --animate-fx-fade: fx-fade 0.22s ease-out forwards;
@@ -73,6 +74,25 @@
   }
   100% {
     transform: translateY(-44px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+/* お宝を拾った演出（ふわっと大きく浮き上がって光りながら消える） */
+@keyframes treasure-pop {
+  0% {
+    transform: translateY(4px) scale(0.4);
+    opacity: 0;
+  }
+  18% {
+    transform: translateY(-6px) scale(1.25);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-40px) scale(1);
     opacity: 0;
   }
 }

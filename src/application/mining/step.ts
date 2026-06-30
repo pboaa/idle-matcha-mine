@@ -6,7 +6,8 @@ import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/ba
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { stepToward, patternHits } from '@domain/mining/patterns';
 import { runPassiveLevels } from '@domain/mining/runGrid';
-import { dexEffectTotals, RARITY_DEFS, RARITY_IDS, weaponOf } from '@domain/mining/treasures';
+import { dexEffectTotals, RARITY_DEFS, RARITY_IDS, weaponOf, TREASURE_DEFS, RARITY_BY_ID } from '@domain/mining/treasures';
+import type { TreasurePop } from '@application/mining/mineState';
 import { type MineState, type Levels } from '@application/mining/mineState';
 import { globalDamageMult } from '@application/mining/prestige';
 import { xpForNext } from '@application/mining/upgrades';
@@ -77,7 +78,7 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
 
 function descend(state: MineState, b: MiningBalance): MineState {
   const base = baseOf(b);
-  return { ...state, floor: state.floor + 1, dug: new Set([cellKey(base)]), damage: new Map(), drops: [], cat: { pos: { ...base }, gauge: 0, target: null }, cam: { ...base } };
+  return { ...state, floor: state.floor + 1, dug: new Set([cellKey(base)]), damage: new Map(), drops: [], treasurePops: [], cat: { pos: { ...base }, gauge: 0, target: null }, cam: { ...base } };
 }
 
 function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
@@ -108,17 +109,20 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const pierceBonus = Math.floor(t.pierce);
   // お宝の採掘ドロップ（個数制で重複OK）。レアリティごとに独立ロール。持ち込み中の武器のお宝だけ出る。
   const dexAdds: Record<number, number> = {};
+  const newPops: TreasurePop[] = []; // 拾った演出（採掘地点に浮く）
   const dropMul = (1 + dg.drop) * b.treasureDropMul; // 発掘効果＋全体調整でドロップ率UP
-  const addFrom = (pool: readonly number[]): void => {
+  const addFrom = (pool: readonly number[], cell: Cell): void => {
     const usable = pool.filter((id) => equipped.has(weaponOf(id))); // 持ち込み武器のお宝のみ
     if (usable.length === 0) return;
     const id = usable[Math.floor(rng.next() * usable.length)]!;
     dexAdds[id] = (dexAdds[id] ?? 0) + 1;
+    const def = TREASURE_DEFS[id]!;
+    newPops.push({ id: now * 32 + newPops.length, x: cell.x, y: cell.y, emoji: def.emoji, color: RARITY_BY_ID[def.rarity].color, rarity: def.rarity, bornAt: now });
   };
-  const tryDropTreasure = (): void => {
+  const tryDropTreasure = (cell: Cell): void => {
     for (const r of RARITY_DEFS) {
       if (state.floor < r.minFloor) continue;                  // そのレアリティの解禁階に未到達
-      if (rng.next() < r.baseChance * dropMul) addFrom(RARITY_IDS[r.id]);
+      if (rng.next() < r.baseChance * dropMul) addFrom(RARITY_IDS[r.id], cell);
     }
   };
 
@@ -136,7 +140,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     damage.delete(k);
     dug.add(k);
     coins += tileValue(kind, state.floor, coinMult, b);
-    tryDropTreasure(); // 採掘でお宝（レアリティごとに解禁階＋確率・持ち込み武器のみ）
+    tryDropTreasure(cell); // 採掘でお宝（レアリティごとに解禁階＋確率・持ち込み武器のみ）
     xpGain += (1 + t.xp) * (1 + dg.xp);
     seq += 1;
     drops = [...drops, { id: seq, x: cell.x, y: cell.y, emoji: kind.emoji, value: tileValue(kind, state.floor, coinMult, b), bornAt: now }];
@@ -184,6 +188,11 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 演出ドロップは一定時間で消す（回収は済み）。
   if (drops.length > 0) { const keep = drops.filter((d) => now - d.bornAt < b.dropVisualMs); if (keep.length !== drops.length) drops = keep; }
 
+  // お宝を拾った演出（少し長め）。古いものは消し、今tickで拾ったぶんを足す。
+  let treasurePops = state.treasurePops;
+  if (treasurePops.length > 0) { const keep = treasurePops.filter((p) => now - p.bornAt < b.treasureVisualMs); if (keep.length !== treasurePops.length) treasurePops = keep; }
+  if (newPops.length > 0) treasurePops = [...treasurePops, ...newPops];
+
   // レベルアップ＝獲得予定★+pointsPerLevel（走行グリッドはコインで手動解放）。
   let xp = state.xp + xpGain;
   let level = state.level;
@@ -197,7 +206,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   return {
     ...state,
     perm: permWithDex,
-    time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
+    time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, treasurePops, fx,
     cat: { pos, gauge, target }, cam: pos, // 猫は常に画面中央（カメラ＝猫の位置に固定）
     xp, level, dmgByWeapon: dmgAcc, weaponCd, runPoints,
   };

@@ -74,6 +74,15 @@ export function MiningGrid() {
           style={{ left: d.rx * CELL + (d.id % 7) - 3, top: d.ry * CELL - 4 + (d.id % 5) - 2, width: CELL, height: CELL }}>{d.emoji}</span>
       ))}
 
+      {/* お宝を拾った演出（採掘地点にレアリティ色で浮き上がる・高レアは大きく＆「お宝!」表示） */}
+      {view.treasurePops.map((p) => (
+        <span key={p.id} className="pointer-events-none absolute z-[22] flex flex-col items-center justify-center animate-[treasure-pop_1.5s_ease-out_forwards]"
+          style={{ left: p.rx * CELL, top: p.ry * CELL - 6, width: CELL, height: CELL, color: p.color, filter: `drop-shadow(0 0 ${p.big ? 8 : 4}px ${p.color})` }}>
+          <span style={{ fontSize: p.big ? 26 : 18, lineHeight: 1 }}>{p.emoji}</span>
+          {p.big && <span className="rounded-full px-1 text-[8px] font-bold" style={{ background: p.color, color: '#1c1917' }}>お宝!</span>}
+        </span>
+      ))}
+
       {/* 所持武器が猫の周りを回る（ヴァンサバ風） */}
       {view.orbit.length > 0 && (
         <div className="pointer-events-none absolute z-[15] animate-spin" style={{ left: cx, top: cy, width: 0, height: 0, animationDuration: '2.6s' }}>
