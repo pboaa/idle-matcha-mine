@@ -6,7 +6,7 @@ import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/ba
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { stepToward, patternHits } from '@domain/mining/patterns';
 import { runPassiveLevels } from '@domain/mining/runGrid';
-import { dexEffectTotals, NORMAL_IDS } from '@domain/mining/treasures';
+import { dexEffectTotals, NORMAL_IDS, RARE_IDS } from '@domain/mining/treasures';
 import { type MineState, type Levels } from '@application/mining/mineState';
 import { globalDamageMult } from '@application/mining/prestige';
 import { xpForNext } from '@application/mining/upgrades';
@@ -104,15 +104,15 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const coinMult = (1 + t.coin) * (1 + dex.coin);
   const rangeBonus = Math.floor(t.range);   // 走行グリッドに射程はないので実質0（恒久側で扱う想定）
   const pierceBonus = Math.floor(t.pierce);
-  // ノーマルお宝の採掘ドロップ（未収集のものをランダムに図鑑へ）。
-  const collected = new Set(state.perm.dex);
-  const dexAdds: number[] = [];
-  const tryDropTreasure = (): void => {
-    if (rng.next() >= b.treasureDropChance) return;
-    const pool = NORMAL_IDS.filter((id) => !collected.has(id));
-    if (pool.length === 0) return;
+  // お宝の採掘ドロップ（低確率・個数制で重複OK）。レアは「遠く/深く」ほど出やすい。
+  const dexAdds: Record<number, number> = {};
+  const tryDropTreasure = (cell: Cell): void => {
+    if (rng.next() >= b.treasureDropChance * (1 + dex.drop)) return;
+    const dist = tileDist(cell, b);
+    const rareProb = Math.min(b.rareDropCap, state.floor * b.rareDropPerFloor + dist * b.rareDropPerDist);
+    const pool = rng.next() < rareProb ? RARE_IDS : NORMAL_IDS;
     const id = pool[Math.floor(rng.next() * pool.length)]!;
-    collected.add(id); dexAdds.push(id);
+    dexAdds[id] = (dexAdds[id] ?? 0) + 1;
   };
 
   const applyDmg = (cell: Cell, baseAmt: number, w: WeaponId): void => {
@@ -129,7 +129,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     damage.delete(k);
     dug.add(k);
     coins += tileValue(kind, state.floor, coinMult, b);
-    tryDropTreasure(); // 採掘でノーマルお宝
+    tryDropTreasure(cell); // 採掘でお宝（遠い/深いほどレア）
     xpGain += (1 + t.xp) * (1 + dex.xp);
     seq += 1;
     drops = [...drops, { id: seq, x: cell.x, y: cell.y, emoji: kind.emoji, value: tileValue(kind, state.floor, coinMult, b), bornAt: now }];
@@ -156,7 +156,12 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const weaponCd = { ...state.weaponCd };
   fireWeapons({ dug, pos, target, levels: L, totals: t, globalMul, haste: dex.haste, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
-  const permWithDex = dexAdds.length > 0 ? { ...state.perm, dex: [...state.perm.dex, ...dexAdds] } : state.perm;
+  let permWithDex = state.perm;
+  if (Object.keys(dexAdds).length > 0) {
+    const dex2 = { ...state.perm.dex };
+    for (const [id, c] of Object.entries(dexAdds)) dex2[Number(id)] = (dex2[Number(id)] ?? 0) + c;
+    permWithDex = { ...state.perm, dex: dex2 };
+  }
 
   // 階クリアで降下。獲得予定★(runPoints)は「進行」で貯まる: 階を降りるごとに pointsPerFloor×新しい階。
   if (cleared) return descend({ ...state, perm: permWithDex, rngState: rng.state(), coins, xp: state.xp + xpGain, seq, dmgByWeapon: dmgAcc, weaponCd, runPoints: state.runPoints + b.pointsPerFloor * (state.floor + 1) }, b);

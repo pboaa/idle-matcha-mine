@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 9; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v9=お宝図鑑(全100)・★グリッド(レア)・採掘でノーマル・恒久スキルツリー廃止
+const VERSION = 10; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v10=お宝図鑑を個数制(採掘ドロップ・遠いほどレア・√逓減)・★グリッド廃止
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {
@@ -23,7 +23,7 @@ function deserialize(raw: string): MineState | null {
     const perm: Perm = {
       ...base, ...(s.perm ?? {}),
       unlockedWeapons: Array.isArray(s.perm?.unlockedWeapons) ? s.perm.unlockedWeapons : base.unlockedWeapons,
-      dex: Array.isArray(s.perm?.dex) ? s.perm.dex : [],
+      dex: (s.perm?.dex && typeof s.perm.dex === 'object' && !Array.isArray(s.perm.dex)) ? s.perm.dex : {},
     };
     return { ...freshState(), ...s, perm, dug: new Set<string>(s.dug), damage: new Map<string, number>(s.damage) } as unknown as MineState;
   } catch { return null; }

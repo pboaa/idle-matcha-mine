@@ -1,62 +1,37 @@
 /**
- * お宝図鑑（全100種コレクション）。集めると永続ボーナス（効果の合計）。
- * - ノーマル（51種）: 普段の採掘でランダムに入手。
- * - レア（49種・7x7の「★グリッド」）: 転生ポイント★を使ってグリッドのマスを開けて入手。
- * 旧・恒久スキルツリーの置き換え。永続の強さは「図鑑効果＋累計★倍率」から。
+ * お宝図鑑（全100種・個数制コレクション）。最後のやり込み要素。
+ * - 採掘中にランダムドロップ（低確率）。何個でも重複入手できる。
+ * - レアは「遠く/深く」に埋まっている＝拠点から遠いタイル・深い階ほどレア確率が上がる（序盤は近く＝ノーマル中心）。
+ * - 重なるほど効果は弱まる（√で逓減＝インフレしすぎない）。効果は多様（火力/金運/採掘/会心/俊敏/学び/発掘）。
  */
 
 export type TreasureRarity = 'normal' | 'rare';
-export type TreasureEffect = 'power' | 'coin' | 'mine' | 'crit' | 'haste' | 'xp';
+export type TreasureEffect = 'power' | 'coin' | 'mine' | 'crit' | 'haste' | 'xp' | 'drop';
 
 export interface TreasureDef {
   readonly id: number; readonly emoji: string; readonly name: string;
   readonly rarity: TreasureRarity; readonly effect: TreasureEffect; readonly amount: number;
 }
-/** レアお宝は ★グリッド のマス（中央から隣接で開く）。 */
-export interface StarNode {
-  readonly id: number; // = TreasureDef.id（レア）
-  readonly x: number; readonly y: number; readonly ring: number;
-  readonly starCost: number; readonly root: boolean; readonly requires: readonly number[];
-}
 
-export const STAR_GRID_SIZE = 7;              // ★グリッド 7x7 = 49マス＝レア49種
-export const RARE_COUNT = STAR_GRID_SIZE * STAR_GRID_SIZE; // 49
-export const NORMAL_COUNT = 51;
-export const TREASURE_TOTAL = RARE_COUNT + NORMAL_COUNT;   // 100
+export const RARE_COUNT = 30;
+export const NORMAL_COUNT = 70;
+export const TREASURE_TOTAL = RARE_COUNT + NORMAL_COUNT; // 100
 
-const EFFECTS: readonly TreasureEffect[] = ['power', 'coin', 'mine', 'crit', 'haste', 'xp'];
+const EFFECTS: readonly TreasureEffect[] = ['power', 'coin', 'mine', 'crit', 'haste', 'xp', 'drop'];
 export const TREASURE_EFFECT_LABEL: Record<TreasureEffect, { label: string; emoji: string }> = {
   power: { label: '火力', emoji: '🔥' }, coin: { label: '金運', emoji: '🪙' }, mine: { label: '採掘', emoji: '⛏️' },
   crit: { label: '会心', emoji: '✨' }, haste: { label: '俊敏', emoji: '🌀' }, xp: { label: '学び', emoji: '📖' },
+  drop: { label: '発掘', emoji: '🔎' },
 };
-// 効果1ノードあたりの量（クリックで覚える感覚の小さめの値・rareは大きめ）。crit は確率なので控えめ。
+// 1ノードあたりの量（小さめ＝√逓減と合わせてインフレ抑制）。crit は確率なので控えめ。
 const AMOUNT: Record<TreasureRarity, Record<TreasureEffect, number>> = {
-  normal: { power: 0.02, coin: 0.03, mine: 0.02, crit: 0.004, haste: 0.015, xp: 0.03 },
-  rare: { power: 0.05, coin: 0.07, mine: 0.05, crit: 0.01, haste: 0.04, xp: 0.07 },
+  normal: { power: 0.012, coin: 0.018, mine: 0.012, crit: 0.0025, haste: 0.008, xp: 0.018, drop: 0.02 },
+  rare: { power: 0.03, coin: 0.045, mine: 0.03, crit: 0.006, haste: 0.02, xp: 0.045, drop: 0.05 },
 };
 const RARE_EMOJI = ['💎', '🏆', '👑', '💍', '🔮', '⚜️', '🎖️', '🗿', '⚱️', '🪅'];
 const NORMAL_EMOJI = ['🪨', '🔩', '🧭', '🕯️', '🍶', '🧱', '🪵', '🪟', '🔋', '📿'];
 
-const idxAt = (x: number, y: number): number => y * STAR_GRID_SIZE + x;
-const neighbors = (x: number, y: number): number[] =>
-  ([[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]] as const)
-    .filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < STAR_GRID_SIZE && ny < STAR_GRID_SIZE)
-    .map(([nx, ny]) => idxAt(nx, ny));
-
-const CEN = Math.floor((STAR_GRID_SIZE - 1) / 2);
-
-/** ★グリッド（レアお宝）のノード一覧。id=0..48。中央が起点・★コストはリングで上昇。 */
-export const STAR_NODES: readonly StarNode[] = (() => {
-  const out: StarNode[] = [];
-  for (let y = 0; y < STAR_GRID_SIZE; y++) for (let x = 0; x < STAR_GRID_SIZE; x++) {
-    const id = idxAt(x, y);
-    const ring = Math.max(Math.abs(x - CEN), Math.abs(y - CEN));
-    out.push({ id, x, y, ring, root: ring === 0, starCost: Math.max(1, Math.round(2 * Math.pow(1.6, ring))), requires: neighbors(x, y) });
-  }
-  return out;
-})();
-
-/** 全お宝の定義（0..48=レア／49..99=ノーマル）。 */
+/** 全お宝の定義（0..29=レア／30..99=ノーマル）。 */
 export const TREASURE_DEFS: readonly TreasureDef[] = (() => {
   const out: TreasureDef[] = [];
   for (let i = 0; i < RARE_COUNT; i++) {
@@ -75,15 +50,20 @@ export const RARE_IDS: readonly number[] = TREASURE_DEFS.filter((t) => t.rarity 
 export const NORMAL_IDS: readonly number[] = TREASURE_DEFS.filter((t) => t.rarity === 'normal').map((t) => t.id);
 export const isRare = (id: number): boolean => id < RARE_COUNT;
 
-/** 集めた図鑑(idの配列)の効果合計。 */
-export function dexEffectTotals(dex: readonly number[]): Record<TreasureEffect, number> {
-  const out: Record<TreasureEffect, number> = { power: 0, coin: 0, mine: 0, crit: 0, haste: 0, xp: 0 };
-  for (const id of dex) { const d = TREASURE_DEFS[id]; if (d) out[d.effect] += d.amount; }
-  return out;
-}
+/** お宝図鑑（id→個数）。 */
+export type TreasureDex = Record<number, number>;
+/** 集めた種類数（個数1以上）。 */
+export const dexKinds = (dex: TreasureDex): number => Object.values(dex).filter((c) => c > 0).length;
+/** 総個数。 */
+export const dexTotalCount = (dex: TreasureDex): number => Object.values(dex).reduce((a, c) => a + c, 0);
 
-/** ★グリッドのそのレアマスが今開けられるか（未収集・中央or隣接が収集済み）。collected=収集済みid集合。 */
-export function starNodeUnlockable(collected: ReadonlySet<number>, id: number): boolean {
-  const n = STAR_NODES[id]; if (!n || collected.has(id)) return false;
-  return n.root || n.requires.some((r) => collected.has(r));
+/** 図鑑の効果合計。重複は √(個数) で逓減（重なるほど1個あたり弱まる＝壊れない）。 */
+export function dexEffectTotals(dex: TreasureDex): Record<TreasureEffect, number> {
+  const out: Record<TreasureEffect, number> = { power: 0, coin: 0, mine: 0, crit: 0, haste: 0, xp: 0, drop: 0 };
+  for (const [idStr, count] of Object.entries(dex)) {
+    if (count <= 0) continue;
+    const d = TREASURE_DEFS[Number(idStr)];
+    if (d) out[d.effect] += d.amount * Math.sqrt(count);
+  }
+  return out;
 }

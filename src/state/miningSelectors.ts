@@ -7,7 +7,7 @@ import { weaponUnlockStar, globalDamageMult } from '@application/mining/prestige
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import { runPassiveLevels, runGridUnlockable, runGridFilled, runGridFull } from '@domain/mining/runGrid';
 import {
-  STAR_NODES, TREASURE_DEFS, RARE_COUNT, NORMAL_COUNT, TREASURE_TOTAL, TREASURE_EFFECT_LABEL, dexEffectTotals, starNodeUnlockable, isRare,
+  TREASURE_DEFS, RARE_COUNT, NORMAL_COUNT, TREASURE_TOTAL, TREASURE_EFFECT_LABEL, dexEffectTotals, dexKinds, dexTotalCount, isRare,
   type TreasureEffect,
 } from '@domain/mining/treasures';
 import {
@@ -209,7 +209,7 @@ export function buildMineHud(state: MineState): MineHudVM {
     coins: Math.floor(state.coins), floor: state.floor, runPoints: state.runPoints,
     starPoints: state.perm.starPoints, starTotal: state.perm.starTotal,
     dmgMult: globalDamageMult(state.perm.starTotal) * (1 + dexEffectTotals(state.perm.dex).power),
-    dexCount: state.perm.dex.length, dexTotal: TREASURE_TOTAL,
+    dexCount: dexKinds(state.perm.dex), dexTotal: TREASURE_TOTAL,
     progressPct: Math.min(100, (state.dug.size / TOTAL_TILES) * 100),
     level: state.level, xp: Math.floor(state.xp), xpNext: xpForNext(state.level), autoMode: state.autoMode,
     weapons,
@@ -220,15 +220,8 @@ export function buildMineHud(state: MineState): MineHudVM {
 }
 
 // ===== 転生パネル =====
-/** ★グリッド(レアお宝)の1マス。 */
-export interface MineStarNodeVM {
-  readonly id: number; readonly x: number; readonly y: number;
-  readonly emoji: string; readonly name: string; readonly root: boolean;
-  readonly star: number; readonly enough: boolean;
-  readonly state: 'unlocked' | 'available' | 'locked'; readonly visible: boolean; readonly can: boolean;
-}
-/** お宝図鑑の1エントリ。 */
-export interface MineDexEntryVM { readonly id: number; readonly emoji: string; readonly name: string; readonly rarity: 'normal' | 'rare'; readonly effectEmoji: string; readonly text: string; readonly collected: boolean }
+/** お宝図鑑の1エントリ（個数つき）。 */
+export interface MineDexEntryVM { readonly id: number; readonly emoji: string; readonly name: string; readonly rarity: 'normal' | 'rare'; readonly effectEmoji: string; readonly text: string; readonly count: number }
 /** 図鑑の効果合計（表示用）。 */
 export interface MineDexEffectVM { readonly emoji: string; readonly label: string; readonly text: string }
 /** 武器の解放状態（つるはし/弾は最初から・残りは★を消費して解放）。cost=必要★。 */
@@ -238,47 +231,34 @@ export interface MineStartOptionVM { readonly id: WeaponId; readonly emoji: stri
 export interface MinePrestigeVM {
   readonly prestiges: number; readonly runPoints: number;
   readonly starPoints: number; readonly starTotal: number; readonly dmgMult: number;
-  readonly starGrid: { readonly size: number; readonly nodes: readonly MineStarNodeVM[]; readonly anyBuyable: boolean };
   readonly dex: {
-    readonly collected: number; readonly total: number;
-    readonly normalCollected: number; readonly normalTotal: number;
-    readonly rareCollected: number; readonly rareTotal: number;
+    readonly kinds: number; readonly total: number; readonly count: number; // 集めた種類／全種類／総個数
+    readonly normalKinds: number; readonly normalTotal: number;
+    readonly rareKinds: number; readonly rareTotal: number;
     readonly entries: readonly MineDexEntryVM[]; readonly effects: readonly MineDexEffectVM[];
   };
   readonly unlocks: readonly MineWeaponUnlockVM[];
   readonly startWeapon: WeaponId; readonly startOptions: readonly MineStartOptionVM[];
 }
 
-const treasureText = (effect: TreasureEffect, amount: number): string => `${TREASURE_EFFECT_LABEL[effect].label} +${Math.round(amount * 100)}%`;
+const treasureText = (effect: TreasureEffect, amount: number): string => `${TREASURE_EFFECT_LABEL[effect].label} +${(amount * 100).toFixed(1)}%`;
 
 export function buildPrestige(state: MineState): MinePrestigeVM {
   const sp = state.perm.starPoints;
-  const collected = new Set(state.perm.dex);
-  const starNodes: MineStarNodeVM[] = STAR_NODES.map((n) => {
-    const def = TREASURE_DEFS[n.id]!;
-    const isUnlocked = collected.has(n.id);
-    const available = starNodeUnlockable(collected, n.id);
-    const enough = sp >= n.starCost;
-    return {
-      id: n.id, x: n.x, y: n.y, root: n.root, emoji: def.emoji, name: def.name,
-      star: n.starCost, enough,
-      state: isUnlocked ? 'unlocked' as const : available ? 'available' as const : 'locked' as const,
-      visible: isUnlocked || available, can: available && enough,
-    };
-  });
-  const eff = dexEffectTotals(state.perm.dex);
+  const dex = state.perm.dex;
+  const eff = dexEffectTotals(dex);
   const effects: MineDexEffectVM[] = (Object.keys(TREASURE_EFFECT_LABEL) as TreasureEffect[])
     .filter((e) => eff[e] > 0).map((e) => ({ emoji: TREASURE_EFFECT_LABEL[e].emoji, label: TREASURE_EFFECT_LABEL[e].label, text: `+${Math.round(eff[e] * 100)}%` }));
+  const kindsCollected = (filter: (id: number) => boolean): number => TREASURE_DEFS.filter((d) => filter(d.id) && (dex[d.id] ?? 0) > 0).length;
   return {
     prestiges: state.prestiges,
     runPoints: state.runPoints,
     starPoints: sp, starTotal: state.perm.starTotal, dmgMult: globalDamageMult(state.perm.starTotal) * (1 + eff.power),
-    starGrid: { size: STAR_NODES.length > 0 ? Math.round(Math.sqrt(STAR_NODES.length)) : 0, nodes: starNodes, anyBuyable: starNodes.some((n) => n.can) },
     dex: {
-      collected: state.perm.dex.length, total: TREASURE_TOTAL,
-      normalCollected: state.perm.dex.filter((id) => !isRare(id)).length, normalTotal: NORMAL_COUNT,
-      rareCollected: state.perm.dex.filter((id) => isRare(id)).length, rareTotal: RARE_COUNT,
-      entries: TREASURE_DEFS.map((d) => ({ id: d.id, emoji: d.emoji, name: d.name, rarity: d.rarity, effectEmoji: TREASURE_EFFECT_LABEL[d.effect].emoji, text: treasureText(d.effect, d.amount), collected: collected.has(d.id) })),
+      kinds: dexKinds(dex), total: TREASURE_TOTAL, count: dexTotalCount(dex),
+      normalKinds: kindsCollected((id) => !isRare(id)), normalTotal: NORMAL_COUNT,
+      rareKinds: kindsCollected(isRare), rareTotal: RARE_COUNT,
+      entries: TREASURE_DEFS.map((d) => ({ id: d.id, emoji: d.emoji, name: d.name, rarity: d.rarity, effectEmoji: TREASURE_EFFECT_LABEL[d.effect].emoji, text: treasureText(d.effect, d.amount), count: dex[d.id] ?? 0 })),
       effects,
     },
     unlocks: [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER].map((w) => {
@@ -302,8 +282,6 @@ export const useMineRerollRun = (): (() => void) => useMiningStore((s) => s.rero
 export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
 export const useMineStartRun = (): ((w: WeaponId) => void) => useMiningStore((s) => s.startRun);
 export const useMineUnlockWeapon = (): ((w: WeaponId) => void) => useMiningStore((s) => s.unlockWeapon);
-export const useMineBuyStarNode = (): ((id: number) => void) => useMiningStore((s) => s.buyStarNode);
-export const useMineBuyStarGridMax = (): (() => void) => useMiningStore((s) => s.buyStarGridMax);
 export const useMineSetTarget = (): ((cell: { x: number; y: number }) => void) => useMiningStore((s) => s.setTarget);
 export const useMineSave = (): (() => void) => useMiningStore((s) => s.save);
 export const useMineResetData = (): (() => void) => useMiningStore((s) => s.resetData);

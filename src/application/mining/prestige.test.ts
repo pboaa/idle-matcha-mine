@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyPerm, type MineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult, buyStarNode, buyStarGridMax, starNodeBuyable } from '@application/mining/prestige';
-import { STAR_NODES, isRare } from '@domain/mining/treasures';
+import { allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult } from '@application/mining/prestige';
+import { isRare, dexKinds, dexEffectTotals } from '@domain/mining/treasures';
 import { defaultMiningBalance, WEAPON_IDS, WEAPON_UNLOCK_ORDER } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -43,25 +43,11 @@ describe('mining/prestige', () => {
     expect(startRun(s0, locked).startWeapon).toBe(s0.startWeapon);
   });
 
-  it('★グリッド: 中央起点・隣接で開く・★を消費・レアお宝を図鑑へ・不足は不可', () => {
-    const rootId = STAR_NODES.find((n) => n.root)!.id;
-    const root = STAR_NODES[rootId]!;
-    const s0 = withStars(initialMineState(), 9_999_999);
-    expect(starNodeBuyable(s0.perm, rootId)).toBe(true);            // 中央は最初から開ける
-    const s1 = buyStarNode(s0, rootId);
-    expect(s1.perm.dex).toContain(rootId);                          // 図鑑にレアお宝が入る
-    expect(isRare(rootId)).toBe(true);
-    expect(s1.perm.starPoints).toBe(9_999_999 - root.starCost);    // ★残高を消費
-    const neighbor = root.requires[0]!;
-    expect(starNodeBuyable(s1.perm, neighbor)).toBe(true);         // 隣接が開放可
-    expect(buyStarNode(withStars(initialMineState(), 0), rootId).perm.dex).toEqual([]); // ★残高不足で不可
-  });
-
-  it('一気に開ける: 開放可能＆★が足りるマスを開けるだけ', () => {
-    const r = buyStarGridMax(withStars(initialMineState(), 9_999_999));
-    expect(r.perm.dex.length).toBeGreaterThan(10);
-    const poor = buyStarGridMax(withStars(initialMineState(), 0));
-    expect(poor.perm.dex.length).toBe(0);
+  it('図鑑効果: 重なるほど1個あたり弱まる（√逓減）', () => {
+    const one = dexEffectTotals({ 0: 1 }).power;   // レア#0=火力
+    const four = dexEffectTotals({ 0: 4 }).power;  // 4個
+    expect(four).toBeCloseTo(one * 2, 6);          // √4=2倍（線形の4倍より弱い）
+    expect(four).toBeLessThan(one * 4);            // インフレしない
   });
 
   it('転生: 走行リセット・runPoints を★残高と累計★の両方へ・回数+1・コイン0', () => {
@@ -87,20 +73,19 @@ describe('mining/prestige', () => {
     expect(r.perm.starTotal).toBe(s.runPoints);
   });
 
-  it('ノーマルお宝は採掘で図鑑に貯まる（ノーマルidが入る）', () => {
-    const s = stepMine({ ...initialMineState(), perm: { ...emptyPerm() } }, 60_000);
-    expect(s.perm.dex.length).toBeGreaterThan(0);            // 採掘でお宝が貯まる
-    expect(s.perm.dex.every((id) => !isRare(id))).toBe(true); // 採掘で入るのはノーマルのみ
+  it('お宝は採掘でランダムに図鑑へ貯まる（序盤=floor0近辺はノーマル中心）', () => {
+    const b = { ...B, treasureDropChance: 0.6 }; // ドロップ率を上げて検証を安定化
+    const s = stepMine({ ...initialMineState(b), perm: { ...emptyPerm() } }, 120_000, b);
+    expect(dexKinds(s.perm.dex)).toBeGreaterThan(0);              // 採掘でお宝が貯まる
+    const rareCount = Object.entries(s.perm.dex).filter(([id]) => isRare(Number(id))).reduce((a, [, c]) => a + c, 0);
+    const normalCount = Object.entries(s.perm.dex).filter(([id]) => !isRare(Number(id))).reduce((a, [, c]) => a + c, 0);
+    expect(normalCount).toBeGreaterThan(rareCount);              // 浅い階(floor0)ではノーマルが多い
   });
 
-  it('累計★で全体ダメージ倍率が上がる（消費しても減らない）', () => {
+  it('累計★で全体ダメージ倍率が上がる', () => {
     const s = stepMine(initialMineState(), 30_000);
     const r = prestige(s, B);
     expect(globalDamageMult(0, B)).toBe(1);
     expect(globalDamageMult(r.perm.starTotal, B)).toBeGreaterThan(1); // 累計★>0で倍率>1
-    // ★を消費(★グリッド)しても starTotal は減らない＝倍率は維持
-    const rootId = STAR_NODES.find((n) => n.root)!.id;
-    const spent = buyStarNode(withStars(r, 9_999_999), rootId);
-    expect(spent.perm.starTotal).toBe(r.perm.starTotal);
   });
 });

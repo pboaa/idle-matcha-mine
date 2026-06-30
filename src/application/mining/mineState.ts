@@ -4,6 +4,7 @@ import type { MiningBalance, ChoiceId, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_IDS, PASSIVE_IDS } from '@domain/mining/balance';
 import { baseOf } from '@domain/mining/tile';
 import { genRunGrid, type RunGrid } from '@domain/mining/runGrid';
+import { dexKinds, type TreasureDex } from '@domain/mining/treasures';
 
 export type { ChoiceId } from '@domain/mining/balance';
 
@@ -18,16 +19,16 @@ export interface Perm {
   readonly starPoints: number;            // 消費可能な★残高（★グリッドのマスを開けるのに使う）
   readonly starTotal: number;             // 累計★（消費しても減らない総獲得★・全体ダメージ倍率に使う）
   readonly unlockedWeapons: WeaponId[];   // 開始時に選べる武器（つるはし以外。★で解放）
-  readonly dex: number[];                 // お宝図鑑: 収集したお宝idの配列（ノーマル=採掘／レア=★グリッド）
+  readonly dex: TreasureDex;              // お宝図鑑（id→個数・採掘でランダムドロップ・重複OK）
 }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 export const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
 const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as Record<WeaponId, number>;
 
-export const emptyPerm = (): Perm => ({ starPoints: 0, starTotal: 0, unlockedWeapons: ['bullet'], dex: [] });
-/** 走行グリッドで解放できる上限（基本＋図鑑の収集数で少しずつ伸びる）。 */
-export const runGridCap = (b: MiningBalance, dexCount: number): number => b.runCapBase + Math.floor(dexCount / b.runCapPerTreasures);
+export const emptyPerm = (): Perm => ({ starPoints: 0, starTotal: 0, unlockedWeapons: ['bullet'], dex: {} });
+/** 走行グリッドで解放できる上限（基本＋図鑑の収集種類数で少しずつ伸びる）。 */
+export const runGridCap = (b: MiningBalance, dex: TreasureDex): number => b.runCapBase + Math.floor(dexKinds(dex) / b.runCapPerTreasures);
 
 export interface MineState {
   readonly time: number;
@@ -70,7 +71,7 @@ export function freshRun(b: MiningBalance, perm: Perm, prestiges: number, startW
     xp: 0, level: 1, levels, autoMode: true,
     dmgByWeapon: zeroDmg(), weaponCd: zeroDmg(),
     startWeapon,
-    runGrid: genRunGrid(seed, b.runGridSize, ['pick', startWeapon], runGridCap(b, perm.dex.length)),
+    runGrid: genRunGrid(seed, b.runGridSize, ['pick', startWeapon], runGridCap(b, perm.dex)),
     runPoints: 0, perm, prestiges,
   };
 }

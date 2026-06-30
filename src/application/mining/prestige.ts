@@ -1,6 +1,5 @@
 import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_UNLOCK_ORDER, BASE_WEAPONS } from '@domain/mining/balance';
-import { STAR_NODES, starNodeUnlockable } from '@domain/mining/treasures';
 import { freshRun, type MineState, type Perm } from '@application/mining/mineState';
 
 // ===== 武器の解放（★を消費・つるはし＋bulletは最初から） =====
@@ -20,35 +19,6 @@ export function unlockWeapon(state: MineState, w: WeaponId, b: MiningBalance = d
   const cost = weaponUnlockStar(w, b);
   if (!isFinite(cost) || state.perm.starPoints < cost) return state;
   return { ...state, perm: { ...state.perm, starPoints: state.perm.starPoints - cost, unlockedWeapons: [...state.perm.unlockedWeapons, w] } };
-}
-
-// ===== ★グリッド（旧・恒久スキルツリーの置き換え）。★を消費してマスを開け、レアお宝を入手 =====
-/** そのレアマスが今開けられるか（未収集・中央or隣接が収集済み）。 */
-export function starNodeBuyable(perm: Perm, id: number): boolean {
-  return starNodeUnlockable(new Set(perm.dex), id);
-}
-/** ★グリッドのマスを開ける（★を消費・レアお宝を図鑑に追加）。 */
-export function buyStarNode(state: MineState, id: number): MineState {
-  const node = STAR_NODES[id];
-  if (!node || !starNodeBuyable(state.perm, id)) return state;
-  if (state.perm.starPoints < node.starCost) return state;
-  return { ...state, perm: { ...state.perm, starPoints: state.perm.starPoints - node.starCost, dex: [...state.perm.dex, id] } };
-}
-/** 一気に開ける: 開放可能＆★が足りるマスを「安い順」に買えるだけ。 */
-export function buyStarGridMax(state: MineState): MineState {
-  let s = state;
-  for (let guard = 0; guard < STAR_NODES.length; guard++) {
-    const collected = new Set(s.perm.dex);
-    let best = -1, bestCost = Infinity;
-    for (const n of STAR_NODES) {
-      if (collected.has(n.id) || !starNodeUnlockable(collected, n.id)) continue;
-      if (n.starCost > s.perm.starPoints) continue;
-      if (n.starCost < bestCost) { bestCost = n.starCost; best = n.id; }
-    }
-    if (best < 0) break;
-    s = buyStarNode(s, best);
-  }
-  return s;
 }
 
 // ===== 累計★＝全体ダメージ倍率（消費しても減らない総獲得★・√で逓減＝壊れない） =====
