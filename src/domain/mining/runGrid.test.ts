@@ -53,6 +53,19 @@ describe('domain/runGrid', () => {
     expect(reqs.every((w) => w === 'pick' || w === 'bullet')).toBe(true);
   });
 
+  it('装備武器に無関係な強化は出ない（系統シナジー/貫通/他武器ユニーク）', () => {
+    // つるはし(melee)＋弾(shot)＝直線武器なし
+    for (const seed of [1, 7, 42, 999]) {
+      const g = genRunGrid(seed, 9, ['pick', 'bullet'], 99);
+      const effects = g.nodes.map((n) => PASSIVE_DEFS[n.pid].effect);
+      expect(effects.includes('beamDmg')).toBe(false);  // ビーム系統シナジーは出ない
+      expect(effects.includes('fieldDmg')).toBe(false); // 範囲系統シナジーは出ない
+      expect(effects.includes('pierce')).toBe(false);   // 直線武器が無いので貫通は出ない
+      const reqs = g.nodes.map((n) => PASSIVE_DEFS[n.pid].reqWeapon).filter((w): w is NonNullable<typeof w> => !!w);
+      expect(reqs.every((w) => w === 'pick' || w === 'bullet')).toBe(true); // 他武器のユニークも出ない
+    }
+  });
+
   it('貫通/範囲は1リング(階層)に1つまで', () => {
     const cen = Math.floor((9 - 1) / 2);
     const ring = (n: { x: number; y: number }): number => Math.max(Math.abs(n.x - cen), Math.abs(n.y - cen));

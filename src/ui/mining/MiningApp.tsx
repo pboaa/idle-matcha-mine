@@ -6,7 +6,7 @@ import { MiningHud } from '@ui/mining/MiningHud';
 import { MiningPrestige } from '@ui/mining/MiningPrestige';
 import { MiningDex } from '@ui/mining/MiningDex';
 import { MiningHelp } from '@ui/mining/MiningHelp';
-import { APP_VERSION } from '../../version';
+import { APP_VERSION, BUILD_TIME } from '../../version';
 
 /** 採掘モックのルート。1匹の猫が自動でグリッドを掘り、転生＝★獲得・採掘でお宝図鑑を集めて成長する。 */
 export function MiningApp() {
@@ -17,7 +17,7 @@ export function MiningApp() {
     <div className="flex h-full w-full flex-col items-center bg-gradient-to-b from-stone-800 to-stone-950 p-4">
       <div className="mb-3 flex items-center gap-2">
         <h1 className="text-sm font-bold tracking-wide text-stone-300">⛏️ 抹茶猫マイン</h1>
-        <span className="rounded bg-stone-700/70 px-1.5 py-0.5 text-[10px] font-bold text-stone-300 ring-1 ring-stone-600">v{APP_VERSION}</span>
+        <span title={`ビルド: ${BUILD_TIME} UTC`} className="rounded bg-stone-700/70 px-1.5 py-0.5 text-[10px] font-bold text-stone-300 ring-1 ring-stone-600">v{APP_VERSION} <span className="font-normal text-stone-400">({BUILD_TIME})</span></span>
         <button onClick={() => setModal('prestige')}
           className="rounded-md bg-fuchsia-800 px-2.5 py-1 text-[11px] font-bold text-fuchsia-100 shadow ring-1 ring-fuchsia-600 transition hover:bg-fuchsia-700">
           🔄 転生

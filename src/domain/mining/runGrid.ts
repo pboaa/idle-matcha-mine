@@ -4,7 +4,7 @@
  * 恒久のお宝図鑑(treasures.ts)とは別物（こちらは転生でリセットされる走行限定の一時バフ）。
  */
 import { createRng } from '@shared/rng';
-import { PASSIVE_DEFS, PASSIVE_IDS, type PassiveId, type WeaponId } from '@domain/mining/balance';
+import { PASSIVE_DEFS, PASSIVE_IDS, WEAPON_DEFS, type PassiveId, type WeaponId, type WeaponTag, type PassiveEffect } from '@domain/mining/balance';
 
 export interface RunNode {
   readonly x: number; readonly y: number;
@@ -28,15 +28,21 @@ const neighborsOf = (size: number, x: number, y: number): number[] =>
 
 // 貫通(pierce)・射程/範囲(range)は「1階層(リング)に1つまで」に制限して配置する。
 const isLimited = (id: PassiveId): boolean => { const e = PASSIVE_DEFS[id].effect; return e === 'pierce' || e === 'range'; };
-/** その周のフィラー（汎用・弱め）と特殊（少数・強め）に分類。武器固有は装備中のみ。 */
+// 系統シナジー効果→対応する武器タグ（その系統の武器を持っている時だけ有効）。
+const SYNERGY_TAG: Partial<Record<PassiveEffect, WeaponTag>> = { meleeDmg: 'melee', shotDmg: 'shot', beamDmg: 'beam', fieldDmg: 'field' };
+/** 装備武器に意味のある特殊か（無関係なシナジー/貫通は出さない）。武器が2種なので関係ないものを除外。 */
+function usefulSpecial(id: PassiveId, equipped: readonly WeaponId[]): boolean {
+  const d = PASSIVE_DEFS[id];
+  if (d.reqWeapon && !equipped.includes(d.reqWeapon)) return false;        // 武器固有ユニーク
+  const tag = SYNERGY_TAG[d.effect];
+  if (tag) return equipped.some((w) => WEAPON_DEFS[w].tag === tag);        // 系統シナジーは該当系統の武器がある時だけ
+  if (d.effect === 'pierce') return equipped.some((w) => WEAPON_DEFS[w].pattern === 'cross' || WEAPON_DEFS[w].pattern === 'forward'); // 貫通は直線武器がある時だけ
+  return true; // power/crit/haste/range 等は全般に有効
+}
+/** その周のフィラー（汎用・弱め）と特殊（少数・強め）に分類。意味のない強化は除外。 */
 function poolsFor(equipped: readonly WeaponId[]): { fillers: PassiveId[]; specials: PassiveId[] } {
   const fillers = PASSIVE_IDS.filter((id) => { const d = PASSIVE_DEFS[id]; return !d.special && !d.reqWeapon && !isLimited(id); });
-  const specials = PASSIVE_IDS.filter((id) => {
-    const d = PASSIVE_DEFS[id];
-    if (!d.special) return false;
-    if (d.reqWeapon && !equipped.includes(d.reqWeapon)) return false;
-    return true;
-  });
+  const specials = PASSIVE_IDS.filter((id) => PASSIVE_DEFS[id].special && usefulSpecial(id, equipped));
   return { fillers, specials };
 }
 
