@@ -134,10 +134,10 @@ export const defaultMiningBalance: MiningBalance = {
   weaponUnlockStarCost: [10, 24, 48, 85, 140], // bomb/beam/drill/aura/ring（★消費・少しずつ高く）
   starMultPerLvl: 0.04, // 累計★で全体ダメージ 1+0.04×√累計★（100→×1.4, 400→×1.8, 2500→×3）
 
-  runGridSize: 7,
-  runCoinCostBase: 25, runCoinGrowth: 1.25, // ゆるやかに上昇＝上限まで埋めやすい
+  runGridSize: 9,                            // 9x9＝マス多め（大量に上げられる）
+  runCoinCostBase: 20, runCoinGrowth: 1.18,  // 逓増だが緩め＝コインを貯めれば沢山上げられる（やり込み）
   runRerollCostBase: 40, runRerollGrowth: 1.8,
-  runCapBase: 6, runCapPerTreasures: 8,     // 最初6マス・図鑑8種ごとに上限+1
+  runCapBase: 40, runCapPerTreasures: 12,    // 上限は大きめ40・図鑑12種ごとに+1（限界はあるが大量）
 
   treasureDropMul: 1, // お宝ドロップの全体倍率（レアリティ別の率は RARITY_DEFS）
 };

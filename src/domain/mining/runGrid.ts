@@ -56,12 +56,13 @@ export function genRunGrid(seed: number, size: number, equipped: readonly Weapon
   const ringOf = (i: number): number => { const n = nodes[i]!; return Math.max(Math.abs(n.x - cen), Math.abs(n.y - cen)); };
   const ringHasLimited = new Map<string, boolean>(); // `${ring}:${effect}` → 既に配置済み
   const nonLimited = specials.filter((s) => !isLimited(s));
+  const forced = specials.filter(isLimited); // 貫通/範囲を優先配置＝適度に復活（各1つは確実に出す）
   const cand = nodes.map((_, i) => i).filter((i) => !nodes[i]!.root);
   const want = Math.min(cand.length, specials.length === 0 ? 0 : Math.max(3, Math.round(size * 1.2)));
   for (let k = 0; k < want; k++) {
     const ci = Math.floor(rng.next() * cand.length);
     const ni = cand.splice(ci, 1)[0]!;
-    let pid = specials[Math.floor(rng.next() * specials.length)]!;
+    let pid = forced.length > 0 ? forced.shift()! : specials[Math.floor(rng.next() * specials.length)]!;
     if (isLimited(pid)) {
       const key = `${ringOf(ni)}:${PASSIVE_DEFS[pid].effect}`;
       if (ringHasLimited.get(key)) pid = nonLimited.length > 0 ? nonLimited[Math.floor(rng.next() * nonLimited.length)]! : pid; // この階層は埋まってる→別の特殊へ

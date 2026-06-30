@@ -38,8 +38,9 @@ export const TREASURE_EFFECT_LABEL: Record<TreasureEffect, { label: string; emoj
   crit: { label: '会心', emoji: '✨' }, haste: { label: '俊敏', emoji: '🌀' }, xp: { label: '学び', emoji: '📖' },
   drop: { label: '発掘', emoji: '🔎' },
 };
-const BASE_AMOUNT: Record<TreasureEffect, number> = { power: 0.012, coin: 0.018, mine: 0.012, crit: 0.0025, haste: 0.008, xp: 0.018, drop: 0.02 };
-const SELF_BASE = 0.05; // 武器個別ダメージの基準量
+// 効果量（派手め）。実量＝基準×レアリティのamountMul。重複は √(個数) 逓減で歯止め。
+const BASE_AMOUNT: Record<TreasureEffect, number> = { power: 0.03, coin: 0.04, mine: 0.025, crit: 0.006, haste: 0.02, xp: 0.04, drop: 0.04 };
+const SELF_BASE = 0.12; // 武器個別ダメージの基準量（その武器がぐっと伸びる）
 const EMOJI: Record<TreasureRarity, readonly string[]> = {
   common: ['🪨', '🔩', '🧭', '🕯️', '🍶', '🧱', '🪵', '🪟'],
   uncommon: ['🧪', '🔧', '🪙', '🧲', '🪔', '🗝️', '🎐', '🧴'],
