@@ -1,26 +1,72 @@
-import { useMineHud, useMineBuyAppraise, useMineBuyBoost, useMineBuyCoinUp } from '@state/miningSelectors';
+import { useMineHud, useMinePickRunFree, useMineBuyRunUnlock, useMineRerollRun, type MineRunGridVM, type MineRunNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
-/** 採掘ダッシュボード（脇）: 熟練度／所持武器・強化／ダメージ内訳／コインの使い道。ステータスと3択は画面内オーバーレイ側。 */
+const runCellCls = (n: MineRunNodeVM): string =>
+  n.state === 'unlocked'
+    ? (n.special ? 'bg-fuchsia-900/40 text-fuchsia-200/70 ring-fuchsia-700/40' : 'bg-stone-700/40 text-stone-300/60 ring-stone-600/40') // 取得済み＝薄く残す
+    : n.state === 'available'
+      ? (n.special ? 'bg-fuchsia-500 text-stone-900 ring-fuchsia-300 hover:bg-fuchsia-400 active:scale-95 cursor-pointer' : 'bg-amber-400 text-stone-900 ring-amber-200 hover:bg-amber-300 active:scale-95 cursor-pointer')
+      : 'bg-stone-900/60 text-transparent ring-stone-800/50 cursor-default'; // 未到達＝隠す
+
+/** 走行グリッド（その周だけ・ランダム）。レベルアップで1マス無料解放／コインで即時解放・リロール。 */
+function RunGridView({ g, onPick }: { g: MineRunGridVM; onPick: (i: number) => void }) {
+  const cell = g.size >= 9 ? '1.4rem' : '1.6rem';
+  return (
+    <div className="flex flex-col gap-1 rounded-md bg-stone-800/60 p-2 ring-1 ring-amber-700/30">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-bold text-amber-200">🎁 走行グリッド</span>
+        <span className={g.freePicks > 0 ? 'rounded bg-amber-500 px-1.5 text-[10px] font-bold text-stone-900' : 'text-[10px] text-stone-500'}>
+          解放権 ×{g.freePicks}
+        </span>
+      </div>
+      <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${g.size}, ${cell})` }}>
+        {g.nodes.map((n) => (
+          <button key={n.index} disabled={n.state !== 'available'} onClick={() => onPick(n.index)} style={{ height: cell }}
+            title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.special ? '（特殊）' : ''}${n.state === 'unlocked' ? '・取得済み' : g.freePicks > 0 ? '・クリックで解放(無料)' : `・🪙${formatNumber(g.coinCost)}で解放`}`}
+            className={['flex items-center justify-center rounded-[3px] text-[12px] leading-none ring-1 transition', n.special && n.visible ? 'ring-2' : '', runCellCls(n)].join(' ')}>
+            {n.visible && <span>{n.state === 'unlocked' ? n.emoji : n.emoji}</span>}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-stone-400">
+        <span>{g.freePicks > 0 ? 'マスをクリックで解放' : `クリックで 🪙${formatNumber(g.coinCost)} 解放`}</span>
+        <button onClick={() => onPick(-1)} disabled={!g.rerollCan}
+          className={['rounded px-1.5 py-0.5 text-[10px] font-bold transition', g.rerollCan ? 'bg-sky-500 text-stone-900 hover:bg-sky-400' : 'cursor-not-allowed bg-stone-700 text-stone-500'].join(' ')}>
+          🔄リロール 🪙{formatNumber(g.rerollCost)}
+        </button>
+      </div>
+      {g.stats.length > 0 && (
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5 border-t border-stone-700/50 pt-1 text-[11px]">
+          {g.stats.map((s) => <span key={s.label} title={s.label} className="text-amber-100">{s.emoji}<b className="text-amber-300">×{s.count}</b></span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 採掘ダッシュボード（脇）: 所持武器／ダメージ内訳／走行グリッド。 */
 export function MiningHud() {
   const hud = useMineHud();
-  const buyAppraise = useMineBuyAppraise();
-  const buyBoost = useMineBuyBoost();
-  const buyCoinUp = useMineBuyCoinUp();
+  const pickFree = useMinePickRunFree();
+  const buyUnlock = useMineBuyRunUnlock();
+  const reroll = useMineRerollRun();
+
+  const onPick = (i: number): void => {
+    if (i < 0) { reroll(); return; }
+    if (hud.runGrid.freePicks > 0) pickFree(i);
+    else buyUnlock(i);
+  };
 
   return (
     <div className="flex w-64 flex-col items-stretch gap-2">
-      {/* 所持武器＋強化（所持数制限つき） */}
-      <div className="flex flex-col gap-1 text-[12px]">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-stone-500">武器 {hud.weaponSlots}</span>
-          {hud.weapons.map((w) => <span key={w.label} title={`${w.detail}（上限Lv${w.max}）`} className="cursor-help text-stone-100">{w.emoji}<b className={w.maxed ? 'text-emerald-300' : 'text-amber-300'}>{w.lv}{w.maxed ? 'MAX' : ''}</b></span>)}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-stone-500">強化 {hud.passiveSlots}</span>
-          {hud.passives.map((w) => <span key={w.label} title={`${w.detail}（上限Lv${w.max}）`} className="cursor-help text-stone-300">{w.emoji}<span className={w.maxed ? 'text-emerald-300' : ''}>{w.lv}{w.maxed ? 'MAX' : ''}</span></span>)}
-        </div>
+      {/* 所持武器 */}
+      <div className="flex flex-wrap items-center gap-2 text-[12px]">
+        <span className="text-[10px] text-stone-500">装備</span>
+        {hud.weapons.map((w) => <span key={w.label} title={w.detail} className="cursor-help text-stone-100">{w.emoji}<span className="ml-0.5 text-[10px] text-stone-400">{w.label}</span></span>)}
       </div>
+
+      {/* 走行グリッド */}
+      <RunGridView g={hud.runGrid} onPick={onPick} />
 
       {/* 武器ごとのダメージ寄与＋強化の威力倍率 */}
       {(hud.damageShare.length > 0 || hud.damageMods.length > 0) && (
@@ -53,43 +99,6 @@ export function MiningHud() {
           )}
         </div>
       )}
-
-      {/* コインの使い道: 目利き（レアが出やすく）＋採掘ブースト（走行中の威力UP） */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between rounded-md bg-stone-800/60 p-1.5">
-          <div className="text-[11px] text-stone-300">
-            🔎 目利き Lv{hud.meta.appraiseLv}
-            <span className="ml-1 text-[10px] text-stone-500">レア{hud.meta.rarePct}% / エピック{hud.meta.epicPct}%</span>
-          </div>
-          <button onClick={buyAppraise} disabled={!hud.meta.canAppraise}
-            className={['rounded-md px-2 py-0.5 text-[11px] font-bold shadow transition', hud.meta.canAppraise ? 'bg-amber-400 text-stone-900 hover:bg-amber-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-            {hud.meta.appraiseMaxed ? 'MAX' : <>🪙{formatNumber(hud.meta.appraiseCost)}</>}
-          </button>
-        </div>
-        <div className="flex items-center justify-between rounded-md bg-stone-800/60 p-1.5">
-          <div className="text-[11px] text-stone-300">
-            🔥 採掘ブースト Lv{hud.boost.lv}
-            <span className="ml-1 text-[10px] text-stone-500">威力 +{hud.boost.pct}%（この潜りだけ）</span>
-          </div>
-          <button onClick={buyBoost} disabled={!hud.boost.can}
-            className={['rounded-md px-2 py-0.5 text-[11px] font-bold shadow transition', hud.boost.can ? 'bg-orange-400 text-stone-900 hover:bg-orange-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-            🪙{formatNumber(hud.boost.cost)}
-          </button>
-        </div>
-        {/* コインで買う全体強化（走行限定） */}
-        {hud.coinUps.map((c) => (
-          <div key={c.id} className="flex items-center justify-between rounded-md bg-stone-800/60 p-1.5">
-            <div className="text-[11px] text-stone-300">
-              {c.emoji} {c.label} Lv{c.lv}
-              <span className="ml-1 text-[10px] text-stone-500">{c.desc} +{c.pct}%</span>
-            </div>
-            <button onClick={() => buyCoinUp(c.id)} disabled={!c.can}
-              className={['rounded-md px-2 py-0.5 text-[11px] font-bold shadow transition', c.can ? 'bg-lime-400 text-stone-900 hover:bg-lime-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-              🪙{formatNumber(c.cost)}
-            </button>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

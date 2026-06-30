@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { type MineState } from '@application/mining/mineState';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
-import { applyOfferChoice, buyAppraise, buyBoost } from '@application/mining/upgrades';
-import { prestige, buyCoinUp, buySkill, buySkillMax, buyIdle, refine } from '@application/mining/prestige';
-import type { MaterialId, WeaponId, CoinUpId } from '@domain/mining/balance';
+import { pickRunFree, buyRunUnlock, rerollRun } from '@application/mining/upgrades';
+import { prestige, startRun, unlockWeapon, buySkill, buySkillMax, buyIdle } from '@application/mining/prestige';
+import type { WeaponId } from '@domain/mining/balance';
 type SkillTreeTarget = WeaponId | 'main';
 import type { Cell } from '@domain/grid/position';
 import { loadState, saveState, clearSave, freshState, exportSave, importSave } from '@state/persistence';
@@ -12,17 +12,17 @@ interface MiningStore {
   readonly state: MineState;
   tick: (realDtMs: number) => void;
   catchUp: (realMs: number) => void; // 離席/オフラインぶんを一括で進める（バックグラウンド処理）
-  chooseOffer: (index: number) => void;
   toggleAuto: () => void;
-  buyAppraise: () => void;
-  buyBoost: () => void;
+  pickRunFree: (index: number) => void;   // 走行グリッド: 無料解放権でマス解放（手動）
+  buyRunUnlock: (index: number) => void;   // 走行グリッド: コインで即時解放
+  rerollRun: () => void;                   // 走行グリッド: コインで未解放マスを再抽選
   prestige: () => void;
-  buyCoinUp: (id: CoinUpId) => void;
+  startRun: (w: WeaponId) => void;         // 開始武器を選んで走行をやり直す
+  unlockWeapon: (w: WeaponId) => void;     // ★で武器を解放
   buyWeaponSkill: (target: SkillTreeTarget, nodeIndex: number) => void;
   buyWeaponSkillMax: (target: SkillTreeTarget) => void;
   buyIdle: () => void;
   setTarget: (cell: Cell) => void; // 手動モードで猫の目標を設定
-  refine: (from: MaterialId) => void;
   save: () => void;       // 即時セーブ（離脱時など）
   resetData: () => void;  // セーブ削除して最初から
   exportSave: () => string;          // セーブを文字列で書き出し
@@ -55,21 +55,17 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     const state = stepMine(get().state, steps * MINE_STEP_MS);
     set({ state }); lastSaveMs = Date.now(); saveState(state);
   },
-  chooseOffer: (index) => {
-    const s = get().state;
-    const choice = s.offer?.[index];
-    if (choice) set({ state: applyOfferChoice(s, choice) });
-  },
   toggleAuto: () => set((st) => ({ state: { ...st.state, autoMode: !st.state.autoMode } })),
-  buyAppraise: () => set((st) => ({ state: buyAppraise(st.state) })),
-  buyBoost: () => set((st) => ({ state: buyBoost(st.state) })),
+  pickRunFree: (index) => set((st) => ({ state: pickRunFree(st.state, index) })),
+  buyRunUnlock: (index) => set((st) => ({ state: buyRunUnlock(st.state, index) })),
+  rerollRun: () => set((st) => ({ state: rerollRun(st.state) })),
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
-  buyCoinUp: (id) => set((st) => ({ state: buyCoinUp(st.state, id) })),
+  startRun: (w) => set((st) => ({ state: { ...startRun(st.state, w), autoMode: st.state.autoMode } })),
+  unlockWeapon: (w) => set((st) => ({ state: unlockWeapon(st.state, w) })),
   buyWeaponSkill: (target, nodeIndex) => set((st) => ({ state: buySkill(st.state, target, nodeIndex) })),
   buyWeaponSkillMax: (target) => set((st) => ({ state: buySkillMax(st.state, target) })),
   buyIdle: () => set((st) => ({ state: buyIdle(st.state) })),
   setTarget: (cell) => set((st) => (st.state.autoMode ? {} : { state: { ...st.state, cat: { ...st.state.cat, target: cell } } })),
-  refine: (from) => set((st) => ({ state: refine(st.state, from) })),
   save: () => saveState(get().state),
   resetData: () => { clearSave(); lastSaveMs = Date.now(); set({ state: freshState() }); },
   exportSave: () => exportSave(get().state),

@@ -10,11 +10,13 @@ describe('persistence/export-import', () => {
     expect(r).not.toBeNull();
     expect(r!.floor).toBe(s.floor);
     expect(r!.coins).toBe(s.coins);
-    expect(r!.materials).toEqual(s.materials);
+    expect(r!.startWeapon).toBe(s.startWeapon);
+    expect(r!.runGrid.unlocked).toEqual(s.runGrid.unlocked);
     expect(r!.dug instanceof Set).toBe(true);
     expect(r!.dug.size).toBe(s.dug.size);
     expect(r!.damage instanceof Map).toBe(true);
-    expect(r!.perm.starEarned).toBe(s.perm.starEarned);
+    expect(r!.perm.starPoints).toBe(s.perm.starPoints);
+    expect(r!.perm.unlockedWeapons).toEqual(s.perm.unlockedWeapons);
   });
 
   it('不正な文字列は null（読み込み失敗）', () => {

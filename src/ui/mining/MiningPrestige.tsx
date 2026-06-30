@@ -1,10 +1,12 @@
-import { useMinePrestige, useMinePrestigeAct, useMineResetData, useMineExportSave, useMineImportSave } from '@state/miningSelectors';
+import { useMinePrestige, useMinePrestigeAct, useMineStartRun, useMineUnlockWeapon, useMineResetData, useMineExportSave, useMineImportSave } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
-/** 転生画面（シンプル）: 今回の獲得予定★を確認して転生するだけ。強化は「転生ツリー」で。 */
+/** 転生画面: ★残高／今回の獲得予定★／開始武器の選択・武器の★解放／転生ツリーへ。 */
 export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; onOpenTree: () => void }) {
   const p = useMinePrestige();
   const doPrestige = useMinePrestigeAct();
+  const startRun = useMineStartRun();
+  const unlockWeapon = useMineUnlockWeapon();
   const resetData = useMineResetData();
   const exportSave = useMineExportSave();
   const importSave = useMineImportSave();
@@ -18,6 +20,9 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
     if (text == null) return;
     window.alert(importSave(text) ? '読み込みました' : '読み込めませんでした（文字列が不正です）');
   };
+  const onStart = (w: string): void => {
+    if (window.confirm('開始武器を変えて、今の走行をやり直します（潜り直し）。よろしいですか？')) startRun(w as never);
+  };
 
   return (
     <div className="flex w-[22rem] flex-col gap-3 rounded-2xl bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-700">
@@ -29,30 +34,52 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
         </div>
       </div>
 
-      {/* 今回の獲得予定★ */}
+      {/* ★残高＋今回の獲得予定★ */}
       <div className="flex flex-col items-center gap-0.5 rounded-lg bg-amber-950/40 p-3 ring-1 ring-amber-700/40">
-        <span className="text-[11px] text-amber-300/80">この走行で もらえる ★（全体ダメージが自動UP）</span>
-        <span className="text-2xl font-bold text-amber-200">+{formatNumber(p.runPoints)} ⭐</span>
-        <span className="text-[10px] text-stone-400">累計★ {formatNumber(p.starEarned)} → {formatNumber(p.starEarned + p.runPoints)}</span>
+        <span className="text-[11px] text-amber-300/80">★残高（恒久グリッド・武器解放に使う）</span>
+        <span className="text-2xl font-bold text-amber-200">{formatNumber(p.starPoints)} ⭐</span>
+        <span className="text-[10px] text-stone-400">この走行で +{formatNumber(p.runPoints)} → {formatNumber(p.starPoints + p.runPoints)}</span>
       </div>
 
-      {/* 使った武器の熟練度が+1（恒久・転生を重ねるほど強くなる） */}
-      {p.masteryGains.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-rose-950/30 p-2 text-[11px] text-rose-100 ring-1 ring-rose-800/40">
-          <span className="text-[10px] text-rose-300/80">🗡️ 熟練度 +1（使った武器）</span>
-          {p.masteryGains.map((m) => <span key={m.id}>{m.emoji}<b className="text-rose-300">{m.from}→{m.to}</b></span>)}
+      {/* 開始武器の選択（つるはしは常時＋選んだ1種） */}
+      <div className="flex flex-col gap-1 rounded-lg bg-sky-950/40 p-2 ring-1 ring-sky-700/40">
+        <div className="text-[11px] text-sky-100">🗡️ 開始武器（つるはし⛏️＋選んだ1種）</div>
+        <div className="flex flex-wrap gap-1.5">
+          <div className="flex items-center gap-0.5 rounded-md bg-stone-700 px-2 py-1 text-[14px] leading-none text-stone-100" title="つるはしは常時装備">⛏️<span className="text-[9px] text-stone-400">常時</span></div>
+          {p.startOptions.map((o) => (
+            <button key={o.id} onClick={() => onStart(o.id)} title={`${o.label} を開始武器にする（潜り直し）`}
+              className={['flex items-center gap-0.5 rounded-md px-2 py-1 text-[14px] leading-none transition', o.selected ? 'bg-amber-400 text-stone-900 ring-1 ring-amber-200' : 'bg-stone-700 text-stone-100 hover:bg-stone-600'].join(' ')}>
+              {o.emoji}{o.selected && <span className="text-[9px]">選択中</span>}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* 武器の解放（★で購入） */}
+      <div className="flex flex-col gap-1 rounded-lg bg-fuchsia-950/30 p-2 ring-1 ring-fuchsia-800/40">
+        <div className="text-[11px] text-fuchsia-100">🔓 武器を★で解放</div>
+        <div className="flex flex-wrap gap-1.5">
+          {p.unlocks.map((u) => (
+            <button key={u.id} disabled={u.status !== 'locked' || !u.can} onClick={() => unlockWeapon(u.id)}
+              title={u.status === 'base' ? `${u.label}（最初から）` : u.status === 'unlocked' ? `${u.label}（解放済み）` : `${u.label}：★${u.cost} で解放`}
+              className={['flex items-center gap-0.5 rounded-md px-2 py-1 text-[13px] leading-none transition',
+                u.status === 'locked' ? (u.can ? 'bg-fuchsia-500 text-stone-900 ring-1 ring-fuchsia-300 hover:bg-fuchsia-400' : 'bg-stone-800 text-stone-500') : 'bg-stone-700 text-stone-100'].join(' ')}>
+              {u.status === 'locked' ? '🔒' : u.status === 'base' ? '⭐' : '✅'}{u.emoji}
+              {u.status === 'locked' && <span className="text-[9px] text-fuchsia-200/80">⭐{u.cost}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <button onClick={doPrestige} disabled={p.runPoints <= 0}
         className={['rounded-lg px-2 py-2 text-sm font-bold text-white shadow ring-2 transition active:scale-95', p.runPoints > 0 ? 'bg-fuchsia-600 ring-fuchsia-300 hover:bg-fuchsia-500' : 'cursor-not-allowed bg-stone-700 ring-stone-600'].join(' ')}>
-        🔄 転生する（★獲得 ／ 階・Lv・コインはリセット、鉱石・恒久は保持）
+        🔄 転生する（★獲得 ／ 階・Lv・コイン・走行グリッドはリセット、恒久は保持）
       </button>
       {p.runPoints <= 0 && <div className="text-center text-[10px] text-stone-500">レベルアップ・階を進めると★が貯まります</div>}
 
       <button onClick={onOpenTree}
         className="rounded-lg bg-emerald-700 px-2 py-1.5 text-[12px] font-bold text-emerald-100 shadow ring-1 ring-emerald-500/50 transition hover:bg-emerald-600">
-        🌳 転生ツリーを開く（★で強化）
+        🌳 強化ツリーを開く（★で強化）
       </button>
 
       {/* データ: 自動セーブ＋書き出し/読み込み＋削除 */}

@@ -44,13 +44,13 @@ describe('mining/skilltree', () => {
     expect(main.filter((n) => n.stat === 'power' || n.stat === 'mine' || n.stat === 'haste').length).toBeGreaterThan(main.length * 0.8); // 大半がfiller(火力/採掘/速度)
   });
 
-  it('1ノード＝1素材・深い階層ほど高コスト＆上位素材。全体では色んな素材が要る', () => {
+  it('★コスト: 全ノードに正の★コスト・深い階層/外周ほど高い', () => {
     const nodes = weaponSkillNodes('bullet');
-    expect(nodes.every((n) => n.matCosts.length === 1)).toBe(true);     // 1ノード=1素材
+    expect(nodes.every((n) => n.starCost >= 1)).toBe(true);             // 1ノード＝正の★コスト
     const root = (t: number): typeof nodes[number] => nodes.find((n) => n.tier === t && n.root)!;
-    expect(root(4).matCosts[0]!.amount).toBeGreaterThan(root(0).matCosts[0]!.amount); // 深いほど量が多い
-    const mats = new Set(nodes.map((n) => n.matCosts[0]!.matId));
-    expect(mats.size).toBeGreaterThanOrEqual(5);                        // ツリー全体では色んな素材を使う
+    expect(root(4).starCost).toBeGreaterThan(root(0).starCost);         // 深い階層ほど高い
+    const costs = new Set(nodes.map((n) => n.starCost));
+    expect(costs.size).toBeGreaterThanOrEqual(3);                       // 位置で段階的にコストが変わる
   });
 
   it('weaponStatApplies: 貫通=直線系のみ／範囲=フィールド系以外', () => {

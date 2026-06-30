@@ -1,8 +1,9 @@
 import type { Cell } from '@domain/grid/position';
 import { cellKey } from '@domain/grid/position';
-import type { MiningBalance, ChoiceId, WeaponId, OfferRarity, MaterialId, WeaponStat, CoinUpId } from '@domain/mining/balance';
-import { defaultMiningBalance, MATERIAL_IDS, WEAPON_IDS, PASSIVE_IDS, COIN_UP_IDS } from '@domain/mining/balance';
+import type { MiningBalance, ChoiceId, WeaponId, WeaponStat } from '@domain/mining/balance';
+import { defaultMiningBalance, WEAPON_IDS, PASSIVE_IDS } from '@domain/mining/balance';
 import { baseOf } from '@domain/mining/tile';
+import { genRunGrid, type RunGrid } from '@domain/mining/runGrid';
 
 export type { ChoiceId } from '@domain/mining/balance';
 
@@ -12,29 +13,25 @@ export interface WeaponFx { readonly id: number; readonly weapon: WeaponId; read
 export interface MineCat { readonly pos: Cell; readonly gauge: number; readonly target: Cell | null }
 
 export type Levels = Record<ChoiceId, number>;
-export interface OfferChoice { readonly id: ChoiceId; readonly rarity: OfferRarity; readonly bonus: ChoiceId | null }
-export interface MineMeta { readonly appraise: number }
-export type Materials = Record<MaterialId, number>;
-/** 武器ステータス量（ダメージ/攻撃速度/射程/貫通/固有）。スキルツリーの累積に使う。 */
+/** 武器ステータス量（ダメージ/攻撃速度/射程/貫通/範囲/固有）。恒久スキルツリーの累積。 */
 export type WeaponStatLevels = Record<WeaponStat, number>;
-/** 武器ごとの恒久スキルツリー進捗（解放済みノードindexの配列）。ポイントで解放。 */
+/** 武器ごとの恒久スキルツリー進捗（解放済みノードindexの配列）。★で解放。 */
 export type WeaponSkill = Record<WeaponId, number[]>;
-/** コインで買う全体強化のLv（走行限定）。 */
-export type CoinUp = Record<CoinUpId, number>;
-/** 武器ごとの熟練度（転生で使った武器が少しずつ上がる恒久ボーナス）。 */
-export type Mastery = Record<WeaponId, number>;
-/** 恒久(転生で保持): 武器スキルツリー＋メイン(全体)ツリー＋放置ツリー＋累計★＋武器ごと熟練度。 */
-export interface Perm { readonly weaponSkill: WeaponSkill; readonly mainSkill: number[]; readonly idle: number; readonly starEarned: number; readonly mastery: Mastery }
+/** 恒久(転生で保持): 武器スキルツリー＋メイン(全体)ツリー＋放置ツリー＋★残高＋解放済み武器。 */
+export interface Perm {
+  readonly weaponSkill: WeaponSkill;
+  readonly mainSkill: number[];
+  readonly idle: number;
+  readonly starPoints: number;            // 消費可能な★残高（転生で貯まり恒久グリッド/武器解放に使う）
+  readonly unlockedWeapons: WeaponId[];   // 開始時に選べる武器（つるはし以外。★で解放）
+}
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
 export const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [id, 0])) as Levels;
 const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as Record<WeaponId, number>;
 
-export const emptyMaterials = (): Materials => Object.fromEntries(MATERIAL_IDS.map((id) => [id, 0])) as Materials;
 export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
-export const emptyCoinUp = (): CoinUp => Object.fromEntries(COIN_UP_IDS.map((id) => [id, 0])) as CoinUp;
-export const emptyMastery = (): Mastery => zeroDmg();
-export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), mainSkill: [], idle: 0, starEarned: 0, mastery: emptyMastery() });
+export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), mainSkill: [], idle: 0, starPoints: 0, unlockedWeapons: ['bullet'] });
 
 export interface MineState {
   readonly time: number;
@@ -52,43 +49,36 @@ export interface MineState {
 
   readonly xp: number;
   readonly level: number;
-  readonly levels: Levels;
+  readonly levels: Levels;          // 装備中の武器フラグ（pick＋開始武器のみ1、他0）
   readonly autoMode: boolean;
-  readonly offer: readonly OfferChoice[] | null;
-  readonly offerAt: number | null; // 3択が出たゲーム内時刻（放置自動選択の起点）
-  readonly meta: MineMeta;
-  readonly boost: number; // 走行限定の採掘ブースト（コインで購入・転生でリセット）
   readonly dmgByWeapon: Record<WeaponId, number>;
-  readonly weaponCd: Record<WeaponId, number>;       // 武器ごとの攻撃クールダウン蓄積ms（攻撃間隔の管理）
+  readonly weaponCd: Record<WeaponId, number>;
 
-  readonly materials: Materials;   // 鉱石（永続保存・転生でも消えない。スキルツリーの素材）
-  readonly coinUp: CoinUp;         // コインで買う全体強化（走行限定・転生でリセット）
-  readonly runPoints: number;      // この走行の獲得予定★（進行＝レベル/階で貯まり、転生で perm.starEarned へ）
+  readonly startWeapon: WeaponId;   // この走行で選んだ武器（つるはしは常時）
+  readonly runGrid: RunGrid;        // 走行グリッド（その周だけ・ランダム・転生でリセット）
+  readonly runPoints: number;       // この走行の獲得予定★（進行で貯まる→転生で perm.starPoints へ）
   readonly perm: Perm;
   readonly prestiges: number;
 }
 
-/** 走行（1回の潜り）を新規生成。開始はツルハシのみ（恒久の開始レベルは持ち込まない＝バグ防止）。鉱石/恒久(perm)は引き継ぐ。 */
-export function freshRun(b: MiningBalance, materials: Materials, perm: Perm, prestiges: number, seed = 123456): MineState {
+/** 走行（1回の潜り）を新規生成。つるはし＋選んだ武器のみ装備。走行グリッドは毎走ランダム。恒久(perm)は引き継ぐ。 */
+export function freshRun(b: MiningBalance, perm: Perm, prestiges: number, startWeapon: WeaponId, seed = 123456): MineState {
   const base = baseOf(b);
   const levels = zeroLevels();
-  levels.pick = 1; // 開始はツルハシのみ。他の武器・強化は走行中の3択で集める。
+  levels.pick = 1;          // つるはしは常時
+  levels[startWeapon] = 1;  // 選んだ武器
   return {
     time: 0, coins: 0, rev: 0, seq: 0, floor: 0, rngState: seed,
     dug: new Set([cellKey(base)]), damage: new Map(), drops: [], fx: [],
     cat: { pos: { ...base }, gauge: 0, target: null }, cam: { ...base },
-    xp: 0, level: 1, levels, autoMode: true, offer: null, offerAt: null,
-    meta: { appraise: 0 }, // 目利きは走行中にコインで上げる（恒久の持ち込みなし）
-    boost: 0, // 採掘ブーストはコインで毎走購入（転生でリセット）
-    dmgByWeapon: zeroDmg(),
-    weaponCd: zeroDmg(),
-    materials, coinUp: emptyCoinUp(), runPoints: 0,
-    perm, prestiges,
+    xp: 0, level: 1, levels, autoMode: true,
+    dmgByWeapon: zeroDmg(), weaponCd: zeroDmg(),
+    startWeapon,
+    runGrid: genRunGrid(seed, b.runGridSize, ['pick', startWeapon]),
+    runPoints: 0, perm, prestiges,
   };
 }
 
 export function initialMineState(b: MiningBalance = defaultMiningBalance, seed = 123456): MineState {
-  return freshRun(b, emptyMaterials(), emptyPerm(), 0, seed);
+  return freshRun(b, emptyPerm(), 0, 'bullet', seed);
 }
-
-export { MATERIAL_IDS };

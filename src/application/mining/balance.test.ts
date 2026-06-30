@@ -13,7 +13,7 @@ describe('mining/balance', () => {
     for (const min of [1, 3, 5]) {
       s = stepMine(s, min * 60_000 - s.time);
       const weapons = WEAPON_IDS.filter((w) => s.levels[w] > 0).map((w) => choiceMeta(w).emoji);
-      console.log(`${min}分: 階${s.floor + 1} 掘削${((s.dug.size / total) * 100).toFixed(1)}% コイン${s.coins} Lv${s.level} 目利き${s.meta.appraise} 武器[${weapons.join('')}] pickLv${s.levels.pick}`);
+      console.log(`${min}分: 階${s.floor + 1} 掘削${((s.dug.size / total) * 100).toFixed(1)}% コイン${s.coins} Lv${s.level} 走行グリッド${s.runGrid.unlocked.length}解放 武器[${weapons.join('')}]`);
     }
     // 武器ごとのダメージ寄与（調整の指標）
     const tot = WEAPON_IDS.reduce((a, w) => a + s.dmgByWeapon[w], 0);

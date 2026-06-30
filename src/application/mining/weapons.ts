@@ -1,20 +1,20 @@
-import type { WeaponDef, WeaponId, WeaponTag, PassiveEffect } from '@domain/mining/balance';
+import type { WeaponDef, WeaponId, WeaponTag, PassiveEffect, PassiveId } from '@domain/mining/balance';
 import { PASSIVE_DEFS, PASSIVE_IDS, WEAPON_IDS } from '@domain/mining/balance';
-import type { Levels } from '@application/mining/mineState';
 
 /** 効果合計＋武器固有(perWeapon)のダメージ倍率を保持。 */
 export type EffectTotals = Record<PassiveEffect, number> & { perWeapon: Record<WeaponId, number> };
 
-/** 強化(特殊能力)の合計効果。種別ごとに合算し、武器固有は perWeapon に振り分ける。 */
-export function passiveTotals(levels: Levels): EffectTotals {
+/** 強化(特殊能力)の合計効果。走行グリッドで解放したバフ数(passive毎)を渡す。種別ごとに合算し、武器固有は perWeapon に。 */
+export function passiveTotals(levels: Partial<Record<PassiveId, number>>): EffectTotals {
   const t: EffectTotals = {
-    power: 0, rate: 0, move: 0, coin: 0, material: 0, xp: 0, range: 0, pierce: 0, crit: 0,
+    power: 0, rate: 0, move: 0, coin: 0, xp: 0, range: 0, pierce: 0, crit: 0,
     meleeDmg: 0, shotDmg: 0, beamDmg: 0, fieldDmg: 0, weaponDmg: 0,
     perWeapon: Object.fromEntries(WEAPON_IDS.map((w) => [w, 0])) as Record<WeaponId, number>,
   };
   for (const id of PASSIVE_IDS) {
     const d = PASSIVE_DEFS[id];
-    const v = d.perLvl * levels[id];
+    const v = d.perLvl * (levels[id] ?? 0);
+    if (v === 0) continue;
     if (d.targetWeapon) t.perWeapon[d.targetWeapon] += v; // 武器固有ユニーク
     else t[d.effect] += v;
   }

@@ -59,34 +59,17 @@ describe('mining/step', () => {
     expect(s.dug.size).toBeLessThan(25 / 2); // 新しい階はリセット（満タン25マスから大きく減っている）
   });
 
-  it('採掘ブースト(コイン購入)で武器の総ダメージが増える', () => {
-    // 同一乱数で boost の有無だけ比較（divergenceなし）。手動＝目標を前方の壁に固定してツルハシを撃たせる。
-    // 硬いタイルを注入し、1撃では壊れないようにして「オーバーキル除外」による倍率の頭打ちを避ける。
-    const hard = { ...defaultMiningBalance, hardnessBase: 1000 };
-    const base = { ...initialMineState(hard), autoMode: false, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } } };
-    const sumDmg = (s: ReturnType<typeof stepMine>): number => Object.values(s.dmgByWeapon).reduce((a, b) => a + b, 0);
-    const noBoost = sumDmg(stepMine(base, 500, hard));
-    const boosted = sumDmg(stepMine({ ...base, boost: 10 }, 500, hard));
-    expect(boosted).toBeGreaterThan(noBoost);            // 威力UP
-    expect(boosted).toBeCloseTo(noBoost * 1.8, 5);       // +8%/Lv × 10 = ×1.8
-  });
-
-  it('コインは貯まり、強化購入は手動（自動購入はしない）', () => {
+  it('コインは採掘で貯まる', () => {
     const s = stepMine(initialMineState(), 60_000);
-    expect(s.coins).toBeGreaterThan(0);   // コインは貯まる（使い道は手動）
-    expect(s.meta.appraise).toBe(0);      // 自動では目利きを買わない
-    expect(s.boost).toBe(0);              // 自動ではブーストも買わない
+    expect(s.coins).toBeGreaterThan(0);   // コインは貯まる（走行グリッドの即時解放/リロールに使う）
   });
 
-  it('手動の3択は一定時間(offerAutoMs)放置で自動選択される', () => {
-    const B = defaultMiningBalance;
-    const ch = { id: 'power', rarity: 'common', bonus: null } as const;
-    const base = initialMineState();
-    // 既に3択が出てから offerAutoMs 経過した状態（xpは低くして新規offerが出ないように）
-    const s0 = { ...base, autoMode: false, offer: [ch, ch, ch], offerAt: 0, time: B.offerAutoMs + 100, xp: 0 };
-    const s1 = stepMine(s0, 100);
-    expect(s1.offer).toBeNull();                                  // 放置で自動選択
-    expect(s1.levels.power).toBeGreaterThan(base.levels.power);   // 何か取得された
+  it('自動モードはレベルアップで走行グリッドを自動解放する', () => {
+    const s = stepMine(initialMineState(), 120_000);
+    expect(s.level).toBeGreaterThan(1);                           // レベルが上がっている
+    expect(s.runGrid.unlocked.length).toBeGreaterThan(1);        // 中央＋自動解放したマス
+    expect(s.runGrid.freePicks).toBe(0);                         // 自動なら解放権は使い切る
+    expect(s.runPoints).toBeGreaterThan(0);                      // 転生でもらえる★が貯まる
   });
 
   it('武器の範囲はレベル/射程で広がる（ツルハシ1マス→拡大、ビーム2→4→8方向）', () => {
@@ -119,11 +102,10 @@ describe('mining/step', () => {
     expect(s.fx.some((f) => f.weapon === 'pick')).toBe(true);     // 初期武器ツルハシの演出
   });
 
-  it('自動モードでレベルアップ強化が乗る', () => {
+  it('装備は つるはし＋開始武器の2種のみ（三択廃止で走行中は増えない）', () => {
     const s = stepMine(initialMineState(), 120_000);
-    const total = Object.values(s.levels).reduce((a, b) => a + b, 0);
-    expect(s.level).toBeGreaterThan(1);
-    expect(total).toBeGreaterThan(1); // pick:1 + 取得分
-    expect(s.offer).toBeNull();
+    const equipped = Object.values(s.levels).reduce((a, b) => a + (b > 0 ? 1 : 0), 0);
+    expect(s.levels.pick).toBe(1);       // つるはしは常時
+    expect(equipped).toBe(2);            // pick + 開始武器(bullet)
   });
 });

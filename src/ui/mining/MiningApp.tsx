@@ -36,7 +36,7 @@ export function MiningApp() {
         </div>
         <MiningHud />
       </div>
-      <p className="mt-2 text-[11px] text-stone-500">手動で3択を選び猫を誘導（右上で自動に切替）。鉱石→転生ツリー、★→全体ダメージ。詳しくは ❓遊び方。</p>
+      <p className="mt-2 text-[11px] text-stone-500">最初に武器を選んで採掘。レベルアップで走行グリッドを解放（右上で自動に切替）。★→恒久グリッド。詳しくは ❓遊び方。</p>
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={close}>

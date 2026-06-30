@@ -3,14 +3,14 @@
  * 各階層=1グリッド。中央が起点・隣接で外へ広げる。前の階層を一定数解放で次が解禁。
  * 特殊系（範囲/射程/貫通/固有/全体強化の上位）は1グリッドに約2個だけ＝インフレ防止。コストは高め＝全部は上げ切れない。
  */
-import { WEAPON_DEFS, WEAPON_IDS, MATERIAL_IDS, type WeaponId, type MaterialId } from '@domain/mining/balance';
+import { WEAPON_DEFS, WEAPON_IDS, type WeaponId } from '@domain/mining/balance';
 
 // ===== 武器ステータス（武器ツリーで伸ばす） =====
 export type WeaponStat = 'damage' | 'speed' | 'range' | 'pierce' | 'area' | 'unique';
 export const WEAPON_STATS: readonly WeaponStat[] = ['damage', 'speed', 'range', 'pierce', 'area', 'unique'];
 // ===== 全体ステータス（メインツリーで伸ばす・全武器/採掘に効く） =====
-export type MainStat = 'power' | 'haste' | 'mine' | 'crit' | 'coin' | 'mat' | 'xp';
-export const MAIN_STATS: readonly MainStat[] = ['power', 'haste', 'mine', 'crit', 'coin', 'mat', 'xp'];
+export type MainStat = 'power' | 'haste' | 'mine' | 'crit' | 'coin' | 'xp';
+export const MAIN_STATS: readonly MainStat[] = ['power', 'haste', 'mine', 'crit', 'coin', 'xp'];
 export type SkillStat = WeaponStat | MainStat;
 
 export interface SkillStatDef { readonly label: string; readonly emoji: string; readonly desc: string; readonly lineOnly?: boolean; readonly notField?: boolean; readonly count?: boolean }
@@ -28,7 +28,6 @@ export const MAIN_STAT_DEFS: Record<MainStat, SkillStatDef & { readonly per: num
   mine: { label: '採掘速度', emoji: '⛏️', desc: '採掘/移動が速くなる +4%/ノード', per: 0.04 },
   crit: { label: '会心', emoji: '✨', desc: '会心率（3倍ダメージ） +1%/ノード', per: 0.01 },
   coin: { label: 'コイン', emoji: '🪙', desc: 'コイン獲得 +5%/ノード', per: 0.05 },
-  mat: { label: '採集', emoji: '🧲', desc: '素材が増えやすい +4%/ノード', per: 0.04 },
   xp: { label: '経験', emoji: '📖', desc: '経験値 +6%/ノード', per: 0.06 },
 };
 export const isMainStat = (s: SkillStat): s is MainStat => s in MAIN_STAT_DEFS;
@@ -48,21 +47,21 @@ export const skillGridSize = (tier: number): number => SKILL_GRID_SIZES[tier] ??
 export const skillGridCenter = (tier: number): number => Math.floor((skillGridSize(tier) - 1) / 2);
 export const skillGridUnlockNeed = (tier: number): number => Math.ceil(skillGridSize(tier) ** 2 * 0.22);
 
-export interface MatCost { readonly matId: MaterialId; readonly amount: number }
 export interface WeaponSkillNode {
   readonly x: number; readonly y: number; readonly tier: number;
   readonly stat: SkillStat; readonly amount: number;
-  readonly matCosts: readonly MatCost[];
+  readonly starCost: number; // ★コスト（転生でのみ手に入る★で購入）
   readonly big?: boolean; readonly root?: boolean;
   readonly requires: readonly number[];
 }
-const SKILL_COST_SCALE = 30; // 高め＝全部は上げ切れない（選んで伸ばす）。
-function nodeCost(tier: number, ring: number, special: boolean, pickArea: boolean): MatCost[] {
-  if (pickArea) return [{ matId: MATERIAL_IDS[0]!, amount: 25 }]; // ツルハシ中央左右の範囲は土で安く
-  const matIndex = Math.min(MATERIAL_IDS.length - 1, tier + Math.floor(ring / 2));
-  const amount = Math.max(1, Math.round(SKILL_COST_SCALE * Math.pow(2.0, tier) * (1 + ring * 0.25) * (special ? 3 : 1)));
-  return [{ matId: MATERIAL_IDS[matIndex]!, amount }];
+// ★コスト: 深い階層/外周/特殊ほど高い＝少しずつ高く（全部は上げ切れない）。balance の係数を使う。
+function nodeStarCost(tier: number, ring: number, special: boolean, pickArea: boolean): number {
+  const b = DEFAULT_STAR_COST;
+  if (pickArea) return 1; // ツルハシ中央左右の範囲は安く
+  return Math.max(1, Math.round(b.base * Math.pow(b.growth, tier) * (1 + ring * 0.3) * (special ? b.specialMult : 1)));
 }
+// balance.ts の循環参照を避けるため係数は import せずここで保持（defaultMiningBalance と一致させる）。
+const DEFAULT_STAR_COST = { base: 1, growth: 1.7, specialMult: 3 } as const;
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
 
 interface Cell { grid: number; x: number; y: number; ring: number; stat: SkillStat; amount: number; special: boolean; pickArea: boolean; root: boolean; sortKey: number }
@@ -100,7 +99,7 @@ function genGrid(cfg: GridConfig): WeaponSkillNode[] {
     }
   }
   const neighbors = (cell: Cell): number[] => { const size = skillGridSize(cell.grid); return ([[cell.x - 1, cell.y], [cell.x + 1, cell.y], [cell.x, cell.y - 1], [cell.x, cell.y + 1]] as const).filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < size && ny < size).map(([nx, ny]) => indexAt(cell.grid, nx, ny)); };
-  return cells.map((cell) => ({ x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined, matCosts: nodeCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell) }));
+  return cells.map((cell) => ({ x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined, starCost: nodeStarCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell) }));
 }
 
 function weaponSpecials(w: WeaponId): WeaponStat[] {
@@ -134,7 +133,7 @@ export function mainSkillNodes(): readonly WeaponSkillNode[] {
   if (!mainCache) mainCache = genGrid({
     seed: 0x9e3779b1,
     fillers: [{ stat: 'power', amount: MAIN_STAT_DEFS.power.per, w: 5 }, { stat: 'mine', amount: MAIN_STAT_DEFS.mine.per, w: 4 }, { stat: 'haste', amount: MAIN_STAT_DEFS.haste.per, w: 3 }],
-    specials: ['crit', 'coin', 'mat', 'xp'], specialAmount: (s) => MAIN_STAT_DEFS[s as MainStat].per,
+    specials: ['crit', 'coin', 'xp'], specialAmount: (s) => MAIN_STAT_DEFS[s as MainStat].per,
   });
   return mainCache;
 }

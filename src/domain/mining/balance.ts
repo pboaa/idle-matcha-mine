@@ -56,26 +56,12 @@ export const BASE_WEAPONS: readonly WeaponId[] = ['pick', 'bullet'];
 export const WEAPON_UNLOCK_ORDER: readonly WeaponId[] = ['bomb', 'beam', 'drill', 'aura', 'ring'];
 
 // ===== 武器ごとの恒久スキルツリー（強化／ツリーのマスターデータは skilltree.ts に分離・ここで再エクスポート） =====
-export type { WeaponStat, MainStat, SkillStat, SkillStatDef, WeaponSkillNode, MatCost } from '@domain/mining/skilltree';
+export type { WeaponStat, MainStat, SkillStat, SkillStatDef, WeaponSkillNode } from '@domain/mining/skilltree';
 export {
   WEAPON_STATS, MAIN_STATS, WEAPON_STAT_DEFS, MAIN_STAT_DEFS, isMainStat, skillStatDef, weaponStatApplies,
   SKILL_TIERS, SKILL_GRID_SIZES, skillGridSize, skillGridCenter, skillGridUnlockNeed,
   weaponSkillNodes, mainSkillNodes, gridOpenFor, nodeUnlockableIn, sumSkillStats,
 } from '@domain/mining/skilltree';
-
-// ===== コインで買う全体強化（走行限定・転生でリセット）。採掘ブースト(boost)に加えての全体バフ。 =====
-export type CoinUpId = 'haste' | 'greed' | 'luck';
-export const COIN_UP_IDS: readonly CoinUpId[] = ['haste', 'greed', 'luck'];
-export type CoinUpEffect = 'move' | 'material' | 'coin';
-export interface CoinUpDef {
-  readonly id: CoinUpId; readonly label: string; readonly emoji: string; readonly desc: string;
-  readonly effect: CoinUpEffect; readonly perLvl: number; readonly costBase: number; readonly costGrowth: number;
-}
-export const COIN_UP_DEFS: Record<CoinUpId, CoinUpDef> = {
-  haste: { id: 'haste', label: '俊足', emoji: '👟', desc: '移動が速くなる', effect: 'move', perLvl: 0.08, costBase: 50, costGrowth: 1.4 },
-  greed: { id: 'greed', label: '強欲', emoji: '🧲', desc: '鉱石が増えやすい', effect: 'material', perLvl: 0.12, costBase: 70, costGrowth: 1.45 },
-  luck: { id: 'luck', label: '幸運', emoji: '🍀', desc: 'コインが増えやすい', effect: 'coin', perLvl: 0.10, costBase: 70, costGrowth: 1.45 },
-};
 
 export const isWeapon = (id: ChoiceId): id is WeaponId => id in WEAPON_DEFS;
 export const choiceMeta = (id: ChoiceId): { label: string; emoji: string; desc: string } =>
@@ -102,54 +88,42 @@ export interface MiningBalance {
 
   readonly areaPerLvls: number;  // 武器レベル何段ごとに範囲段階(spread)が+1（射程投資でも増える）
   readonly critMult: number;     // 会心倍率
-  readonly maxWeapons: number;   // 所持できる武器数
-  readonly maxPassives: number;  // 所持できる強化数
-  readonly maxWeaponLevel: number;  // 3択で武器を上げられる上限Lv（到達したら3択に出ない）
-  readonly maxPassiveLevel: number; // 3択で強化を上げられる上限Lv（同上）
 
-  readonly xpBase: number; readonly xpPerLevel: number;
+  readonly xpBase: number; readonly xpPerLevel: number; // レベルアップ＝走行グリッドの無料解放権+1
 
-  readonly offerRareBase: number; readonly offerEpicBase: number;
-  readonly appraiseRarePerLvl: number; readonly appraiseEpicPerLvl: number;
-  readonly offerRareCap: number; readonly offerEpicCap: number;
-  readonly appraiseCostBase: number; readonly appraiseCostGrowth: number;
+  readonly pointsPerLevel: number; // レベルアップで貯まる★（runPoints・転生で確定）
+  readonly pointsPerFloor: number; // 階を降りるごとに貯まる★（深いほど＝floor倍）
 
-  // コインで買う走行限定ブースト（転生でリセット）
-  readonly boostPerLvl: number; readonly boostCostBase: number; readonly boostCostGrowth: number;
-
-  readonly pointsPerLevel: number; // レベルアップで得る★（進行で貯まる）
-  readonly pointsPerFloor: number; // 階を降りるごとに得る★（深いほど＝floor倍）
-  readonly weaponUnlockStars: readonly number[]; // 武器を累計★で自動解放する閾値（WEAPON_UNLOCK_ORDER順）
-  // ★(累計)は消費せず、貯まるほど全体ダメージが自動で上がる（1+starDmgPerLvl×√累計★＝√で逓減・壊れない）。転生の比重を大きめに。
-  readonly starDmgPerLvl: number;
   // 放置（時間経過）でその走行の火力＆採掘速度が微増していく（上限あり・放置ゲー報酬）。
   readonly timePowerPerMin: number; // 1分ごとの上昇（火力＆速度に乗る）
-  readonly timePowerCap: number;    // 上限（例: 0.6 = +60%）
-  // 武器スキルツリー（素材で買う・グリッド型・中央から隣接で解禁）。コストはノードに焼き込み。
-  readonly idleMatCostBase: number; readonly idleMatCostGrowth: number; // 放置ツリー（素材・銀）
-  readonly masteryPerLvl: number;  // 熟練度1Lvあたりのダメージ+（転生で使った武器が+1。幾何級数の硬さに追従させる前提で線形）
-  readonly masteryGateBase: number; readonly masteryGateGrowth: number; // 熟練+1に必要な「その走行のその武器ダメージ」閾値（Lvが上がるほど高く＝段々取りにくく）
-  readonly offerAutoMs: number;    // 3択を放置した時に自動選択されるまでのゲーム内時間
+  readonly timePowerCap: number;    // 上限（例: 1.0 = +100%）
 
-  // 自動モードの効率（自動は火力が下がる。放置ツリーをポイントで上げると100%へ）
+  // 恒久グリッド（武器ツリー/メイン）のノード★コスト。深い階層/外周/特殊ほど高い＝少しずつ高く。
+  readonly starCostBase: number; readonly starCostGrowth: number; readonly starSpecialMult: number;
+  // 武器の解放（★で購入・WEAPON_UNLOCK_ORDER順に少しずつ高い）。
+  readonly weaponUnlockStarCost: readonly number[];
+  // 放置ツリー（自動効率を100%へ・★で買う）。
   readonly autoEffBase: number;    // 放置ツリーLv0での自動効率（火力倍率）
   readonly idleEffPerLvl: number;  // 放置ツリー1Lvあたりの自動効率+
-  readonly idleCostBase: number; readonly idleCostGrowth: number; // 放置ツリーのポイントコスト
+  readonly idleStarCostBase: number; readonly idleStarCostGrowth: number; // 放置ツリーの★コスト
 
-  readonly refineRatio: number;
+  // 走行グリッド（その周だけ・ランダム）。コインでマス即時解放/リロール（走行限定・少しずつ高く）。
+  readonly runGridSize: number;
+  readonly runCoinCostBase: number; readonly runCoinGrowth: number;     // マス即時解放
+  readonly runRerollCostBase: number; readonly runRerollGrowth: number; // 未解放マスのリロール
 }
 
 export const defaultMiningBalance: MiningBalance = {
   worldSize: 30,
-  baseRate: 0.7,
+  baseRate: 0.45,
   moveCost: 0.5,
   dropVisualMs: 900,
   fxVisualMs: 220,
 
   hardnessBase: 0.5,
-  hardnessGrowth: 1.50,
+  hardnessGrowth: 1.32,
   distHardness: 0.12,
-  valueGrowth: 1.13,
+  valueGrowth: 1.10,
   kinds: KINDS_BY_ID,
   matTiers: [
     { unlockFloor: 0, perFloor: 4, max: 38 },    // tier1 石
@@ -163,31 +137,19 @@ export const defaultMiningBalance: MiningBalance = {
 
   areaPerLvls: 6,
   critMult: 3,
-  maxWeapons: 6,
-  maxPassives: 6,
-  maxWeaponLevel: 25,
-  maxPassiveLevel: 15,
 
   xpBase: 5, xpPerLevel: 3,
 
-  offerRareBase: 0.06, offerEpicBase: 0.012,
-  appraiseRarePerLvl: 0.04, appraiseEpicPerLvl: 0.012,
-  offerRareCap: 0.6, offerEpicCap: 0.25,
-  appraiseCostBase: 80, appraiseCostGrowth: 1.7,
+  pointsPerLevel: 1, pointsPerFloor: 3,
+  timePowerPerMin: 0.008, timePowerCap: 1.0, // 毎分+0.8%・最大+100%（約2時間で頭打ち＝のんびり放置）
 
-  boostPerLvl: 0.08, boostCostBase: 40, boostCostGrowth: 1.35,
+  starCostBase: 1, starCostGrowth: 1.7, starSpecialMult: 3,
+  weaponUnlockStarCost: [8, 18, 36, 64, 110], // bomb/beam/drill/aura/ring（少しずつ高く）
 
+  autoEffBase: 0.7, idleEffPerLvl: 0.05,
+  idleStarCostBase: 2, idleStarCostGrowth: 1.5,
 
-  pointsPerLevel: 1, pointsPerFloor: 3, offerAutoMs: 60_000,
-  weaponUnlockStars: [20, 55, 120, 220, 380],
-  starDmgPerLvl: 0.20,
-  timePowerPerMin: 0.01, timePowerCap: 3.0, // 毎分+1%・最大+300%（5時間で頭打ち＝のんびり放置）
-
-  idleMatCostBase: 4, idleMatCostGrowth: 1.6,
-  masteryPerLvl: 0.08,
-  masteryGateBase: 300, masteryGateGrowth: 1.9,
-
-  autoEffBase: 0.7, idleEffPerLvl: 0.05, idleCostBase: 20, idleCostGrowth: 1.6,
-
-  refineRatio: 8,
+  runGridSize: 7,
+  runCoinCostBase: 30, runCoinGrowth: 1.5,
+  runRerollCostBase: 40, runRerollGrowth: 1.8,
 };
