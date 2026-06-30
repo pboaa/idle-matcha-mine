@@ -7,8 +7,8 @@ import { weaponUnlockStar, globalDamageMult } from '@application/mining/prestige
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
 import { runPassiveLevels, runGridUnlockable, runGridFilled, runGridFull } from '@domain/mining/runGrid';
 import {
-  TREASURE_DEFS, RARITY_DEFS, RARITY_BY_ID, TREASURE_TOTAL, TREASURE_EFFECT_LABEL, dexEffectTotals, dexKinds, dexTotalCount,
-  type TreasureEffect, type TreasureRarity,
+  TREASURE_DEFS, RARITY_DEFS, RARITY_BY_ID, RARITY_COUNT, TREASURE_TOTAL, TREASURE_EFFECT_LABEL, dexEffectTotals, dexKinds, dexTotalCount,
+  type TreasureEffect, type TreasureRarity, type TreasureScope,
 } from '@domain/mining/treasures';
 import {
   WEAPON_IDS, PASSIVE_IDS, WEAPON_UNLOCK_ORDER, BASE_WEAPONS, defaultMiningBalance, choiceMeta,
@@ -221,7 +221,7 @@ export function buildMineHud(state: MineState): MineHudVM {
   return {
     coins: Math.floor(state.coins), floor: state.floor, runPoints: state.runPoints,
     starPoints: state.perm.starPoints, starTotal: state.perm.starTotal,
-    dmgMult: globalDamageMult(state.perm.starTotal) * (1 + dexEffectTotals(state.perm.dex).power),
+    dmgMult: globalDamageMult(state.perm.starTotal) * (1 + dexEffectTotals(state.perm.dex).global.power),
     dexCount: dexKinds(state.perm.dex), dexTotal: TREASURE_TOTAL,
     progressPct: Math.min(100, (state.dug.size / TOTAL_TILES) * 100),
     level: state.level, xp: Math.floor(state.xp), xpNext: xpForNext(state.level), autoMode: state.autoMode,
@@ -234,9 +234,11 @@ export function buildMineHud(state: MineState): MineHudVM {
 
 // ===== 転生パネル =====
 /** お宝図鑑の1エントリ（個数つき）。 */
-export interface MineDexEntryVM { readonly id: number; readonly emoji: string; readonly name: string; readonly rarity: TreasureRarity; readonly rarityLabel: string; readonly color: string; readonly effectEmoji: string; readonly text: string; readonly count: number }
+export interface MineDexEntryVM { readonly id: number; readonly emoji: string; readonly name: string; readonly weapon: WeaponId; readonly weaponEmoji: string; readonly rarity: TreasureRarity; readonly rarityLabel: string; readonly color: string; readonly scope: TreasureScope; readonly effectEmoji: string; readonly text: string; readonly count: number }
 /** レアリティ別の収集進捗。 */
 export interface MineRarityVM { readonly id: TreasureRarity; readonly label: string; readonly color: string; readonly kinds: number; readonly total: number; readonly minFloor: number }
+/** 武器別の収集進捗（タブ用）。 */
+export interface MineDexWeaponVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly kinds: number; readonly total: number; readonly equipped: boolean }
 /** 図鑑の効果合計（表示用）。 */
 export interface MineDexEffectVM { readonly emoji: string; readonly label: string; readonly text: string }
 /** 武器の解放状態（つるはし/弾は最初から・残りは★を消費して解放）。cost=必要★。 */
@@ -249,28 +251,37 @@ export interface MinePrestigeVM {
   readonly dex: {
     readonly kinds: number; readonly total: number; readonly count: number; // 集めた種類／全種類／総個数
     readonly rarities: readonly MineRarityVM[]; // レアリティ別の進捗
+    readonly weapons: readonly MineDexWeaponVM[]; // 武器別の進捗（タブ）
     readonly entries: readonly MineDexEntryVM[]; readonly effects: readonly MineDexEffectVM[];
   };
   readonly unlocks: readonly MineWeaponUnlockVM[];
   readonly startWeapon: WeaponId; readonly startOptions: readonly MineStartOptionVM[];
 }
 
-const treasureText = (effect: TreasureEffect, amount: number): string => `${TREASURE_EFFECT_LABEL[effect].label} +${(amount * 100).toFixed(1)}%`;
+const treasureText = (d: { scope: TreasureScope; effect: TreasureEffect | null; amount: number; weapon: WeaponId }): string =>
+  d.scope === 'self'
+    ? `${choiceMeta(d.weapon).label} 火力 +${(d.amount * 100).toFixed(1)}%`
+    : `${TREASURE_EFFECT_LABEL[d.effect!].label} +${(d.amount * 100).toFixed(1)}%`;
 
 export function buildPrestige(state: MineState): MinePrestigeVM {
   const sp = state.perm.starPoints;
   const dex = state.perm.dex;
-  const eff = dexEffectTotals(dex);
-  const effects: MineDexEffectVM[] = (Object.keys(TREASURE_EFFECT_LABEL) as TreasureEffect[])
-    .filter((e) => eff[e] > 0).map((e) => ({ emoji: TREASURE_EFFECT_LABEL[e].emoji, label: TREASURE_EFFECT_LABEL[e].label, text: `+${Math.round(eff[e] * 100)}%` }));
+  const { global: eff, perWeapon } = dexEffectTotals(dex);
+  const equipped = new Set(WEAPON_IDS.filter((w) => state.levels[w] > 0));
+  const effects: MineDexEffectVM[] = [
+    ...(Object.keys(TREASURE_EFFECT_LABEL) as TreasureEffect[]).filter((e) => eff[e] > 0).map((e) => ({ emoji: TREASURE_EFFECT_LABEL[e].emoji, label: TREASURE_EFFECT_LABEL[e].label, text: `+${Math.round(eff[e] * 100)}%` })),
+    ...WEAPON_IDS.filter((w) => perWeapon[w] > 0).map((w) => ({ emoji: choiceMeta(w).emoji, label: `${choiceMeta(w).label}火力`, text: `+${Math.round(perWeapon[w] * 100)}%` })),
+  ];
+  const dexKindsOf = (filter: (d: typeof TREASURE_DEFS[number]) => boolean): number => TREASURE_DEFS.filter((d) => filter(d) && (dex[d.id] ?? 0) > 0).length;
   return {
     prestiges: state.prestiges,
     runPoints: state.runPoints,
     starPoints: sp, starTotal: state.perm.starTotal, dmgMult: globalDamageMult(state.perm.starTotal) * (1 + eff.power),
     dex: {
       kinds: dexKinds(dex), total: TREASURE_TOTAL, count: dexTotalCount(dex),
-      rarities: RARITY_DEFS.map((r) => ({ id: r.id, label: r.label, color: r.color, minFloor: r.minFloor, total: r.count, kinds: TREASURE_DEFS.filter((d) => d.rarity === r.id && (dex[d.id] ?? 0) > 0).length })),
-      entries: TREASURE_DEFS.map((d) => ({ id: d.id, emoji: d.emoji, name: d.name, rarity: d.rarity, rarityLabel: RARITY_BY_ID[d.rarity].label, color: RARITY_BY_ID[d.rarity].color, effectEmoji: TREASURE_EFFECT_LABEL[d.effect].emoji, text: treasureText(d.effect, d.amount), count: dex[d.id] ?? 0 })),
+      rarities: RARITY_DEFS.map((r) => ({ id: r.id, label: r.label, color: r.color, minFloor: r.minFloor, total: RARITY_COUNT[r.id], kinds: dexKindsOf((d) => d.rarity === r.id) })),
+      weapons: WEAPON_IDS.map((w) => ({ id: w, emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, total: TREASURE_DEFS.filter((d) => d.weapon === w).length, kinds: dexKindsOf((d) => d.weapon === w), equipped: equipped.has(w) })),
+      entries: TREASURE_DEFS.map((d) => ({ id: d.id, emoji: d.emoji, name: d.name, weapon: d.weapon, weaponEmoji: choiceMeta(d.weapon).emoji, rarity: d.rarity, rarityLabel: RARITY_BY_ID[d.rarity].label, color: RARITY_BY_ID[d.rarity].color, scope: d.scope, effectEmoji: d.scope === 'self' ? choiceMeta(d.weapon).emoji : TREASURE_EFFECT_LABEL[d.effect!].emoji, text: treasureText(d), count: dex[d.id] ?? 0 })),
       effects,
     },
     unlocks: [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER].map((w) => {
@@ -287,7 +298,6 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
 export const useMineView = (): MineViewVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildMineView(s), [s]); };
 export const useMineHud = (): MineHudVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildMineHud(s), [s]); };
 export const useMinePrestige = (): MinePrestigeVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildPrestige(s), [s]); };
-export const useMineToggleAuto = (): (() => void) => useMiningStore((s) => s.toggleAuto);
 export const useMineBuyRunUnlock = (): ((index: number) => void) => useMiningStore((s) => s.buyRunUnlock);
 export const useMineBuyRunBulk = (): (() => void) => useMiningStore((s) => s.buyRunBulk);
 export const useMineRerollRun = (): (() => void) => useMiningStore((s) => s.rerollRun);

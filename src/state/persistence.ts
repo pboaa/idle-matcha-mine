@@ -2,11 +2,11 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 11; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v11=お宝レアリティ5段階(解禁階/ドロップ率)・メイン霧・走行グリッドの貫通範囲を階層1つまで
+const VERSION = 12; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v12=お宝を武器別(持込中のみドロップ・個別/全体強化)・常に自動
 
-/** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
+/** 新規ゲーム状態（走行ごとに開始武器が変わる・常に自動）。 */
 export function freshState(): MineState {
-  return { ...initialMineState(defaultMiningBalance, (Math.random() * 0x7fffffff) | 0), autoMode: false };
+  return { ...initialMineState(defaultMiningBalance, (Math.random() * 0x7fffffff) | 0), autoMode: true };
 }
 
 /** state を保存形式のJSON文字列に（dug Set / damage Map を配列化＋実時刻t）。 */

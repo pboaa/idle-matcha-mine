@@ -6,7 +6,7 @@ import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/ba
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { stepToward, patternHits } from '@domain/mining/patterns';
 import { runPassiveLevels } from '@domain/mining/runGrid';
-import { dexEffectTotals, RARITY_DEFS, RARITY_IDS } from '@domain/mining/treasures';
+import { dexEffectTotals, RARITY_DEFS, RARITY_IDS, weaponOf } from '@domain/mining/treasures';
 import { type MineState, type Levels } from '@application/mining/mineState';
 import { globalDamageMult } from '@application/mining/prestige';
 import { xpForNext } from '@application/mining/upgrades';
@@ -44,6 +44,7 @@ interface FireCtx {
   readonly levels: Levels;
   readonly totals: EffectTotals;
   readonly globalMul: number; // 全武器共通の倍率（図鑑火力＋累計★倍率）
+  readonly dexWeapon: Record<WeaponId, number>; // 武器個別の図鑑ダメージ強化（その武器だけ）
   readonly haste: number;     // 攻撃速度（図鑑の俊敏＋走行グリッド）
   readonly dtMs: number;
   readonly cd: Record<WeaponId, number>; // 武器ごとの攻撃クールダウン蓄積（この場で加算・消費）
@@ -54,7 +55,7 @@ interface FireCtx {
 
 /** 所持する全武器を「攻撃間隔ごと」に発射し、当たったマスへ deal でダメージを与える（命中判定は deal 側）。 */
 function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) => void): void {
-  const { dug, pos, target, levels: L, totals: t, globalMul, haste, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
+  const { dug, pos, target, levels: L, totals: t, globalMul, dexWeapon, haste, dtMs, cd, rangeBonus, pierceBonus, b } = ctx;
   for (const id of WEAPON_IDS) {
     const lvl = L[id];
     if (lvl <= 0) continue;
@@ -64,7 +65,7 @@ function fireWeapons(ctx: FireCtx, deal: (cell: Cell, amt: number, w: WeaponId) 
     cd[id] += dtMs;
     if (cd[id] < interval) continue; // まだクールダウン中
     cd[id] -= interval;              // 1回攻撃（位相を保つ）
-    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * globalMul * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊
+    const dmg = weaponDmg(def, lvl) * weaponMult(def, t) * globalMul * (1 + dexWeapon[id]) * (def.attackIntervalMs / 1000); // 1ヒット=基準間隔ぶんの塊（図鑑の武器個別強化も乗る）
     const range = weaponRange(def, lvl, rangeBonus);
     const lineRange = range + pierceBonus;
     const spread = Math.floor((lvl - 1) / b.areaPerLvls);
@@ -87,11 +88,12 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const rng = createRng(state.rngState);
   const L = state.levels;
   const t = passiveTotals(runPassiveLevels(state.runGrid)); // 走行グリッドで解放したバフの合計（その周限定）
-  const dex = dexEffectTotals(state.perm.dex); // お宝図鑑の永続効果（power/coin/mine/crit/haste/xp）
+  const { global: dg, perWeapon: dexWeapon } = dexEffectTotals(state.perm.dex); // お宝図鑑: 全体効果＋武器個別
+  const equipped = new Set(WEAPON_IDS.filter((w) => L[w] > 0)); // 持ち込み中の武器（つるはし＋開始武器）
   let pos = state.cat.pos;
   const moveCost = b.moveCost / (1 + t.move);
   // 繰り越す移動ゲージは1マスぶんに制限。壁の手前で詰まっている間に溜め込み、壊れた瞬間に大量ワープするのを防ぐ。
-  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * (1 + dex.mine) * dt;
+  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * (1 + dg.mine) * dt;
   let target = state.cat.target;
   let coins = state.coins;
   let xpGain = 0;
@@ -101,13 +103,18 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const dmgAcc = { ...state.dmgByWeapon };
   const hits = new Map<WeaponId, Cell[]>(); // このtickで武器が当てたマス（エフェクト用）
   const total = totalTilesOf(b);
-  const coinMult = (1 + t.coin) * (1 + dex.coin);
-  const rangeBonus = Math.floor(t.range);   // 走行グリッドに射程は無いので実質0（武器の基本値のみ）
+  const coinMult = (1 + t.coin) * (1 + dg.coin);
+  const rangeBonus = Math.floor(t.range);   // 走行グリッドの射程（貫通/範囲は1階層1つまで）
   const pierceBonus = Math.floor(t.pierce);
-  // お宝の採掘ドロップ（個数制で重複OK）。レアリティごとに独立ロール（解禁階＋ドロップ率はレアリティ依存）。
+  // お宝の採掘ドロップ（個数制で重複OK）。レアリティごとに独立ロール。持ち込み中の武器のお宝だけ出る。
   const dexAdds: Record<number, number> = {};
-  const dropMul = (1 + dex.drop) * b.treasureDropMul; // 発掘効果＋全体調整でドロップ率UP
-  const addFrom = (pool: readonly number[]): void => { const id = pool[Math.floor(rng.next() * pool.length)]!; dexAdds[id] = (dexAdds[id] ?? 0) + 1; };
+  const dropMul = (1 + dg.drop) * b.treasureDropMul; // 発掘効果＋全体調整でドロップ率UP
+  const addFrom = (pool: readonly number[]): void => {
+    const usable = pool.filter((id) => equipped.has(weaponOf(id))); // 持ち込み武器のお宝のみ
+    if (usable.length === 0) return;
+    const id = usable[Math.floor(rng.next() * usable.length)]!;
+    dexAdds[id] = (dexAdds[id] ?? 0) + 1;
+  };
   const tryDropTreasure = (): void => {
     for (const r of RARITY_DEFS) {
       if (state.floor < r.minFloor) continue;                  // そのレアリティの解禁階に未到達
@@ -117,7 +124,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
 
   const applyDmg = (cell: Cell, baseAmt: number, w: WeaponId): void => {
     if (cleared || !isSolid(dug, cell, b)) return;
-    const amt = rng.next() < t.crit + dex.crit ? baseAmt * b.critMult : baseAmt; // 会心（走行グリッド＋図鑑）
+    const amt = rng.next() < t.crit + dg.crit ? baseAmt * b.critMult : baseAmt; // 会心（走行グリッド＋図鑑）
     let hc = hits.get(w); if (!hc) { hc = []; hits.set(w, hc); } hc.push(cell); // 命中マスを記録（演出）
     const k = cellKey(cell);
     const kind = kindAt(cell, state.floor, b);
@@ -129,8 +136,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     damage.delete(k);
     dug.add(k);
     coins += tileValue(kind, state.floor, coinMult, b);
-    tryDropTreasure(); // 採掘でお宝（レアリティごとに解禁階＋確率）
-    xpGain += (1 + t.xp) * (1 + dex.xp);
+    tryDropTreasure(); // 採掘でお宝（レアリティごとに解禁階＋確率・持ち込み武器のみ）
+    xpGain += (1 + t.xp) * (1 + dg.xp);
     seq += 1;
     drops = [...drops, { id: seq, x: cell.x, y: cell.y, emoji: kind.emoji, value: tileValue(kind, state.floor, coinMult, b), bornAt: now }];
     if (dug.size >= total) cleared = true;
@@ -151,10 +158,10 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射。図鑑火力＋累計★倍率（自動でも火力は下がらない）。攻撃速度は図鑑の俊敏。
-  const globalMul = (1 + dex.power) * globalDamageMult(state.perm.starTotal, b);
+  // 武器発射。図鑑火力＋累計★倍率（自動でも火力は下がらない）。攻撃速度は図鑑の俊敏。武器個別強化(dexWeapon)も乗る。
+  const globalMul = (1 + dg.power) * globalDamageMult(state.perm.starTotal, b);
   const weaponCd = { ...state.weaponCd };
-  fireWeapons({ dug, pos, target, levels: L, totals: t, globalMul, haste: dex.haste, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
+  fireWeapons({ dug, pos, target, levels: L, totals: t, globalMul, dexWeapon, haste: dg.haste, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
 
   let permWithDex = state.perm;
   if (Object.keys(dexAdds).length > 0) {

@@ -11,7 +11,6 @@ interface MiningStore {
   readonly state: MineState;
   tick: (realDtMs: number) => void;
   catchUp: (realMs: number) => void; // 離席/オフラインぶんを一括で進める（バックグラウンド処理）
-  toggleAuto: () => void;
   buyRunUnlock: (index: number) => void;   // 走行グリッド: コインで解放（お宝+1）
   buyRunBulk: () => void;                  // 走行グリッド: コインで一括解放
   rerollRun: () => void;                   // 走行グリッド: コインで未解放マスを再抽選
@@ -51,7 +50,6 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     const state = stepMine(get().state, steps * MINE_STEP_MS);
     set({ state }); lastSaveMs = Date.now(); saveState(state);
   },
-  toggleAuto: () => set((st) => ({ state: { ...st.state, autoMode: !st.state.autoMode } })),
   buyRunUnlock: (index) => set((st) => ({ state: buyRunUnlock(st.state, index) })),
   buyRunBulk: () => set((st) => ({ state: buyRunBulk(st.state) })),
   rerollRun: () => set((st) => ({ state: rerollRun(st.state) })),

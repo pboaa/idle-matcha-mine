@@ -44,8 +44,9 @@ describe('mining/prestige', () => {
   });
 
   it('図鑑効果: 重なるほど1個あたり弱まる（√逓減）', () => {
-    const one = dexEffectTotals({ 0: 1 }).power;   // #0=火力
-    const four = dexEffectTotals({ 0: 4 }).power;  // 4個
+    const one = dexEffectTotals({ 0: 1 }).perWeapon.pick;   // #0=つるはしの武器個別強化
+    const four = dexEffectTotals({ 0: 4 }).perWeapon.pick;  // 4個
+    expect(one).toBeGreaterThan(0);
     expect(four).toBeCloseTo(one * 2, 6);          // √4=2倍（線形の4倍より弱い）
     expect(four).toBeLessThan(one * 4);            // インフレしない
   });

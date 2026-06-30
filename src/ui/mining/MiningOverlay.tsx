@@ -1,37 +1,25 @@
-import { useMineHud, useMineToggleAuto } from '@state/miningSelectors';
+import { useMineHud } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
-/** ゲーム画面（グリッド）に重ねるHUD: コイン・階・自動/手動／レベル・進捗。強化の取得は脇の走行グリッド。 */
+/** ゲーム画面（グリッド）に重ねるHUD: コイン・階・倍率・図鑑／レベル・進捗。猫は常に自動で掘る。 */
 export function MiningOverlay() {
   const hud = useMineHud();
-  const toggleAuto = useMineToggleAuto();
   const xpRatio = hud.xpNext > 0 ? hud.xp / hud.xpNext : 0;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 flex flex-col">
-      {/* 上部: コイン・階・自動/手動 */}
+      {/* 上部: コイン・階・倍率・図鑑 */}
       <div className="flex items-start justify-between p-1.5">
         <div className="pointer-events-auto rounded-md bg-black/55 px-2 py-1 text-[13px] font-bold text-amber-300 shadow backdrop-blur-sm">
           🪙 {formatNumber(hud.coins)}
           <span className="ml-2 text-stone-200">地下 {hud.floor + 1}階</span>
           {hud.dmgMult > 1.001 && <span className="ml-2 text-amber-200" title="累計★＋お宝図鑑による全体ダメージ倍率">⭐×{hud.dmgMult.toFixed(2)}</span>}
-          {hud.dexCount > 0 && <span className="ml-2 text-yellow-200" title="お宝図鑑の収集数（採掘でドロップ・遠い/深いほどレア）">📒{hud.dexCount}/{hud.dexTotal}</span>}
+          {hud.dexCount > 0 && <span className="ml-2 text-yellow-200" title="お宝図鑑の収集数（採掘でドロップ・持ち込んだ武器のお宝のみ）">📒{hud.dexCount}/{hud.dexTotal}</span>}
           {hud.runPoints > 0 && <span className="ml-2 text-fuchsia-300" title="転生でもらえる★">⭐+{formatNumber(hud.runPoints)}</span>}
         </div>
-        <button onClick={toggleAuto} title="手動: クリックで猫を誘導 ／ 自動: おまかせ移動。どちらも火力は同じ（ペナルティなし）"
-          className={['pointer-events-auto rounded-md px-2 py-1 text-[11px] font-bold shadow backdrop-blur-sm transition', hud.autoMode ? 'bg-emerald-600/90 text-white hover:bg-emerald-500' : 'bg-amber-400/90 text-stone-900 hover:bg-amber-300'].join(' ')}>
-          {hud.autoMode ? '⚙️ 自動' : '✋ 手動'}
-        </button>
       </div>
 
       <div className="flex-1" />
-
-      {/* 手動モードのヒント（移動はクリックで誘導） */}
-      {!hud.autoMode && (
-        <div className="flex justify-center pb-1">
-          <span className="pointer-events-none rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-amber-200 backdrop-blur-sm">✋ クリックで猫を誘導（火力100%）</span>
-        </div>
-      )}
 
       {/* 下部: Lv＋XPバー／階の掘削進捗 */}
       <div className="flex flex-col gap-1 p-1.5">
