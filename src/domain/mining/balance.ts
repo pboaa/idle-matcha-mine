@@ -98,14 +98,13 @@ export interface MiningBalance {
   readonly timePowerPerMin: number; // 1分ごとの上昇（火力＆速度に乗る）
   readonly timePowerCap: number;    // 上限（例: 1.0 = +100%）
 
-  // 恒久グリッド（武器ツリー/メイン）のノード★コスト。深い階層/外周/特殊ほど高い＝少しずつ高く。
-  readonly starCostBase: number; readonly starCostGrowth: number; readonly starSpecialMult: number;
-  // 武器の解放（★で購入・WEAPON_UNLOCK_ORDER順に少しずつ高い）。
+  // 恒久グリッド（武器ツリー/メイン）のノード★必要値は skilltree.ts（DEFAULT_STAR_REQ）が保持。
+  // 武器の解放に必要な累計★（WEAPON_UNLOCK_ORDER順に少しずつ高い・消費しない）。
   readonly weaponUnlockStarCost: readonly number[];
-  // 放置ツリー（自動効率を100%へ・★で買う）。
+  // 放置ツリー（自動効率を100%へ・累計★しきい値）。
   readonly autoEffBase: number;    // 放置ツリーLv0での自動効率（火力倍率）
   readonly idleEffPerLvl: number;  // 放置ツリー1Lvあたりの自動効率+
-  readonly idleStarCostBase: number; readonly idleStarCostGrowth: number; // 放置ツリーの★コスト
+  readonly idleStarCostBase: number; readonly idleStarCostGrowth: number; // 放置ツリーの必要累計★
 
   // 走行グリッド（その周だけ・ランダム）。コインでマス即時解放/リロール（走行限定・少しずつ高く）。
   readonly runGridSize: number;
@@ -143,11 +142,10 @@ export const defaultMiningBalance: MiningBalance = {
   pointsPerLevel: 1, pointsPerFloor: 3,
   timePowerPerMin: 0.008, timePowerCap: 1.0, // 毎分+0.8%・最大+100%（約2時間で頭打ち＝のんびり放置）
 
-  starCostBase: 1, starCostGrowth: 1.7, starSpecialMult: 3,
-  weaponUnlockStarCost: [8, 18, 36, 64, 110], // bomb/beam/drill/aura/ring（少しずつ高く）
+  weaponUnlockStarCost: [10, 24, 48, 85, 140], // bomb/beam/drill/aura/ring（累計★しきい値・少しずつ高く）
 
   autoEffBase: 0.7, idleEffPerLvl: 0.05,
-  idleStarCostBase: 2, idleStarCostGrowth: 1.5,
+  idleStarCostBase: 6, idleStarCostGrowth: 1.7,
 
   runGridSize: 7,
   runCoinCostBase: 30, runCoinGrowth: 1.5,

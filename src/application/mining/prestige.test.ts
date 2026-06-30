@@ -5,7 +5,7 @@ import { buyWeaponSkill, buyWeaponSkillMax, skillNodeUnlockable, allowedWeapons,
 import { defaultMiningBalance, WEAPON_IDS, WEAPON_UNLOCK_ORDER, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
-const withStars = (s: MineState, n: number): MineState => ({ ...s, perm: { ...s.perm, starPoints: n } });
+const withStars = (s: MineState, n: number): MineState => ({ ...s, perm: { ...s.perm, starEarned: n } });
 
 describe('mining/prestige', () => {
   it('freshRun: つるはし＋選んだ武器のみ装備（持ち込みバグ防止）', () => {
@@ -25,10 +25,10 @@ describe('mining/prestige', () => {
     const first = WEAPON_UNLOCK_ORDER[0]!;                  // 最初に買える武器
     const cost = weaponUnlockStar(first);
     const s0 = initialMineState();
-    expect(unlockWeapon(withStars(s0, cost - 1), first).perm.unlockedWeapons).not.toContain(first); // 不足で不可
+    expect(unlockWeapon(withStars(s0, cost - 1), first).perm.unlockedWeapons).not.toContain(first); // 累計★不足で不可
     const r = unlockWeapon(withStars(s0, cost), first);
     expect(r.perm.unlockedWeapons).toContain(first);       // 解放
-    expect(r.perm.starPoints).toBe(0);                     // ★を消費
+    expect(r.perm.starEarned).toBe(cost);                 // 累計★は消費しない（減らない）
     expect(unlockWeapon(r, first).perm.unlockedWeapons.filter((w) => w === first).length).toBe(1); // 二重解放しない
   });
 
@@ -52,10 +52,10 @@ describe('mining/prestige', () => {
     const root = nodes[rootIdx]!;
     const s1 = buyWeaponSkill(s0, 'pick', rootIdx);
     expect(s1.perm.weaponSkill.pick).toEqual([rootIdx]);
-    expect(s1.perm.starPoints).toBe(9_999_999 - root.starCost);     // ★を消費
+    expect(s1.perm.starEarned).toBe(9_999_999);                    // 累計★は消費しない（減らない）
     const neighbor = root.requires[0]!;
     expect(skillNodeUnlockable('pick', s1.perm.weaponSkill.pick, neighbor)).toBe(true); // 隣接が解禁
-    expect(buyWeaponSkill(withStars(initialMineState(), 0), 'pick', rootIdx).perm.weaponSkill.pick).toEqual([]); // ★不足で不可
+    expect(buyWeaponSkill(withStars(initialMineState(), 0), 'pick', rootIdx).perm.weaponSkill.pick).toEqual([]); // 累計★不足で不可
   });
 
   it('一気に上げる: 解禁可能＆★が足りるノードを買えるだけ買う', () => {
@@ -65,24 +65,24 @@ describe('mining/prestige', () => {
     expect(poor.perm.weaponSkill.pick.length).toBe(0);
   });
 
-  it('転生: 走行リセット・runPoints を★残高へ・回数+1・コイン0', () => {
+  it('転生: 走行リセット・runPoints を累計★へ・回数+1・コイン0', () => {
     const s = stepMine(initialMineState(), 30_000);
-    const before = s.perm.starPoints;
+    const before = s.perm.starEarned;
     const r = prestige(s, B);
     expect(r.floor).toBe(0);
     expect(r.level).toBe(1);
-    expect(r.perm.starPoints).toBe(before + s.runPoints); // ★残高に走行分を加算
+    expect(r.perm.starEarned).toBe(before + s.runPoints); // 累計★に走行分を加算（増える一方）
     expect(r.prestiges).toBe(s.prestiges + 1);
     expect(r.coins).toBe(0);
     expect(r.runPoints).toBe(0);
     expect(r.startWeapon).toBe(s.startWeapon);             // 開始武器は引き継ぐ
   });
 
-  it('★は走行中に獲得予定(runPoints)が貯まり、転生で★残高に積まれる', () => {
+  it('★は走行中に獲得予定(runPoints)が貯まり、転生で累計★に積まれる', () => {
     const s = stepMine(initialMineState(), 60_000);
     expect(s.runPoints).toBeGreaterThan(0);
-    expect(s.perm.starPoints).toBe(0);                    // 残高は転生まで増えない
+    expect(s.perm.starEarned).toBe(0);                   // 累計★は転生まで増えない
     const r = prestige(s, B);
-    expect(r.perm.starPoints).toBe(s.runPoints);
+    expect(r.perm.starEarned).toBe(s.runPoints);
   });
 });

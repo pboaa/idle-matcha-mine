@@ -14,7 +14,7 @@ function SkillGrid({ size, nodes, onBuy }: { size: number; nodes: readonly MineS
     <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${size}, ${cell})` }}>
       {nodes.map((n) => (
         <button key={n.index} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.index)}
-          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? `★${n.star} で解放` : `★不足（★${n.star}）`}`}
+          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? `累計★${n.star}で解放（消費しない）` : `累計★${n.star}必要`}`}
           style={{ height: cell }}
           className={['flex flex-col items-center justify-center rounded-[3px] text-[11px] leading-none ring-1 transition', n.big && n.visible ? 'ring-2' : '', cellCls(n)].join(' ')}>
           {n.visible && <span>{n.state === 'unlocked' ? (n.root ? '◎' : '✓') : n.emoji}</span>}
@@ -64,8 +64,8 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
 
       {/* ★残高 */}
       <div className="flex items-center justify-between rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-600/40">
-        <div className="text-[12px] text-amber-100">⭐ ★残高</div>
-        <div className="text-[13px] font-bold text-amber-200">{formatNumber(p.starPoints)} <span className="text-[10px] font-normal text-amber-300/70">（マスを解放すると消費）</span></div>
+        <div className="text-[12px] text-amber-100">⭐ 累計★</div>
+        <div className="text-[13px] font-bold text-amber-200">{formatNumber(p.starEarned)} <span className="text-[10px] font-normal text-amber-300/70">（増える一方・必要値に達したマスが解放可／消費しない）</span></div>
       </div>
 
       {/* 放置ツリー（★で自動効率を100%へ） */}

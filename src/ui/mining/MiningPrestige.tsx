@@ -34,11 +34,11 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
         </div>
       </div>
 
-      {/* ★残高＋今回の獲得予定★ */}
+      {/* 累計★＋今回の獲得予定★ */}
       <div className="flex flex-col items-center gap-0.5 rounded-lg bg-amber-950/40 p-3 ring-1 ring-amber-700/40">
-        <span className="text-[11px] text-amber-300/80">★残高（恒久グリッド・武器解放に使う）</span>
-        <span className="text-2xl font-bold text-amber-200">{formatNumber(p.starPoints)} ⭐</span>
-        <span className="text-[10px] text-stone-400">この走行で +{formatNumber(p.runPoints)} → {formatNumber(p.starPoints + p.runPoints)}</span>
+        <span className="text-[11px] text-amber-300/80">累計★（増える一方・各強化の解放しきい値／消費しない）</span>
+        <span className="text-2xl font-bold text-amber-200">{formatNumber(p.starEarned)} ⭐</span>
+        <span className="text-[10px] text-stone-400">この走行で +{formatNumber(p.runPoints)} → {formatNumber(p.starEarned + p.runPoints)}</span>
       </div>
 
       {/* 開始武器の選択（つるはしは常時＋選んだ1種） */}
@@ -61,7 +61,7 @@ export function MiningPrestige({ onClose, onOpenTree }: { onClose: () => void; o
         <div className="flex flex-wrap gap-1.5">
           {p.unlocks.map((u) => (
             <button key={u.id} disabled={u.status !== 'locked' || !u.can} onClick={() => unlockWeapon(u.id)}
-              title={u.status === 'base' ? `${u.label}（最初から）` : u.status === 'unlocked' ? `${u.label}（解放済み）` : `${u.label}：★${u.cost} で解放`}
+              title={u.status === 'base' ? `${u.label}（最初から）` : u.status === 'unlocked' ? `${u.label}（解放済み）` : `${u.label}：累計★${u.cost}で解放（消費しない）`}
               className={['flex items-center gap-0.5 rounded-md px-2 py-1 text-[13px] leading-none transition',
                 u.status === 'locked' ? (u.can ? 'bg-fuchsia-500 text-stone-900 ring-1 ring-fuchsia-300 hover:bg-fuchsia-400' : 'bg-stone-800 text-stone-500') : 'bg-stone-700 text-stone-100'].join(' ')}>
               {u.status === 'locked' ? '🔒' : u.status === 'base' ? '⭐' : '✅'}{u.emoji}
