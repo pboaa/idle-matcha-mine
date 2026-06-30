@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 7; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v7=★消費(starPoints)＋累計★倍率(starTotal)・放置ツリー廃止・走行グリッド手動のみ
+const VERSION = 8; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v8=お宝(treasure)導入・走行グリッド上限制(コイン解放/お宝で上限+)・放置時間ボーナス廃止
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {

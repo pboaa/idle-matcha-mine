@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { type MineState } from '@application/mining/mineState';
 import { stepMine, MINE_STEP_MS } from '@application/mining/step';
-import { pickRunFree, buyRunUnlock, buyRunBulk, rerollRun } from '@application/mining/upgrades';
-import { prestige, startRun, unlockWeapon, buySkill, buySkillMax } from '@application/mining/prestige';
+import { buyRunUnlock, buyRunBulk, rerollRun } from '@application/mining/upgrades';
+import { prestige, startRun, unlockWeapon, buySkill, buySkillMax, buyCapUpgrade, buyTreasurePower } from '@application/mining/prestige';
 import type { WeaponId } from '@domain/mining/balance';
 type SkillTreeTarget = WeaponId | 'main';
 import type { Cell } from '@domain/grid/position';
@@ -13,13 +13,14 @@ interface MiningStore {
   tick: (realDtMs: number) => void;
   catchUp: (realMs: number) => void; // 離席/オフラインぶんを一括で進める（バックグラウンド処理）
   toggleAuto: () => void;
-  pickRunFree: (index: number) => void;   // 走行グリッド: 無料解放権でマス解放（手動）
-  buyRunUnlock: (index: number) => void;   // 走行グリッド: コインで解放
-  buyRunBulk: () => void;                  // 走行グリッド: 解放権→コインで一括解放
+  buyRunUnlock: (index: number) => void;   // 走行グリッド: コインで解放（お宝+1）
+  buyRunBulk: () => void;                  // 走行グリッド: コインで一括解放
   rerollRun: () => void;                   // 走行グリッド: コインで未解放マスを再抽選
   prestige: () => void;
   startRun: (w: WeaponId) => void;         // 開始武器を選んで走行をやり直す
   unlockWeapon: (w: WeaponId) => void;     // ★で武器を解放
+  buyCapUpgrade: () => void;               // お宝で走行グリッド上限+
+  buyTreasurePower: () => void;            // お宝で永続全体火力+
   buyWeaponSkill: (target: SkillTreeTarget, nodeIndex: number) => void;
   buyWeaponSkillMax: (target: SkillTreeTarget) => void;
   setTarget: (cell: Cell) => void; // 手動モードで猫の目標を設定
@@ -56,13 +57,14 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     set({ state }); lastSaveMs = Date.now(); saveState(state);
   },
   toggleAuto: () => set((st) => ({ state: { ...st.state, autoMode: !st.state.autoMode } })),
-  pickRunFree: (index) => set((st) => ({ state: pickRunFree(st.state, index) })),
   buyRunUnlock: (index) => set((st) => ({ state: buyRunUnlock(st.state, index) })),
   buyRunBulk: () => set((st) => ({ state: buyRunBulk(st.state) })),
   rerollRun: () => set((st) => ({ state: rerollRun(st.state) })),
   prestige: () => set((st) => ({ state: { ...prestige(st.state), autoMode: st.state.autoMode } })), // 自動/手動の設定は引き継ぐ
   startRun: (w) => set((st) => ({ state: { ...startRun(st.state, w), autoMode: st.state.autoMode } })),
   unlockWeapon: (w) => set((st) => ({ state: unlockWeapon(st.state, w) })),
+  buyCapUpgrade: () => set((st) => ({ state: buyCapUpgrade(st.state) })),
+  buyTreasurePower: () => set((st) => ({ state: buyTreasurePower(st.state) })),
   buyWeaponSkill: (target, nodeIndex) => set((st) => ({ state: buySkill(st.state, target, nodeIndex) })),
   buyWeaponSkillMax: (target) => set((st) => ({ state: buySkillMax(st.state, target) })),
   setTarget: (cell) => set((st) => (st.state.autoMode ? {} : { state: { ...st.state, cat: { ...st.state.cat, target: cell } } })),

@@ -94,20 +94,22 @@ export interface MiningBalance {
   readonly pointsPerLevel: number; // レベルアップで貯まる★（runPoints・転生で確定）
   readonly pointsPerFloor: number; // 階を降りるごとに貯まる★（深いほど＝floor倍）
 
-  // 放置（時間経過）でその走行の火力＆採掘速度が微増していく（上限あり・放置ゲー報酬）。
-  readonly timePowerPerMin: number; // 1分ごとの上昇（火力＆速度に乗る）
-  readonly timePowerCap: number;    // 上限（例: 1.0 = +100%）
-
   // 恒久グリッド（武器ツリー/メイン）のノード★コストは skilltree.ts（DEFAULT_STAR_COST）が保持。★を消費して購入。
   // 武器の解放に必要な★（消費・WEAPON_UNLOCK_ORDER順に少しずつ高い）。
   readonly weaponUnlockStarCost: readonly number[];
   // 累計★（消費しない総獲得★）による全体ダメージ倍率: 1 + starMultPerLvl×√累計★（√で逓減＝壊れない）。
   readonly starMultPerLvl: number;
 
-  // 走行グリッド（その周だけ・ランダム・手動のみ）。コインでマス解放/リロール（走行限定・少しずつ高く）。
+  // 走行グリッド（その周だけ・ランダム・手動のみ）。コインでマス解放（上限まで・少しずつ高く）。解放ごとにお宝+1。
   readonly runGridSize: number;
   readonly runCoinCostBase: number; readonly runCoinGrowth: number;     // マス解放（コスト逓増）
   readonly runRerollCostBase: number; readonly runRerollGrowth: number; // 未解放マスのリロール
+  readonly runCapBase: number; readonly runCapPerLevel: number;         // 走行グリッドで解放できる上限（お宝で伸ばす）
+  readonly treasurePerUnlock: number;                                    // マス1解放で得るお宝
+
+  // お宝（永続資源）で買う永続強化。①グリッド上限+ ②全体火力+（コスト逓増）。
+  readonly capCostBase: number; readonly capCostGrowth: number;
+  readonly treasurePowerPerLvl: number; readonly treasurePowerCostBase: number; readonly treasurePowerCostGrowth: number;
 }
 
 export const defaultMiningBalance: MiningBalance = {
@@ -138,12 +140,16 @@ export const defaultMiningBalance: MiningBalance = {
   xpBase: 5, xpPerLevel: 3,
 
   pointsPerLevel: 1, pointsPerFloor: 3,
-  timePowerPerMin: 0.008, timePowerCap: 1.0, // 毎分+0.8%・最大+100%（約2時間で頭打ち＝のんびり放置）
 
   weaponUnlockStarCost: [10, 24, 48, 85, 140], // bomb/beam/drill/aura/ring（★消費・少しずつ高く）
   starMultPerLvl: 0.04, // 累計★で全体ダメージ 1+0.04×√累計★（100→×1.4, 400→×1.8, 2500→×3）
 
   runGridSize: 7,
-  runCoinCostBase: 30, runCoinGrowth: 1.5,
+  runCoinCostBase: 25, runCoinGrowth: 1.25, // ゆるやかに上昇＝上限まで埋めやすい
   runRerollCostBase: 40, runRerollGrowth: 1.8,
+  runCapBase: 6, runCapPerLevel: 2,         // 最初は6マス・お宝で+2/Lv
+  treasurePerUnlock: 1,
+
+  capCostBase: 4, capCostGrowth: 1.7,
+  treasurePowerPerLvl: 0.04, treasurePowerCostBase: 8, treasurePowerCostGrowth: 1.8,
 };

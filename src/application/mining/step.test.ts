@@ -34,21 +34,15 @@ describe('mining/step', () => {
     expect(s.cam).toEqual(s.cat.pos); // カメラ＝猫の位置＝常に中央
   });
 
-  it('放置(時間経過)で火力＆採掘速度が増え、上限で頭打ち（放置ゲー報酬）', () => {
-    const B = defaultMiningBalance;
-    const hard = { ...B, hardnessBase: 1e6 }; // 硬タイル注入＝1撃で壊れず（オーバーキル除外を避けて倍率を純粋比較）。
-    // 同じ位置・同じ攻撃を「経過時間だけ違えて」比較（火力＝1ヒットのダメージが時間で増える）。
-    const dmgAt = (startMs: number): number => {
+  it('累計★(starTotal)で火力が上がる（時間経過では変わらない＝放置ボーナス廃止）', () => {
+    const hard = { ...defaultMiningBalance, hardnessBase: 1e6 }; // 1撃で壊れず＝倍率を純粋比較
+    const dmg = (starTotal: number, startMs: number): number => {
       const init = initialMineState(hard);
-      const s = { ...init, time: startMs, autoMode: false, levels: { ...init.levels, pick: 1 }, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } } };
+      const s = { ...init, time: startMs, autoMode: false, perm: { ...init.perm, starTotal }, cat: { pos: { x: 15, y: 15 }, gauge: 0, target: { x: 16, y: 15 } } };
       return stepMine(s, 600, hard).dmgByWeapon.pick;
     };
-    const capMin = B.timePowerCap / B.timePowerPerMin; // 上限到達ぶんの分数（=5時間）
-    const d0 = dmgAt(0); const dHalf = dmgAt((capMin / 2) * 60_000); const dCap = dmgAt(capMin * 60_000); const dOver = dmgAt(capMin * 2 * 60_000);
-    expect(dHalf).toBeGreaterThan(d0);                  // 時間経過で火力UP
-    expect(dCap).toBeGreaterThan(dHalf);
-    expect(dCap / d0).toBeCloseTo(1 + B.timePowerCap, 2);  // 上限到達で 1+cap 倍
-    expect(dOver).toBeCloseTo(dCap, 5);                    // 上限超えは頭打ち
+    expect(dmg(0, 0)).toBeCloseTo(dmg(0, 9_999_000), 5);   // 時間経過で火力は変わらない（放置ボーナスなし）
+    expect(dmg(400, 0)).toBeGreaterThan(dmg(0, 0));         // 累計★で火力UP
   });
 
   it('全部掘ると次の階へ（小ワールドで検証・balance注入）', () => {
@@ -64,11 +58,10 @@ describe('mining/step', () => {
     expect(s.coins).toBeGreaterThan(0);   // コインは貯まる（走行グリッドの即時解放/リロールに使う）
   });
 
-  it('レベルアップで走行グリッドの解放権が貯まる（手動のみ＝自動解放しない）', () => {
+  it('走行グリッドは自動では解放されない（手動のみ）・★は貯まる', () => {
     const s = stepMine(initialMineState(), 120_000);
     expect(s.level).toBeGreaterThan(1);                           // レベルが上がっている
-    expect(s.runGrid.unlocked.length).toBe(1);                   // 中央のみ（自動では解放しない）
-    expect(s.runGrid.freePicks).toBeGreaterThan(0);             // 解放権が貯まる（手動で使う）
+    expect(s.runGrid.unlocked.length).toBe(1);                   // 中央のみ（自動では解放しない＝コインで手動）
     expect(s.runPoints).toBeGreaterThan(0);                      // 転生でもらえる★が貯まる
   });
 

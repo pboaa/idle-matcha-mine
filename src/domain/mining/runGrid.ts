@@ -15,8 +15,8 @@ export interface RunGrid {
   readonly size: number;
   readonly nodes: readonly RunNode[];
   readonly unlocked: readonly number[]; // 解放済みマスのindex（中央は最初から解放）
-  readonly freePicks: number;           // レベルアップで貯まる無料解放権
-  readonly coinUnlocks: number;         // コインで即時解放した回数（コスト逓増用）
+  readonly cap: number;                 // この走行で解放できる上限（中央を除くマス数・お宝で伸ばす）
+  readonly coinUnlocks: number;         // コインで解放した回数（コスト逓増用）
   readonly rerolls: number;             // リロール回数（コスト逓増用）
 }
 
@@ -40,8 +40,8 @@ function poolsFor(equipped: readonly WeaponId[]): { fillers: PassiveId[]; specia
   return { fillers, specials };
 }
 
-/** 走行グリッドを生成（毎走ランダム・中央は最初から解放）。 */
-export function genRunGrid(seed: number, size: number, equipped: readonly WeaponId[]): RunGrid {
+/** 走行グリッドを生成（毎走ランダム・中央は最初から解放・cap=解放上限）。 */
+export function genRunGrid(seed: number, size: number, equipped: readonly WeaponId[], cap: number): RunGrid {
   const rng = createRng(seed);
   const { fillers, specials } = poolsFor(equipped);
   const cen = Math.floor((size - 1) / 2);
@@ -61,26 +61,24 @@ export function genRunGrid(seed: number, size: number, equipped: readonly Weapon
     const pid = specials[Math.floor(rng.next() * specials.length)]!;
     nodes[ni] = { ...nodes[ni]!, pid, special: true };
   }
-  return { size, nodes, unlocked: [rootIndex], freePicks: 0, coinUnlocks: 0, rerolls: 0 };
+  return { size, nodes, unlocked: [rootIndex], cap, coinUnlocks: 0, rerolls: 0 };
 }
 
-/** そのマスが今解放可能か（未解放・中央or隣接が解放済み）。 */
+/** 解放済みマス数（中央を除く＝上限と比較する数）。 */
+export const runGridFilled = (grid: RunGrid): number => grid.unlocked.filter((i) => !grid.nodes[i]?.root).length;
+/** 上限まで埋まったか。 */
+export const runGridFull = (grid: RunGrid): boolean => runGridFilled(grid) >= grid.cap;
+
+/** そのマスが今解放可能か（未解放・中央or隣接が解放済み・上限未満）。 */
 export function runGridUnlockable(grid: RunGrid, i: number): boolean {
   const n = grid.nodes[i]; if (!n || grid.unlocked.includes(i)) return false;
+  if (runGridFull(grid)) return false; // 上限に達したらこれ以上開けない
   return !!n.root || n.requires.some((r) => grid.unlocked.includes(r));
 }
 /** マスを解放（純粋・解放権/コインの消費は呼び出し側）。 */
 export function runGridUnlock(grid: RunGrid, i: number): RunGrid {
   if (!runGridUnlockable(grid, i)) return grid;
   return { ...grid, unlocked: [...grid.unlocked, i] };
-}
-/** 自動モードの解放選択（解放可能の中から特殊優先・同率ランダム）。なければ null。 */
-export function autoPickRun(grid: RunGrid, rng: { next: () => number }): number | null {
-  const avail = grid.nodes.map((_, i) => i).filter((i) => runGridUnlockable(grid, i));
-  if (avail.length === 0) return null;
-  const specials = avail.filter((i) => grid.nodes[i]!.special);
-  const pool = specials.length > 0 ? specials : avail;
-  return pool[Math.floor(rng.next() * pool.length)]!;
 }
 /** 未解放・非中央マスのバフを再抽選（リロール）。 */
 export function rerollRunGrid(grid: RunGrid, seed: number, equipped: readonly WeaponId[]): RunGrid {

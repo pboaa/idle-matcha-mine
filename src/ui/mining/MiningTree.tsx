@@ -1,4 +1,4 @@
-import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, type MineSkillNodeVM, type MineTierVM, type SkillTreeTarget } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, useMineBuyCapUpgrade, useMineBuyTreasurePower, type MineSkillNodeVM, type MineTierVM, type SkillTreeTarget } from '@state/miningSelectors';
 import { useState } from 'react';
 import { formatNumber } from '@shared/format';
 
@@ -48,6 +48,8 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
   const buyWeaponSkill = useMineBuyWeaponSkill();
   const buyWeaponSkillMax = useMineBuyWeaponSkillMax();
+  const buyCap = useMineBuyCapUpgrade();
+  const buyTreasurePower = useMineBuyTreasurePower();
   const [weaponSel, setWeaponSel] = useState<SkillTreeTarget>('pick');
   const [tierSel, setTierSel] = useState(0);
   const wt = p.weaponTree.find((w) => w.id === weaponSel) ?? p.weaponTree[0]!;
@@ -61,10 +63,25 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="rounded-md bg-stone-700 px-2 py-0.5 text-xs text-stone-200 hover:bg-stone-600">✕ 閉じる</button>
       </div>
 
-      {/* ★残高（消費して購入）＋累計★（消費しても減らない・全体倍率） */}
+      {/* ★残高（消費して購入）＋累計★/お宝（消費しても減らない・全体倍率） */}
       <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-600/40">
         <div className="text-[12px] text-amber-100">⭐ ★残高 <b className="text-amber-200">{formatNumber(p.starPoints)}</b><span className="ml-1 text-[10px] font-normal text-amber-300/70">（マス解放で消費）</span></div>
-        <div className="text-right text-[10px] text-amber-300/80">累計★ {formatNumber(p.starTotal)}<br /><span className="text-amber-200">全体ダメージ ×{p.dmgMult.toFixed(2)}</span><span className="ml-1 text-stone-500">(消費しても減らない)</span></div>
+        <div className="text-right text-[10px] text-amber-300/80">累計★ {formatNumber(p.starTotal)}<br /><span className="text-amber-200">全体ダメージ ×{p.dmgMult.toFixed(2)}</span></div>
+      </div>
+
+      {/* お宝（永続資源）で買う永続強化: グリッド上限＋／全体火力＋ */}
+      <div className="flex flex-col gap-1 rounded-lg bg-yellow-950/40 p-2 ring-1 ring-yellow-700/40">
+        <div className="text-[12px] text-yellow-100">💰 お宝 <b className="text-yellow-200">{formatNumber(p.treasure.treasure)}</b><span className="ml-1 text-[10px] font-normal text-yellow-300/70">（走行グリッドの解放で貯まる）</span></div>
+        <div className="flex gap-1.5">
+          <button onClick={buyCap} disabled={!p.treasure.capCan} title="走行グリッドで解放できる上限を+1"
+            className={['flex-1 rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.treasure.capCan ? 'bg-yellow-400 text-stone-900 hover:bg-yellow-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
+            🗺️ 上限+1（今{p.treasure.cap}）💰{formatNumber(p.treasure.capCost)}
+          </button>
+          <button onClick={buyTreasurePower} disabled={!p.treasure.powerCan} title="全武器の永続ダメージ+"
+            className={['flex-1 rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.treasure.powerCan ? 'bg-yellow-400 text-stone-900 hover:bg-yellow-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
+            💪 火力+（+{p.treasure.powerPct}%）💰{formatNumber(p.treasure.powerCost)}
+          </button>
+        </div>
       </div>
 
       {/* 武器ごとの強化＋メイン（階層ごとに1グリッド・タブ切替・中央から外へ広げる） */}

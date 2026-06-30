@@ -15,30 +15,26 @@ export const runUnlockCoinCost = (state: MineState, b: MiningBalance = defaultMi
 export const runRerollCoinCost = (state: MineState, b: MiningBalance = defaultMiningBalance): number =>
   Math.floor(b.runRerollCostBase * Math.pow(b.runRerollGrowth, state.runGrid.rerolls));
 
-/** 無料解放権(freePicks)でマスを解放（手動）。 */
-export function pickRunFree(state: MineState, index: number): MineState {
-  if (state.runGrid.freePicks <= 0 || !runGridUnlockable(state.runGrid, index)) return state;
-  const grid = runGridUnlock(state.runGrid, index);
-  return { ...state, runGrid: { ...grid, freePicks: grid.freePicks - 1 } };
-}
-/** コインでマスを即時解放（解放権を使わない・コスト逓増）。 */
+/** コインでマスを解放（上限まで・コスト逓増・解放ごとにお宝+1）。 */
 export function buyRunUnlock(state: MineState, index: number, b: MiningBalance = defaultMiningBalance): MineState {
   if (!runGridUnlockable(state.runGrid, index)) return state;
   const cost = runUnlockCoinCost(state, b);
   if (state.coins < cost) return state;
   const grid = runGridUnlock(state.runGrid, index);
-  return { ...state, coins: state.coins - cost, runGrid: { ...grid, coinUnlocks: grid.coinUnlocks + 1 } };
+  return {
+    ...state, coins: state.coins - cost,
+    runGrid: { ...grid, coinUnlocks: grid.coinUnlocks + 1 },
+    perm: { ...state.perm, treasure: state.perm.treasure + b.treasurePerUnlock },
+  };
 }
-/** 一括購入: 解放可能なマスを「無料解放権→コイン」の順に、可能な限りまとめて解放。 */
+/** 一括購入: コインが足りる＆上限までのマスをまとめて解放。 */
 export function buyRunBulk(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
   let s = state;
   for (let guard = 0; guard < 400; guard++) {
     const avail = s.runGrid.nodes.map((_, i) => i).filter((i) => runGridUnlockable(s.runGrid, i));
-    if (avail.length === 0) break;
-    const i = avail[0]!;
-    if (s.runGrid.freePicks > 0) { s = pickRunFree(s, i); continue; }
-    if (s.coins >= runUnlockCoinCost(s, b)) { s = buyRunUnlock(s, i, b); continue; }
-    break; // 解放権なし＆コイン不足
+    if (avail.length === 0) break; // 上限到達 or 解放可能なし
+    if (s.coins < runUnlockCoinCost(s, b)) break; // コイン不足
+    s = buyRunUnlock(s, avail[0]!, b);
   }
   return s;
 }

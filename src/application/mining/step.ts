@@ -101,11 +101,9 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   const main = mainSkillStats(state.perm.mainSkill); // メイン(全体)ツリーの累積: power/haste/mine/crit/coin/xp
   const mainPower = main.power ?? 0, mainHaste = main.haste ?? 0, mainMine = main.mine ?? 0, mainCrit = main.crit ?? 0, mainCoin = main.coin ?? 0, mainXp = main.xp ?? 0;
   let pos = state.cat.pos;
-  // 放置（時間経過）ボーナス: その走行の経過時間で火力＆採掘速度が微増（上限あり・放置ゲー報酬）。
-  const timeMult = 1 + Math.min(b.timePowerCap, (now / 60000) * b.timePowerPerMin);
   const moveCost = b.moveCost / (1 + t.move);
   // 繰り越す移動ゲージは1マスぶんに制限。壁の手前で詰まっている間に溜め込み、壊れた瞬間に大量ワープするのを防ぐ。
-  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * timeMult * (1 + mainMine) * dt;
+  let gauge = Math.min(state.cat.gauge, moveCost) + b.baseRate * (1 + t.rate) * (1 + mainMine) * dt;
   let target = state.cat.target;
   let coins = state.coins;
   let xpGain = 0;
@@ -154,8 +152,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射（武器ごとの攻撃間隔で発射）。放置時間ボーナス＋メイン火力＋累計★倍率（自動でも火力は下がらない）。
-  const globalMul = timeMult * (1 + mainPower) * globalDamageMult(state.perm.starTotal, b);
+  // 武器発射（武器ごとの攻撃間隔で発射）。メイン火力＋累計★倍率＋お宝の永続火力（自動でも火力は下がらない）。
+  const globalMul = (1 + mainPower) * globalDamageMult(state.perm.starTotal, b) * (1 + state.perm.treasurePower * b.treasurePowerPerLvl);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, globalMul, mainHaste, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
@@ -174,23 +172,21 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 演出ドロップは一定時間で消す（回収は済み）。
   if (drops.length > 0) { const keep = drops.filter((d) => now - d.bornAt < b.dropVisualMs); if (keep.length !== drops.length) drops = keep; }
 
-  // レベルアップ＝走行グリッドの解放権(freePicks)+1＆獲得予定★+pointsPerLevel。解放は手動のみ（自動解放しない）。
+  // レベルアップ＝獲得予定★+pointsPerLevel（走行グリッドはコインで手動解放＝無料解放はなし）。
   let xp = state.xp + xpGain;
   let level = state.level;
   let runPoints = state.runPoints;
-  let runGrid = state.runGrid;
   while (xp >= xpForNext(level, b)) {
     xp -= xpForNext(level, b);
     level += 1;
     runPoints += b.pointsPerLevel;
-    runGrid = { ...runGrid, freePicks: runGrid.freePicks + 1 };
   }
 
   return {
     ...state,
     time: now, coins, rev: state.rev + 1, seq, rngState: rng.state(), drops, fx,
     cat: { pos, gauge, target }, cam: pos, // 猫は常に画面中央（カメラ＝猫の位置に固定）
-    xp, level, dmgByWeapon: dmgAcc, weaponCd, runGrid, runPoints,
+    xp, level, dmgByWeapon: dmgAcc, weaponCd, runPoints,
   };
 }
 

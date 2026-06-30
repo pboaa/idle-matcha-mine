@@ -79,6 +79,29 @@ export function globalDamageMult(starTotal: number, b: MiningBalance = defaultMi
   return 1 + b.starMultPerLvl * Math.sqrt(Math.max(0, starTotal));
 }
 
+// ===== お宝（永続資源）で買う永続強化 =====
+/** 走行グリッド上限+1 の次のお宝コスト。 */
+export const capUpgradeCost = (capLevel: number, b: MiningBalance = defaultMiningBalance): number =>
+  Math.floor(b.capCostBase * Math.pow(b.capCostGrowth, capLevel));
+/** 走行グリッド上限を1段（お宝を消費）。 */
+export function buyCapUpgrade(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
+  const cost = capUpgradeCost(state.perm.capLevel, b);
+  if (state.perm.treasure < cost) return state;
+  return { ...state, perm: { ...state.perm, treasure: state.perm.treasure - cost, capLevel: state.perm.capLevel + 1 } };
+}
+/** 永続全体火力+1 の次のお宝コスト。 */
+export const treasurePowerCost = (lvl: number, b: MiningBalance = defaultMiningBalance): number =>
+  Math.floor(b.treasurePowerCostBase * Math.pow(b.treasurePowerCostGrowth, lvl));
+/** 永続全体火力倍率（1 + treasurePowerPerLvl×Lv）。 */
+export const treasurePowerMult = (lvl: number, b: MiningBalance = defaultMiningBalance): number =>
+  1 + lvl * b.treasurePowerPerLvl;
+/** 永続全体火力を1段（お宝を消費）。 */
+export function buyTreasurePower(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
+  const cost = treasurePowerCost(state.perm.treasurePower, b);
+  if (state.perm.treasure < cost) return state;
+  return { ...state, perm: { ...state.perm, treasure: state.perm.treasure - cost, treasurePower: state.perm.treasurePower + 1 } };
+}
+
 // ===== 開始武器の選択／転生 =====
 /** 開始武器を選んで走行をやり直す（floor0想定・★は据え置き）。解放済み武器のみ。 */
 export function startRun(state: MineState, w: WeaponId, b: MiningBalance = defaultMiningBalance): MineState {

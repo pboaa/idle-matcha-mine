@@ -3,9 +3,10 @@ import { sameCell } from '@domain/grid/position';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist } from '@domain/mining/tile';
 import type { MineState } from '@application/mining/mineState';
 import { xpForNext, runUnlockCoinCost, runRerollCoinCost } from '@application/mining/upgrades';
-import { skillNodeUnlockable, skillGridOpen, weaponUnlockStar, globalDamageMult } from '@application/mining/prestige';
+import { skillNodeUnlockable, skillGridOpen, weaponUnlockStar, globalDamageMult, capUpgradeCost, treasurePowerCost, treasurePowerMult } from '@application/mining/prestige';
 import { weaponDmg, weaponRange, passiveTotals } from '@application/mining/weapons';
-import { runPassiveLevels, runGridUnlockable } from '@domain/mining/runGrid';
+import { runGridCap } from '@application/mining/mineState';
+import { runPassiveLevels, runGridUnlockable, runGridFilled, runGridFull } from '@domain/mining/runGrid';
 import {
   WEAPON_IDS, PASSIVE_IDS, WEAPON_STATS, MAIN_STATS, WEAPON_UNLOCK_ORDER, SKILL_TIERS, skillGridSize, skillGridUnlockNeed, BASE_WEAPONS, defaultMiningBalance, choiceMeta,
   WEAPON_DEFS, PASSIVE_DEFS, skillStatDef, weaponSkillNodes, mainSkillNodes, sumSkillStats,
@@ -131,24 +132,23 @@ export interface MineRunNodeVM {
   readonly emoji: string; readonly label: string; readonly special: boolean; readonly root: boolean;
   readonly state: 'unlocked' | 'available' | 'locked'; readonly visible: boolean;
 }
-/** 走行グリッド（その周だけ・ランダム・手動のみ）。 */
+/** 走行グリッド（その周だけ・ランダム・手動・コインで解放・上限あり）。 */
 export interface MineRunGridVM {
   readonly size: number; readonly nodes: readonly MineRunNodeVM[];
-  readonly freePicks: number;
-  readonly coinCost: number; readonly coinCan: boolean;
+  readonly filled: number; readonly cap: number; readonly full: boolean; // 解放数／上限／満タン
+  readonly coinCost: number; readonly coinCan: boolean;                   // 次の解放コスト／払えるか
   readonly rerollCost: number; readonly rerollCan: boolean;
-  readonly bulkCan: boolean; // 一括購入できる（解放権あり or コインで解放可能）
+  readonly bulkCan: boolean;                                              // 一括購入できる
   readonly stats: readonly { readonly emoji: string; readonly label: string; readonly count: number }[];
 }
 export interface MineHudVM {
   readonly coins: number; readonly floor: number; readonly progressPct: number; readonly runPoints: number;
-  readonly starPoints: number; readonly starTotal: number; readonly dmgMult: number; // ★残高／累計★／累計★による全体倍率
+  readonly starPoints: number; readonly starTotal: number; readonly dmgMult: number; readonly treasure: number; // ★残高／累計★／全体倍率／お宝
   readonly level: number; readonly xp: number; readonly xpNext: number; readonly autoMode: boolean;
   readonly weapons: readonly MineGearVM[];
   readonly damageShare: readonly MineDmgShareVM[];
   readonly damageMods: readonly MineDmgModVM[];
   readonly runGrid: MineRunGridVM;
-  readonly idleBonusPct: number; readonly idleBonusMaxed: boolean; // 放置(時間経過)ボーナス%（火力＆採掘速度・上限あり）
 }
 
 /** 所持する強化のうち威力に効くものの現在倍率（ダメージ影響度）。走行グリッドのバフから算出。 */
@@ -189,10 +189,11 @@ function buildRunGrid(state: MineState): MineRunGridVM {
   const anyAvail = g.nodes.some((_, i) => runGridUnlockable(g, i));
   const coinCan = anyAvail && state.coins >= coinCost;
   return {
-    size: g.size, nodes, freePicks: g.freePicks,
+    size: g.size, nodes,
+    filled: runGridFilled(g), cap: g.cap, full: runGridFull(g),
     coinCost, coinCan,
     rerollCost, rerollCan: state.coins >= rerollCost,
-    bulkCan: anyAvail && (g.freePicks > 0 || coinCan),
+    bulkCan: coinCan,
     stats,
   };
 }
@@ -202,15 +203,14 @@ export function buildMineHud(state: MineState): MineHudVM {
   const totalDmg = WEAPON_IDS.reduce((a, w) => a + state.dmgByWeapon[w], 0);
   return {
     coins: Math.floor(state.coins), floor: state.floor, runPoints: state.runPoints,
-    starPoints: state.perm.starPoints, starTotal: state.perm.starTotal, dmgMult: globalDamageMult(state.perm.starTotal),
+    starPoints: state.perm.starPoints, starTotal: state.perm.starTotal,
+    dmgMult: globalDamageMult(state.perm.starTotal) * treasurePowerMult(state.perm.treasurePower), treasure: state.perm.treasure,
     progressPct: Math.min(100, (state.dug.size / TOTAL_TILES) * 100),
     level: state.level, xp: Math.floor(state.xp), xpNext: xpForNext(state.level), autoMode: state.autoMode,
     weapons,
     damageShare: WEAPON_IDS.filter((w) => state.dmgByWeapon[w] > 0).map((w) => ({ emoji: choiceMeta(w).emoji, label: choiceMeta(w).label, pct: totalDmg > 0 ? (state.dmgByWeapon[w] / totalDmg) * 100 : 0 })).sort((a, b) => b.pct - a.pct),
     damageMods: damageMods(state),
     runGrid: buildRunGrid(state),
-    idleBonusPct: Math.round(Math.min(B.timePowerCap, (state.time / 60000) * B.timePowerPerMin) * 100),
-    idleBonusMaxed: (state.time / 60000) * B.timePowerPerMin >= B.timePowerCap,
   };
 }
 
@@ -236,9 +236,16 @@ export interface MineWeaponTreeVM {
 export interface MineWeaponUnlockVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly status: 'base' | 'unlocked' | 'locked'; readonly cost: number; readonly can: boolean }
 /** 開始武器の選択肢。 */
 export interface MineStartOptionVM { readonly id: WeaponId; readonly emoji: string; readonly label: string; readonly selected: boolean }
+/** お宝（永続資源）と、それで買う永続強化。 */
+export interface MineTreasureVM {
+  readonly treasure: number;
+  readonly cap: number; readonly capCost: number; readonly capCan: boolean;          // 走行グリッド上限＋
+  readonly powerLvl: number; readonly powerPct: number; readonly powerCost: number; readonly powerCan: boolean; // 永続全体火力＋
+}
 export interface MinePrestigeVM {
   readonly prestiges: number; readonly runPoints: number;
   readonly starPoints: number; readonly starTotal: number; readonly dmgMult: number;
+  readonly treasure: MineTreasureVM;
   readonly weaponTree: readonly MineWeaponTreeVM[];
   readonly unlocks: readonly MineWeaponUnlockVM[];
   readonly startWeapon: WeaponId; readonly startOptions: readonly MineStartOptionVM[];
@@ -256,7 +263,17 @@ export function buildPrestige(state: MineState): MinePrestigeVM {
   return {
     prestiges: state.prestiges,
     runPoints: state.runPoints,
-    starPoints: sp, starTotal: state.perm.starTotal, dmgMult: globalDamageMult(state.perm.starTotal),
+    starPoints: sp, starTotal: state.perm.starTotal, dmgMult: globalDamageMult(state.perm.starTotal) * treasurePowerMult(state.perm.treasurePower),
+    treasure: (() => {
+      const t = state.perm.treasure;
+      const capCost = capUpgradeCost(state.perm.capLevel);
+      const powerCost = treasurePowerCost(state.perm.treasurePower);
+      return {
+        treasure: t,
+        cap: runGridCap(B, state.perm.capLevel), capCost, capCan: t >= capCost,
+        powerLvl: state.perm.treasurePower, powerPct: Math.round((treasurePowerMult(state.perm.treasurePower) - 1) * 100), powerCost, powerCan: t >= powerCost,
+      };
+    })(),
     unlocks: [...BASE_WEAPONS, ...WEAPON_UNLOCK_ORDER].map((w) => {
       const cost = weaponUnlockStar(w);
       const status = BASE_WEAPONS.includes(w) ? 'base' as const : state.perm.unlockedWeapons.includes(w) ? 'unlocked' as const : 'locked' as const;
@@ -310,13 +327,14 @@ export const useMineView = (): MineViewVM => { const s = useMiningStore((x) => x
 export const useMineHud = (): MineHudVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildMineHud(s), [s]); };
 export const useMinePrestige = (): MinePrestigeVM => { const s = useMiningStore((x) => x.state); return useMemo(() => buildPrestige(s), [s]); };
 export const useMineToggleAuto = (): (() => void) => useMiningStore((s) => s.toggleAuto);
-export const useMinePickRunFree = (): ((index: number) => void) => useMiningStore((s) => s.pickRunFree);
 export const useMineBuyRunUnlock = (): ((index: number) => void) => useMiningStore((s) => s.buyRunUnlock);
 export const useMineBuyRunBulk = (): (() => void) => useMiningStore((s) => s.buyRunBulk);
 export const useMineRerollRun = (): (() => void) => useMiningStore((s) => s.rerollRun);
 export const useMinePrestigeAct = (): (() => void) => useMiningStore((s) => s.prestige);
 export const useMineStartRun = (): ((w: WeaponId) => void) => useMiningStore((s) => s.startRun);
 export const useMineUnlockWeapon = (): ((w: WeaponId) => void) => useMiningStore((s) => s.unlockWeapon);
+export const useMineBuyCapUpgrade = (): (() => void) => useMiningStore((s) => s.buyCapUpgrade);
+export const useMineBuyTreasurePower = (): (() => void) => useMiningStore((s) => s.buyTreasurePower);
 export const useMineBuyWeaponSkill = (): ((target: SkillTreeTarget, nodeIndex: number) => void) => useMiningStore((s) => s.buyWeaponSkill);
 export const useMineBuyWeaponSkillMax = (): ((target: SkillTreeTarget) => void) => useMiningStore((s) => s.buyWeaponSkillMax);
 export const useMineSetTarget = (): ((cell: { x: number; y: number }) => void) => useMiningStore((s) => s.setTarget);

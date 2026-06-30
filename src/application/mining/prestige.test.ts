@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { initialMineState, freshRun, emptyPerm, type MineState } from '@application/mining/mineState';
 import { stepMine } from '@application/mining/step';
-import { buyWeaponSkill, buyWeaponSkillMax, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult } from '@application/mining/prestige';
+import { buyWeaponSkill, buyWeaponSkillMax, skillNodeUnlockable, allowedWeapons, weaponUnlockStar, unlockWeapon, startRun, prestige, globalDamageMult, buyCapUpgrade, buyTreasurePower } from '@application/mining/prestige';
+import { buyRunUnlock } from '@application/mining/upgrades';
+import { runGridUnlockable } from '@domain/mining/runGrid';
 import { defaultMiningBalance, WEAPON_IDS, WEAPON_UNLOCK_ORDER, weaponSkillNodes } from '@domain/mining/balance';
 
 const B = defaultMiningBalance;
@@ -86,6 +88,18 @@ describe('mining/prestige', () => {
     const r = prestige(s, B);
     expect(r.perm.starPoints).toBe(s.runPoints);
     expect(r.perm.starTotal).toBe(s.runPoints);
+  });
+
+  it('お宝: 走行グリッドのマス解放でお宝+1、お宝で上限/全体火力を永続購入', () => {
+    let s: MineState = { ...initialMineState(), coins: 99_999 };
+    const i = s.runGrid.nodes.findIndex((_, idx) => runGridUnlockable(s.runGrid, idx));
+    s = buyRunUnlock(s, i, B);
+    expect(s.perm.treasure).toBe(B.treasurePerUnlock); // 解放でお宝+1
+    expect(s.runGrid.unlocked.length).toBe(2);         // 中央＋1
+    const rich = { ...s, perm: { ...s.perm, treasure: 9_999 } };
+    expect(buyCapUpgrade(rich, B).perm.capLevel).toBe(1);             // お宝で上限+1
+    expect(buyTreasurePower(rich, B).perm.treasurePower).toBe(1);     // お宝で全体火力+1
+    expect(buyCapUpgrade({ ...rich, perm: { ...rich.perm, treasure: 0 } }, B).perm.capLevel).toBe(0); // お宝不足で不可
   });
 
   it('累計★で全体ダメージ倍率が上がる（消費しても減らない）', () => {
