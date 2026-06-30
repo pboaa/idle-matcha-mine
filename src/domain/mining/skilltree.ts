@@ -50,18 +50,18 @@ export const skillGridUnlockNeed = (tier: number): number => Math.ceil(skillGrid
 export interface WeaponSkillNode {
   readonly x: number; readonly y: number; readonly tier: number;
   readonly stat: SkillStat; readonly amount: number;
-  readonly starReq: number; // 解放に必要な「累計★」のしきい値（消費しない・累計★がこの値以上で解放可）
+  readonly starCost: number; // 解放に必要な★（消費する）。深い階層/外周/特殊ほど高い＝少しずつ高く。
   readonly big?: boolean; readonly root?: boolean;
   readonly requires: readonly number[];
 }
-// ★必要値: 累計★がこの値に達したら解放（減らない）。深い階層/外周/特殊ほど高い＝少しずつ高く。
-function nodeStarReq(tier: number, ring: number, special: boolean, pickArea: boolean): number {
-  const b = DEFAULT_STAR_REQ;
-  if (pickArea) return b.base; // ツルハシ中央左右の範囲は最序盤で解放
-  return Math.max(1, Math.round(b.base * Math.pow(b.growth, tier) * (1 + ring * 0.35) * (special ? b.specialMult : 1)));
+// ★コスト: ★を消費して購入。深い階層/外周/特殊ほど高い＝少しずつ高く（全部は上げ切れない）。
+function nodeStarCost(tier: number, ring: number, special: boolean, pickArea: boolean): number {
+  const b = DEFAULT_STAR_COST;
+  if (pickArea) return 1; // ツルハシ中央左右の範囲は安く
+  return Math.max(1, Math.round(b.base * Math.pow(b.growth, tier) * (1 + ring * 0.3) * (special ? b.specialMult : 1)));
 }
-// balance.ts の循環参照を避けるため係数はここで保持。累計★の絶対しきい値（深ノードほど多くの転生が要る）。
-const DEFAULT_STAR_REQ = { base: 4, growth: 2.0, specialMult: 2.5 } as const;
+// balance.ts の循環参照を避けるため係数はここで保持。
+const DEFAULT_STAR_COST = { base: 2, growth: 1.7, specialMult: 3 } as const;
 const treeRand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
 
 interface Cell { grid: number; x: number; y: number; ring: number; stat: SkillStat; amount: number; special: boolean; pickArea: boolean; root: boolean; sortKey: number }
@@ -99,7 +99,7 @@ function genGrid(cfg: GridConfig): WeaponSkillNode[] {
     }
   }
   const neighbors = (cell: Cell): number[] => { const size = skillGridSize(cell.grid); return ([[cell.x - 1, cell.y], [cell.x + 1, cell.y], [cell.x, cell.y - 1], [cell.x, cell.y + 1]] as const).filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < size && ny < size).map(([nx, ny]) => indexAt(cell.grid, nx, ny)); };
-  return cells.map((cell) => ({ x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined, starReq: nodeStarReq(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell) }));
+  return cells.map((cell) => ({ x: cell.x, y: cell.y, tier: cell.grid, stat: cell.stat, amount: cell.amount, big: cell.special, root: cell.root || undefined, starCost: nodeStarCost(cell.grid, cell.ring, cell.special, cell.pickArea), requires: neighbors(cell) }));
 }
 
 function weaponSpecials(w: WeaponId): WeaponStat[] {

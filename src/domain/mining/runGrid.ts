@@ -26,12 +26,14 @@ const neighborsOf = (size: number, x: number, y: number): number[] =>
     .filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < size && ny < size)
     .map(([nx, ny]) => idxAt(size, nx, ny));
 
-/** その周のフィラー（汎用・弱め）と特殊（少数・強め）に分類。武器固有は装備中のみ。 */
+// 貫通(pierce)・射程/範囲(range)は走行グリッドに出さない（恒久スキルツリー側で扱う）。
+const RUN_EXCLUDED = (id: PassiveId): boolean => { const e = PASSIVE_DEFS[id].effect; return e === 'pierce' || e === 'range'; };
+/** その周のフィラー（汎用・弱め）と特殊（少数・強め）に分類。武器固有は装備中のみ。貫通/射程は除外。 */
 function poolsFor(equipped: readonly WeaponId[]): { fillers: PassiveId[]; specials: PassiveId[] } {
-  const fillers = PASSIVE_IDS.filter((id) => { const d = PASSIVE_DEFS[id]; return !d.special && !d.reqWeapon; });
+  const fillers = PASSIVE_IDS.filter((id) => { const d = PASSIVE_DEFS[id]; return !d.special && !d.reqWeapon && !RUN_EXCLUDED(id); });
   const specials = PASSIVE_IDS.filter((id) => {
     const d = PASSIVE_DEFS[id];
-    if (!d.special) return false;
+    if (!d.special || RUN_EXCLUDED(id)) return false;
     if (d.reqWeapon && !equipped.includes(d.reqWeapon)) return false;
     return true;
   });

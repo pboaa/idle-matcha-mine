@@ -2,7 +2,7 @@ import { initialMineState, emptyPerm, type MineState, type Perm } from '@applica
 import { defaultMiningBalance } from '@domain/mining/balance';
 
 const KEY = 'idle-matcha-mine/save';
-const VERSION = 6; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v6=グリッド一本化(★ポイント/走行グリッド)・鉱石/熟練/三択廃止
+const VERSION = 7; // 仕様変更でセーブ形式が変わったら上げる（旧セーブは破棄）。v7=★消費(starPoints)＋累計★倍率(starTotal)・放置ツリー廃止・走行グリッド手動のみ
 
 /** 新規ゲーム状態（走行ごとに開始武器が変わる・序盤は手動）。 */
 export function freshState(): MineState {

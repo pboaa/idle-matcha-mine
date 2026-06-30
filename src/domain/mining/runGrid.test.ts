@@ -48,6 +48,14 @@ describe('domain/runGrid', () => {
     expect(reqs.every((w) => w === 'pick' || w === 'bullet')).toBe(true);
   });
 
+  it('貫通・射程(範囲)は走行グリッドに出ない（恒久ツリー側）', () => {
+    for (const seed of [1, 2, 3, 50, 999]) {
+      const g = genRunGrid(seed, 9, ['pick', 'bullet', 'beam']);
+      const effects = g.nodes.map((n) => PASSIVE_DEFS[n.pid].effect);
+      expect(effects.some((e) => e === 'pierce' || e === 'range')).toBe(false);
+    }
+  });
+
   it('リロール: 未解放マスは変わりうる・解放済みと中央は不変', () => {
     let g = genRunGrid(5, 7, ['pick', 'bullet']);
     const rootIdx = g.unlocked[0]!;

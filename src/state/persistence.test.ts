@@ -15,7 +15,8 @@ describe('persistence/export-import', () => {
     expect(r!.dug instanceof Set).toBe(true);
     expect(r!.dug.size).toBe(s.dug.size);
     expect(r!.damage instanceof Map).toBe(true);
-    expect(r!.perm.starEarned).toBe(s.perm.starEarned);
+    expect(r!.perm.starPoints).toBe(s.perm.starPoints);
+    expect(r!.perm.starTotal).toBe(s.perm.starTotal);
     expect(r!.perm.unlockedWeapons).toEqual(s.perm.unlockedWeapons);
   });
 

@@ -29,6 +29,19 @@ export function buyRunUnlock(state: MineState, index: number, b: MiningBalance =
   const grid = runGridUnlock(state.runGrid, index);
   return { ...state, coins: state.coins - cost, runGrid: { ...grid, coinUnlocks: grid.coinUnlocks + 1 } };
 }
+/** 一括購入: 解放可能なマスを「無料解放権→コイン」の順に、可能な限りまとめて解放。 */
+export function buyRunBulk(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
+  let s = state;
+  for (let guard = 0; guard < 400; guard++) {
+    const avail = s.runGrid.nodes.map((_, i) => i).filter((i) => runGridUnlockable(s.runGrid, i));
+    if (avail.length === 0) break;
+    const i = avail[0]!;
+    if (s.runGrid.freePicks > 0) { s = pickRunFree(s, i); continue; }
+    if (s.coins >= runUnlockCoinCost(s, b)) { s = buyRunUnlock(s, i, b); continue; }
+    break; // 解放権なし＆コイン不足
+  }
+  return s;
+}
 /** コインで未解放マスのバフを再抽選（コスト逓増）。 */
 export function rerollRun(state: MineState, b: MiningBalance = defaultMiningBalance): MineState {
   const cost = runRerollCoinCost(state, b);

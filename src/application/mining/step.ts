@@ -5,9 +5,9 @@ import type { MiningBalance, WeaponId } from '@domain/mining/balance';
 import { defaultMiningBalance, WEAPON_DEFS, WEAPON_IDS } from '@domain/mining/balance';
 import { baseOf, totalTilesOf, inBounds, kindAt, tileHardness, tileDist, tileValue } from '@domain/mining/tile';
 import { stepToward, patternHits } from '@domain/mining/patterns';
-import { runPassiveLevels, runGridUnlock, autoPickRun } from '@domain/mining/runGrid';
+import { runPassiveLevels } from '@domain/mining/runGrid';
 import { type MineState, type Levels, type WeaponStatLevels } from '@application/mining/mineState';
-import { weaponSkillStats, mainSkillStats, autoEfficiency } from '@application/mining/prestige';
+import { weaponSkillStats, mainSkillStats, globalDamageMult } from '@application/mining/prestige';
 import { xpForNext } from '@application/mining/upgrades';
 import { passiveTotals, weaponDmg, weaponRange, weaponMult, type EffectTotals } from '@application/mining/weapons';
 
@@ -154,8 +154,8 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     }
   }
 
-  // 武器発射（武器ごとの攻撃間隔で発射）。放置時間ボーナス＋メイン火力＋自動効率。
-  const globalMul = timeMult * (1 + mainPower) * (state.autoMode ? autoEfficiency(state.perm.idle, b) : 1);
+  // 武器発射（武器ごとの攻撃間隔で発射）。放置時間ボーナス＋メイン火力＋累計★倍率（自動でも火力は下がらない）。
+  const globalMul = timeMult * (1 + mainPower) * globalDamageMult(state.perm.starTotal, b);
   const weaponCd = { ...state.weaponCd };
   const skillStats = Object.fromEntries(WEAPON_IDS.map((w) => [w, weaponSkillStats(w, state.perm.weaponSkill[w])])) as Record<WeaponId, WeaponStatLevels>;
   fireWeapons({ dug, pos, target, levels: L, totals: t, skillStats, globalMul, mainHaste, dtMs, cd: weaponCd, rangeBonus, pierceBonus, b }, applyDmg);
@@ -174,7 +174,7 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
   // 演出ドロップは一定時間で消す（回収は済み）。
   if (drops.length > 0) { const keep = drops.filter((d) => now - d.bornAt < b.dropVisualMs); if (keep.length !== drops.length) drops = keep; }
 
-  // レベルアップ＝走行グリッドの解放権(freePicks)+1＆獲得予定★+pointsPerLevel。自動モードは即解放。
+  // レベルアップ＝走行グリッドの解放権(freePicks)+1＆獲得予定★+pointsPerLevel。解放は手動のみ（自動解放しない）。
   let xp = state.xp + xpGain;
   let level = state.level;
   let runPoints = state.runPoints;
@@ -184,15 +184,6 @@ function stepOnce(state: MineState, dtMs: number, b: MiningBalance): MineState {
     level += 1;
     runPoints += b.pointsPerLevel;
     runGrid = { ...runGrid, freePicks: runGrid.freePicks + 1 };
-  }
-  if (state.autoMode) {
-    let guard = 0;
-    while (runGrid.freePicks > 0 && guard++ < 64) {
-      const i = autoPickRun(runGrid, rng);
-      if (i === null) break;
-      const g = runGridUnlock(runGrid, i);
-      runGrid = { ...g, freePicks: g.freePicks - 1 };
-    }
   }
 
   return {

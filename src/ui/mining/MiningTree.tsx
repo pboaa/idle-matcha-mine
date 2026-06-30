@@ -1,4 +1,4 @@
-import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, useMineBuyIdle, type MineSkillNodeVM, type MineTierVM, type SkillTreeTarget } from '@state/miningSelectors';
+import { useMinePrestige, useMineBuyWeaponSkill, useMineBuyWeaponSkillMax, type MineSkillNodeVM, type MineTierVM, type SkillTreeTarget } from '@state/miningSelectors';
 import { useState } from 'react';
 import { formatNumber } from '@shared/format';
 
@@ -14,7 +14,7 @@ function SkillGrid({ size, nodes, onBuy }: { size: number; nodes: readonly MineS
     <div className="mx-auto grid w-fit gap-0.5" style={{ gridTemplateColumns: `repeat(${size}, ${cell})` }}>
       {nodes.map((n) => (
         <button key={n.index} disabled={!(n.state === 'available' && n.can)} onClick={() => onBuy(n.index)}
-          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? `累計★${n.star}で解放（消費しない）` : `累計★${n.star}必要`}`}
+          title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.big ? '（特殊）' : ''}${n.root ? '（中央/起点）' : ''} ／ ${n.state === 'unlocked' ? '解放済み' : n.can ? `★${n.star}で解放（消費）` : `★不足（★${n.star}）`}`}
           style={{ height: cell }}
           className={['flex flex-col items-center justify-center rounded-[3px] text-[11px] leading-none ring-1 transition', n.big && n.visible ? 'ring-2' : '', cellCls(n)].join(' ')}>
           {n.visible && <span>{n.state === 'unlocked' ? (n.root ? '◎' : '✓') : n.emoji}</span>}
@@ -48,7 +48,6 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
   const p = useMinePrestige();
   const buyWeaponSkill = useMineBuyWeaponSkill();
   const buyWeaponSkillMax = useMineBuyWeaponSkillMax();
-  const buyIdle = useMineBuyIdle();
   const [weaponSel, setWeaponSel] = useState<SkillTreeTarget>('pick');
   const [tierSel, setTierSel] = useState(0);
   const wt = p.weaponTree.find((w) => w.id === weaponSel) ?? p.weaponTree[0]!;
@@ -62,22 +61,10 @@ export function MiningTree({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="rounded-md bg-stone-700 px-2 py-0.5 text-xs text-stone-200 hover:bg-stone-600">✕ 閉じる</button>
       </div>
 
-      {/* ★残高 */}
-      <div className="flex items-center justify-between rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-600/40">
-        <div className="text-[12px] text-amber-100">⭐ 累計★</div>
-        <div className="text-[13px] font-bold text-amber-200">{formatNumber(p.starEarned)} <span className="text-[10px] font-normal text-amber-300/70">（増える一方・必要値に達したマスが解放可／消費しない）</span></div>
-      </div>
-
-      {/* 放置ツリー（★で自動効率を100%へ） */}
-      <div className="flex items-center justify-between rounded-lg bg-emerald-950/40 p-2 ring-1 ring-emerald-700/40">
-        <div className="text-[12px] text-emerald-100">
-          🌙 放置ツリー Lv{p.idle.lv}/{p.idle.maxLv}
-          <span className="ml-1 text-[10px] text-emerald-300/80">自動モードの火力 {p.idle.autoEffPct}%（手動は常に100%）</span>
-        </div>
-        <button onClick={buyIdle} disabled={!p.idle.can}
-          className={['rounded-md px-2 py-1 text-[11px] font-bold shadow transition', p.idle.maxed ? 'bg-emerald-700 text-emerald-200' : p.idle.can ? 'bg-emerald-400 text-stone-900 hover:bg-emerald-300' : 'cursor-not-allowed bg-stone-700 text-stone-400'].join(' ')}>
-          {p.idle.maxed ? 'MAX(100%)' : <>⭐{formatNumber(p.idle.cost ?? 0)}</>}
-        </button>
+      {/* ★残高（消費して購入）＋累計★（消費しても減らない・全体倍率） */}
+      <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-950/40 p-2 ring-1 ring-amber-600/40">
+        <div className="text-[12px] text-amber-100">⭐ ★残高 <b className="text-amber-200">{formatNumber(p.starPoints)}</b><span className="ml-1 text-[10px] font-normal text-amber-300/70">（マス解放で消費）</span></div>
+        <div className="text-right text-[10px] text-amber-300/80">累計★ {formatNumber(p.starTotal)}<br /><span className="text-amber-200">全体ダメージ ×{p.dmgMult.toFixed(2)}</span><span className="ml-1 text-stone-500">(消費しても減らない)</span></div>
       </div>
 
       {/* 武器ごとの強化＋メイン（階層ごとに1グリッド・タブ切替・中央から外へ広げる） */}

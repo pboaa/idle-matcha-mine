@@ -21,9 +21,9 @@ export type WeaponSkill = Record<WeaponId, number[]>;
 export interface Perm {
   readonly weaponSkill: WeaponSkill;
   readonly mainSkill: number[];
-  readonly idle: number;
-  readonly starEarned: number;            // 累計★（転生で貯まり、増える一方。各強化の解放しきい値に使う・消費しない）
-  readonly unlockedWeapons: WeaponId[];   // 開始時に選べる武器（つるはし以外。累計★で解放）
+  readonly starPoints: number;            // 消費可能な★残高（恒久グリッド/武器解放に使う）
+  readonly starTotal: number;             // 累計★（消費しても減らない総獲得★・全体ダメージ倍率に使う）
+  readonly unlockedWeapons: WeaponId[];   // 開始時に選べる武器（つるはし以外。★で解放）
 }
 
 const ALL_IDS: readonly ChoiceId[] = [...WEAPON_IDS, ...PASSIVE_IDS];
@@ -31,7 +31,7 @@ export const zeroLevels = (): Levels => Object.fromEntries(ALL_IDS.map((id) => [
 const zeroDmg = (): Record<WeaponId, number> => Object.fromEntries(WEAPON_IDS.map((id) => [id, 0])) as Record<WeaponId, number>;
 
 export const emptyWeaponSkill = (): WeaponSkill => Object.fromEntries(WEAPON_IDS.map((w) => [w, [] as number[]])) as WeaponSkill;
-export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), mainSkill: [], idle: 0, starEarned: 0, unlockedWeapons: ['bullet'] });
+export const emptyPerm = (): Perm => ({ weaponSkill: emptyWeaponSkill(), mainSkill: [], starPoints: 0, starTotal: 0, unlockedWeapons: ['bullet'] });
 
 export interface MineState {
   readonly time: number;

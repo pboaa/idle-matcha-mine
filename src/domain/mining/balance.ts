@@ -98,17 +98,15 @@ export interface MiningBalance {
   readonly timePowerPerMin: number; // 1分ごとの上昇（火力＆速度に乗る）
   readonly timePowerCap: number;    // 上限（例: 1.0 = +100%）
 
-  // 恒久グリッド（武器ツリー/メイン）のノード★必要値は skilltree.ts（DEFAULT_STAR_REQ）が保持。
-  // 武器の解放に必要な累計★（WEAPON_UNLOCK_ORDER順に少しずつ高い・消費しない）。
+  // 恒久グリッド（武器ツリー/メイン）のノード★コストは skilltree.ts（DEFAULT_STAR_COST）が保持。★を消費して購入。
+  // 武器の解放に必要な★（消費・WEAPON_UNLOCK_ORDER順に少しずつ高い）。
   readonly weaponUnlockStarCost: readonly number[];
-  // 放置ツリー（自動効率を100%へ・累計★しきい値）。
-  readonly autoEffBase: number;    // 放置ツリーLv0での自動効率（火力倍率）
-  readonly idleEffPerLvl: number;  // 放置ツリー1Lvあたりの自動効率+
-  readonly idleStarCostBase: number; readonly idleStarCostGrowth: number; // 放置ツリーの必要累計★
+  // 累計★（消費しない総獲得★）による全体ダメージ倍率: 1 + starMultPerLvl×√累計★（√で逓減＝壊れない）。
+  readonly starMultPerLvl: number;
 
-  // 走行グリッド（その周だけ・ランダム）。コインでマス即時解放/リロール（走行限定・少しずつ高く）。
+  // 走行グリッド（その周だけ・ランダム・手動のみ）。コインでマス解放/リロール（走行限定・少しずつ高く）。
   readonly runGridSize: number;
-  readonly runCoinCostBase: number; readonly runCoinGrowth: number;     // マス即時解放
+  readonly runCoinCostBase: number; readonly runCoinGrowth: number;     // マス解放（コスト逓増）
   readonly runRerollCostBase: number; readonly runRerollGrowth: number; // 未解放マスのリロール
 }
 
@@ -142,10 +140,8 @@ export const defaultMiningBalance: MiningBalance = {
   pointsPerLevel: 1, pointsPerFloor: 3,
   timePowerPerMin: 0.008, timePowerCap: 1.0, // 毎分+0.8%・最大+100%（約2時間で頭打ち＝のんびり放置）
 
-  weaponUnlockStarCost: [10, 24, 48, 85, 140], // bomb/beam/drill/aura/ring（累計★しきい値・少しずつ高く）
-
-  autoEffBase: 0.7, idleEffPerLvl: 0.05,
-  idleStarCostBase: 6, idleStarCostGrowth: 1.7,
+  weaponUnlockStarCost: [10, 24, 48, 85, 140], // bomb/beam/drill/aura/ring（★消費・少しずつ高く）
+  starMultPerLvl: 0.04, // 累計★で全体ダメージ 1+0.04×√累計★（100→×1.4, 400→×1.8, 2500→×3）
 
   runGridSize: 7,
   runCoinCostBase: 30, runCoinGrowth: 1.5,

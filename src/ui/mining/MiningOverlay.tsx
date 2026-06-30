@@ -14,12 +14,13 @@ export function MiningOverlay() {
         <div className="pointer-events-auto rounded-md bg-black/55 px-2 py-1 text-[13px] font-bold text-amber-300 shadow backdrop-blur-sm">
           🪙 {formatNumber(hud.coins)}
           <span className="ml-2 text-stone-200">地下 {hud.floor + 1}階</span>
+          {hud.dmgMult > 1.001 && <span className="ml-2 text-amber-200" title="累計★による全体ダメージ倍率（消費しても減らない）">⭐×{hud.dmgMult.toFixed(2)}</span>}
           {hud.runPoints > 0 && <span className="ml-2 text-fuchsia-300" title="転生でもらえる★">⭐+{formatNumber(hud.runPoints)}</span>}
           {hud.idleBonusPct > 0 && <span className={['ml-2', hud.idleBonusMaxed ? 'text-emerald-300' : 'text-emerald-400'].join(' ')} title="放置ボーナス: 時間で火力＆採掘速度が上昇（上限あり）">🌙+{hud.idleBonusPct}%{hud.idleBonusMaxed ? '(MAX)' : ''}</span>}
         </div>
-        <button onClick={toggleAuto} title="手動: 移動も走行グリッドも自分で操作（火力100%） ／ 自動: おまかせ（火力↓・放置ツリーで回復）"
+        <button onClick={toggleAuto} title="手動: クリックで猫を誘導 ／ 自動: おまかせ移動。どちらも火力は同じ（ペナルティなし）"
           className={['pointer-events-auto rounded-md px-2 py-1 text-[11px] font-bold shadow backdrop-blur-sm transition', hud.autoMode ? 'bg-emerald-600/90 text-white hover:bg-emerald-500' : 'bg-amber-400/90 text-stone-900 hover:bg-amber-300'].join(' ')}>
-          {hud.autoMode ? `⚙️ 自動 火力${hud.autoEffPct}%` : '✋ 手動 火力100%'}
+          {hud.autoMode ? '⚙️ 自動' : '✋ 手動'}
         </button>
       </div>
 

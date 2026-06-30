@@ -44,13 +44,13 @@ describe('mining/skilltree', () => {
     expect(main.filter((n) => n.stat === 'power' || n.stat === 'mine' || n.stat === 'haste').length).toBeGreaterThan(main.length * 0.8); // 大半がfiller(火力/採掘/速度)
   });
 
-  it('★必要値(累計しきい値): 全ノードに正の必要★・深い階層/外周ほど高い', () => {
+  it('★コスト: 全ノードに正の★コスト・深い階層/外周ほど高い', () => {
     const nodes = weaponSkillNodes('bullet');
-    expect(nodes.every((n) => n.starReq >= 1)).toBe(true);             // 1ノード＝正の必要累計★
+    expect(nodes.every((n) => n.starCost >= 1)).toBe(true);            // 1ノード＝正の★コスト
     const root = (t: number): typeof nodes[number] => nodes.find((n) => n.tier === t && n.root)!;
-    expect(root(4).starReq).toBeGreaterThan(root(0).starReq);          // 深い階層ほど高い
-    const reqs = new Set(nodes.map((n) => n.starReq));
-    expect(reqs.size).toBeGreaterThanOrEqual(3);                       // 位置で段階的に必要値が変わる
+    expect(root(4).starCost).toBeGreaterThan(root(0).starCost);        // 深い階層ほど高い
+    const costs = new Set(nodes.map((n) => n.starCost));
+    expect(costs.size).toBeGreaterThanOrEqual(3);                      // 位置で段階的にコストが変わる
   });
 
   it('weaponStatApplies: 貫通=直線系のみ／範囲=フィールド系以外', () => {

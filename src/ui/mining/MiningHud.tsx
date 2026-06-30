@@ -1,4 +1,4 @@
-import { useMineHud, useMinePickRunFree, useMineBuyRunUnlock, useMineRerollRun, type MineRunGridVM, type MineRunNodeVM } from '@state/miningSelectors';
+import { useMineHud, useMinePickRunFree, useMineBuyRunUnlock, useMineBuyRunBulk, useMineRerollRun, type MineRunGridVM, type MineRunNodeVM } from '@state/miningSelectors';
 import { formatNumber } from '@shared/format';
 
 const runCellCls = (n: MineRunNodeVM): string =>
@@ -8,13 +8,13 @@ const runCellCls = (n: MineRunNodeVM): string =>
       ? (n.special ? 'bg-fuchsia-500 text-stone-900 ring-fuchsia-300 hover:bg-fuchsia-400 active:scale-95 cursor-pointer' : 'bg-amber-400 text-stone-900 ring-amber-200 hover:bg-amber-300 active:scale-95 cursor-pointer')
       : 'bg-stone-900/60 text-transparent ring-stone-800/50 cursor-default'; // 未到達＝隠す
 
-/** 走行グリッド（その周だけ・ランダム）。レベルアップで1マス無料解放／コインで即時解放・リロール。 */
-function RunGridView({ g, onPick }: { g: MineRunGridVM; onPick: (i: number) => void }) {
+/** 走行グリッド（その周だけ・ランダム・手動のみ）。レベルアップで解放権1／コインで解放(逓増)・一括・リロール。 */
+function RunGridView({ g, onPick, onBulk }: { g: MineRunGridVM; onPick: (i: number) => void; onBulk: () => void }) {
   const cell = g.size >= 9 ? '1.4rem' : '1.6rem';
   return (
     <div className="flex flex-col gap-1 rounded-md bg-stone-800/60 p-2 ring-1 ring-amber-700/30">
       <div className="flex items-center justify-between text-[11px]">
-        <span className="font-bold text-amber-200">🎁 走行グリッド</span>
+        <span className="font-bold text-amber-200">🎁 走行グリッド<span className="ml-1 text-[9px] font-normal text-stone-500">手動・その周だけ</span></span>
         <span className={g.freePicks > 0 ? 'rounded bg-amber-500 px-1.5 text-[10px] font-bold text-stone-900' : 'text-[10px] text-stone-500'}>
           解放権 ×{g.freePicks}
         </span>
@@ -24,16 +24,22 @@ function RunGridView({ g, onPick }: { g: MineRunGridVM; onPick: (i: number) => v
           <button key={n.index} disabled={n.state !== 'available'} onClick={() => onPick(n.index)} style={{ height: cell }}
             title={!n.visible ? '未到達（隣を解放すると現れる）' : `${n.label}${n.special ? '（特殊）' : ''}${n.state === 'unlocked' ? '・取得済み' : g.freePicks > 0 ? '・クリックで解放(無料)' : `・🪙${formatNumber(g.coinCost)}で解放`}`}
             className={['flex items-center justify-center rounded-[3px] text-[12px] leading-none ring-1 transition', n.special && n.visible ? 'ring-2' : '', runCellCls(n)].join(' ')}>
-            {n.visible && <span>{n.state === 'unlocked' ? n.emoji : n.emoji}</span>}
+            {n.visible && <span>{n.emoji}</span>}
           </button>
         ))}
       </div>
-      <div className="flex items-center justify-between text-[10px] text-stone-400">
-        <span>{g.freePicks > 0 ? 'マスをクリックで解放' : `クリックで 🪙${formatNumber(g.coinCost)} 解放`}</span>
-        <button onClick={() => onPick(-1)} disabled={!g.rerollCan}
-          className={['rounded px-1.5 py-0.5 text-[10px] font-bold transition', g.rerollCan ? 'bg-sky-500 text-stone-900 hover:bg-sky-400' : 'cursor-not-allowed bg-stone-700 text-stone-500'].join(' ')}>
-          🔄リロール 🪙{formatNumber(g.rerollCost)}
-        </button>
+      <div className="flex items-center justify-between gap-1 text-[10px] text-stone-400">
+        <span>{g.freePicks > 0 ? 'クリックで解放（無料）' : `クリックで 🪙${formatNumber(g.coinCost)} 解放`}</span>
+        <div className="flex gap-1">
+          <button onClick={onBulk} disabled={!g.bulkCan}
+            className={['rounded px-1.5 py-0.5 text-[10px] font-bold transition', g.bulkCan ? 'bg-amber-500 text-stone-900 hover:bg-amber-400' : 'cursor-not-allowed bg-stone-700 text-stone-500'].join(' ')}>
+            ⏫一括
+          </button>
+          <button onClick={() => onPick(-1)} disabled={!g.rerollCan}
+            className={['rounded px-1.5 py-0.5 text-[10px] font-bold transition', g.rerollCan ? 'bg-sky-500 text-stone-900 hover:bg-sky-400' : 'cursor-not-allowed bg-stone-700 text-stone-500'].join(' ')}>
+            🔄🪙{formatNumber(g.rerollCost)}
+          </button>
+        </div>
       </div>
       {g.stats.length > 0 && (
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 border-t border-stone-700/50 pt-1 text-[11px]">
@@ -49,6 +55,7 @@ export function MiningHud() {
   const hud = useMineHud();
   const pickFree = useMinePickRunFree();
   const buyUnlock = useMineBuyRunUnlock();
+  const bulk = useMineBuyRunBulk();
   const reroll = useMineRerollRun();
 
   const onPick = (i: number): void => {
@@ -66,7 +73,7 @@ export function MiningHud() {
       </div>
 
       {/* 走行グリッド */}
-      <RunGridView g={hud.runGrid} onPick={onPick} />
+      <RunGridView g={hud.runGrid} onPick={onPick} onBulk={bulk} />
 
       {/* 武器ごとのダメージ寄与＋強化の威力倍率 */}
       {(hud.damageShare.length > 0 || hud.damageMods.length > 0) && (

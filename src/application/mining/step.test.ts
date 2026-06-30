@@ -64,11 +64,11 @@ describe('mining/step', () => {
     expect(s.coins).toBeGreaterThan(0);   // コインは貯まる（走行グリッドの即時解放/リロールに使う）
   });
 
-  it('自動モードはレベルアップで走行グリッドを自動解放する', () => {
+  it('レベルアップで走行グリッドの解放権が貯まる（手動のみ＝自動解放しない）', () => {
     const s = stepMine(initialMineState(), 120_000);
     expect(s.level).toBeGreaterThan(1);                           // レベルが上がっている
-    expect(s.runGrid.unlocked.length).toBeGreaterThan(1);        // 中央＋自動解放したマス
-    expect(s.runGrid.freePicks).toBe(0);                         // 自動なら解放権は使い切る
+    expect(s.runGrid.unlocked.length).toBe(1);                   // 中央のみ（自動では解放しない）
+    expect(s.runGrid.freePicks).toBeGreaterThan(0);             // 解放権が貯まる（手動で使う）
     expect(s.runPoints).toBeGreaterThan(0);                      // 転生でもらえる★が貯まる
   });
 
